@@ -1,0 +1,1784 @@
+<!--
+  SPLIT LEDGER v0.2
+  Single-file, offline, no-account reconciliation of shared expenses
+  between two people with separate cards.
+
+  WHAT CHANGED FROM v0.1
+  ----------------------
+  v0.1 guessed at bank formats and took the last money value on a line as the
+  amount. On TD that is the running balance, which silently produced plausible
+  but wrong rows. v0.2 parses by column position, per bank, and refuses the
+  import if any amount matches a balance.
+
+  HOW TO CHANGE THIS FILE
+  -----------------------
+  The engine is between the ==ENGINE-START== and ==ENGINE-END== markers and is
+  pure — no DOM. Most edits belong there:
+    PROCESSORS   payment-processor prefixes to strip
+    FAMILIES     merchant name variants that should collapse together
+    CATEGORIES   category inference
+    NOISE        structural lines to drop
+    parseTD / parseBMO / parseGeneric
+
+  MEMORY works in two layers. The page auto-saves to browser storage when it
+  can. Save session / Load session writes a JSON file — that layer carries
+  rules into next month and moves between laptops, and it's the one to rely on.
+  The shared-items export is a separate, redacted file.
+
+  NO NETWORK CALLS ANYWHERE IN THIS FILE.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Split Ledger</title>
+<style>
+:root{
+  --paper:#f6f8f4; --band:#e7eee1; --card:#ffffff;
+  --rule:#c9d4c2; --hairline:#dde5d7;
+  --ink:#17211b; --ink-soft:#5c6b60; --ink-faint:#8c9a90;
+  --mine:#1f5c8b; --theirs:#a63d5b;
+  --warn:#9a5b16; --ok:#2e6b4a; --stop:#9c2f2f;
+  --mono: ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
+  --sans: ui-sans-serif,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --r:3px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:1220px;margin:0 auto;padding:0 24px 80px}
+
+header.masthead{border-bottom:2px solid var(--ink);padding:22px 0 14px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:12px}
+.brand h1{font-size:19px;margin:0;font-weight:650;letter-spacing:.14em;text-transform:uppercase}
+.brand .ver{font-family:var(--mono);font-size:11px;color:var(--ink-faint)}
+.masthead .who{font-family:var(--mono);font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.masthead .who input{font-family:var(--mono);font-size:12px;background:transparent;border:none;border-bottom:1px solid var(--rule);padding:2px 0;width:92px}
+
+nav.steps{display:flex;border-bottom:1px solid var(--rule);margin-bottom:26px;flex-wrap:wrap}
+nav.steps button{background:none;border:none;cursor:pointer;padding:12px 20px 10px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;color:var(--ink-faint);border-bottom:2px solid transparent;margin-bottom:-1px}
+nav.steps button .num{font-family:var(--mono);margin-right:8px;opacity:.6}
+nav.steps button:hover{color:var(--ink-soft)}
+nav.steps button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+nav.steps button:focus-visible{outline:2px solid var(--mine);outline-offset:-2px}
+.view{display:none}
+.view.active{display:block}
+
+h2.sec{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);font-weight:650;margin:0 0 12px}
+p.help{color:var(--ink-soft);max-width:64ch;margin:0 0 18px}
+.grid2{display:grid;grid-template-columns:1fr 330px;gap:36px;align-items:start}
+@media (max-width:940px){.grid2{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--hairline);border-radius:var(--r);padding:16px}
+.panel + .panel{margin-top:14px}
+
+label.field{display:block;margin-bottom:14px}
+label.field > span{display:block;font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:5px;font-weight:600}
+input[type=text],input[type=number],select,textarea{width:100%;background:var(--paper);border:1px solid var(--rule);border-radius:var(--r);padding:8px 10px}
+textarea{font-family:var(--mono);font-size:12.5px;line-height:1.65;min-height:220px;resize:vertical;white-space:pre;overflow-x:auto}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--mine);outline-offset:-1px;border-color:var(--mine)}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:640px){.row3,.row2{grid-template-columns:1fr}}
+
+.btn{background:var(--ink);color:var(--paper);border:1px solid var(--ink);border-radius:var(--r);padding:9px 16px;cursor:pointer;font-weight:600;font-size:13px}
+.btn:hover{background:#000}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--rule)}
+.btn.ghost:hover{background:var(--band)}
+.btn.small{padding:5px 10px;font-size:12px}
+.btn:focus-visible{outline:2px solid var(--mine);outline-offset:2px}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.note{font-size:12px;color:var(--ink-faint);margin-top:8px}
+
+.readout{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--hairline);border:1px solid var(--hairline);border-radius:var(--r);overflow:hidden}
+.readout div{background:var(--card);padding:10px 12px}
+.readout .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);font-weight:600}
+.readout .v{font-family:var(--mono);font-size:16px;margin-top:2px}
+
+details.drop{border:1px solid var(--hairline);border-radius:var(--r);background:var(--card);margin-top:14px}
+details.drop > summary{cursor:pointer;padding:10px 14px;font-size:12.5px;font-weight:600;list-style:none}
+details.drop > summary::-webkit-details-marker{display:none}
+details.drop > summary::before{content:"▸ ";color:var(--ink-faint)}
+details.drop[open] > summary::before{content:"▾ "}
+details.drop .inner{border-top:1px solid var(--hairline);padding:10px 14px;font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);max-height:280px;overflow:auto}
+details.drop .inner div{padding:2px 0;display:flex;gap:10px}
+details.drop .inner .why{color:var(--ink-faint);flex:none;width:112px}
+
+/* ledger */
+.daygroup{margin-bottom:24px}
+.dayhead{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--ink);padding-bottom:5px}
+.dayhead .d{font-weight:650;font-size:13px;letter-spacing:.04em}
+.dayhead .ctx{font-size:11.5px;color:var(--ink-faint);font-style:italic}
+.dayhead .meta{font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-left:auto}
+.dayhead .bulk{display:flex;gap:4px;margin-left:auto}
+.dayhead .bulk button{font-size:10.5px;padding:2px 7px;border:1px solid var(--rule);background:var(--paper);border-radius:var(--r);cursor:pointer}
+.dayhead .bulk button:hover{background:var(--band)}
+
+.txn{display:grid;grid-template-columns:1fr 108px 348px;gap:14px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--hairline);background:var(--card)}
+.daygroup .txn:nth-child(even){background:var(--band)}
+.txn.cursor{box-shadow:inset 3px 0 0 var(--ink);background:#fffdf2}
+.txn.undecided .m1::after{content:"?";font-family:var(--mono);color:var(--warn);margin-left:7px;font-weight:700}
+.txn .m1{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.txn .m2{display:block;font-size:11px;color:var(--ink-faint);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.chip{display:inline-block;font-size:10px;letter-spacing:.04em;padding:1px 6px;border-radius:10px;background:var(--band);color:var(--ink-soft);margin-left:6px;vertical-align:1px}
+.chip.f{background:#fdf1dd;color:var(--warn)}
+.chip.r{background:#e6f0e9;color:var(--ok)}
+.txn .amt{font-family:var(--mono);text-align:right;font-size:14px}
+.txn .amt.neg{color:var(--ok)}
+.splitbar{height:4px;background:var(--theirs);border-radius:2px;overflow:hidden;margin-top:5px}
+.splitbar i{display:block;height:100%;background:var(--mine)}
+
+.seg{display:flex;align-items:center}
+.seg button{flex:1;background:var(--paper);border:1px solid var(--rule);padding:5px 2px;cursor:pointer;font-size:10.5px;font-weight:600;border-right-width:0;white-space:nowrap}
+.seg button:first-child{border-radius:var(--r) 0 0 var(--r)}
+.seg button.theirs{border-right-width:1px;border-radius:0 var(--r) var(--r) 0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.seg button.mine[aria-pressed="true"]{background:var(--mine);border-color:var(--mine)}
+.seg button.mostly[aria-pressed="true"]{background:linear-gradient(90deg,var(--mine) 70%,var(--theirs) 70%);border-color:var(--ink);color:#fff}
+.seg button.half[aria-pressed="true"]{background:linear-gradient(90deg,var(--mine) 50%,var(--theirs) 50%);border-color:var(--ink);color:#fff}
+.seg button.mostlyt[aria-pressed="true"]{background:linear-gradient(90deg,var(--mine) 30%,var(--theirs) 30%);border-color:var(--ink);color:#fff}
+.seg button.theirs[aria-pressed="true"]{background:var(--theirs);border-color:var(--theirs)}
+.seg button:focus-visible{outline:2px solid var(--ink);outline-offset:1px;position:relative;z-index:2}
+.pin{border:1px solid var(--rule);background:var(--paper);border-radius:var(--r);margin-left:6px;padding:5px 7px;cursor:pointer;font-size:11px;line-height:1}
+.pin[aria-pressed="true"]{background:var(--ok);color:#fff;border-color:var(--ok)}
+
+.rail{position:sticky;top:16px}
+.rail .stat{border-top:1px solid var(--rule);padding:10px 0}
+.rail .stat .k{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint);font-weight:600}
+.rail .stat .v{font-family:var(--mono);font-size:19px}
+.rail .stat .v.small{font-size:14px}
+.keys{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);line-height:1.95}
+.keys kbd{background:var(--band);border:1px solid var(--rule);border-bottom-width:2px;border-radius:3px;padding:1px 5px;font-family:var(--mono);font-size:11px}
+.storemode{font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:10px}
+.banner{display:flex;align-items:center;gap:10px;padding:10px 14px;margin:14px 0 -6px;border-radius:var(--r);font-size:13px;border:1px solid var(--hairline);background:var(--card)}
+.banner .dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--ink-faint)}
+.banner.wait{background:#fdf9ef;border-color:#e8d59b}
+.banner.wait .dot{background:var(--warn)}
+.banner.ready{background:#eef5f0;border-color:#bcd8c6}
+.banner.ready .dot{background:var(--ok)}
+.banner.closed{background:var(--band);border-color:var(--rule)}
+.banner.closed .dot{background:var(--ok)}
+.banner strong{font-weight:650}
+
+.verdict{border:2px solid var(--ink);border-radius:var(--r);padding:24px;text-align:center;background:var(--card)}
+.verdict .lbl{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);font-weight:650}
+.verdict .num{font-family:var(--mono);font-size:42px;line-height:1.1;margin:8px 0 4px}
+.verdict .dir{font-size:14px;color:var(--ink-soft)}
+
+table.mini{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:16px}
+table.mini th{text-align:left;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);border-bottom:1px solid var(--ink);padding:6px 8px;font-weight:650}
+table.mini td{padding:6px 8px;border-bottom:1px solid var(--hairline)}
+table.mini td.n{font-family:var(--mono);text-align:right}
+table.mini tr:nth-child(even) td{background:var(--band)}
+
+.flag{background:#fdf6e6;border:1px solid #e8d59b;border-radius:var(--r);padding:10px 13px;font-size:12.5px;color:var(--warn);margin-bottom:12px}
+.flag.stop{background:#fbeceb;border-color:#e3b4b0;color:var(--stop)}
+.flag.good{background:#eef5f0;border-color:#bcd8c6;color:var(--ok)}
+.empty{color:var(--ink-faint);padding:36px 0;text-align:center;font-style:italic}
+
+.checks{border:1px solid var(--hairline);border-radius:var(--r);background:var(--card);overflow:hidden}
+.checks .ck{display:flex;gap:11px;align-items:flex-start;padding:11px 14px;border-bottom:1px solid var(--hairline);font-size:13px}
+.checks .ck:last-of-type{border-bottom:none}
+.checks .mark{font-family:var(--mono);font-weight:700;width:15px;flex:none;line-height:1.45}
+.checks .ck.pass .mark{color:var(--ok)}
+.checks .ck.warn .mark{color:var(--warn)}
+.checks .ck.warn{background:#fdf9ef}
+.checks .ck .body strong{display:block;font-weight:650}
+.checks .ck .body span{color:var(--ink-soft);font-size:12.5px}
+.checks .ck .body ul{margin:6px 0 0;padding-left:16px;font-family:var(--mono);font-size:11.5px;color:var(--ink-soft)}
+.checks .ck input[type=checkbox]{margin:3px 0 0}
+.gate{display:flex;align-items:center;gap:9px;padding:11px 14px;background:var(--band);border-top:1px solid var(--rule);font-size:12.5px}
+.rulelist{font-family:var(--mono);font-size:12px;max-height:260px;overflow:auto}
+.trow{display:flex;gap:8px;font-family:var(--mono);font-size:11.5px;padding:2px 0;border-bottom:1px solid var(--hairline)}
+.trow .id{width:38px;flex:none;color:var(--ink-faint)}
+.trow .st{width:14px;flex:none;font-weight:700}
+.trow.p .st{color:var(--ok)}
+.trow.f .st{color:var(--stop)}
+.trow.f{background:#fbeceb}
+.trow .lb{flex:1}
+.trow .got{color:var(--stop);flex:none}
+.tsum{font-weight:650;font-size:13px;margin-bottom:8px}
+.tsum.p{color:var(--ok)}
+.tsum.f{color:var(--stop)}
+.rulelist div{display:flex;justify-content:space-between;gap:8px;padding:3px 0;border-bottom:1px solid var(--hairline)}
+.rulelist button{background:none;border:none;color:var(--ink-faint);cursor:pointer;padding:0 4px}
+.rulelist button:hover{color:var(--theirs)}
+@media (prefers-reduced-motion:no-preference){.txn{transition:background .12s ease}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div class="brand"><h1>Split Ledger</h1><span class="ver" id="verTag">v0.3.0</span></div>
+  <div class="who">
+    <span>I am</span>
+    <select id="iAm" aria-label="Which of you is using this" style="width:auto;padding:4px 8px"></select>
+    <span id="otherName" style="color:var(--ink-faint)"></span>
+  </div>
+</header>
+
+<div id="statusBanner"></div>
+
+<nav class="steps" role="tablist">
+  <button role="tab" id="tab-import" aria-selected="true" data-view="import"><span class="num">01</span>Import</button>
+  <button role="tab" id="tab-review" aria-selected="false" data-view="review"><span class="num">02</span>Review</button>
+  <button role="tab" id="tab-settle" aria-selected="false" data-view="settle"><span class="num">03</span>Settle</button>
+  <button role="tab" id="tab-setup"  aria-selected="false" data-view="setup"><span class="num">04</span>Rules &amp; files</button>
+</nav>
+
+<!-- ===================== 01 IMPORT ===================== -->
+<section class="view active" id="view-import">
+  <div class="grid2">
+    <div>
+      <h2 class="sec">1 · Choose the month first</h2>
+      <p class="help">Everything outside this month is filtered out at import and listed, not
+        silently dropped. Pick it before you paste.</p>
+      <div class="row3">
+        <label class="field"><span>Period</span><input type="text" id="period" value="2026-07" placeholder="YYYY-MM"></label>
+        <label class="field"><span>Bank</span>
+          <select id="bank">
+            <option value="td">TD — 5 columns with balance</option>
+            <option value="bmo">BMO — 3 columns, signed</option>
+            <option value="generic">Other / generic paste</option>
+          </select></label>
+        <label class="field"><span>Card</span>
+          <select id="cardLabel"></select></label>
+      </div>
+
+      <h2 class="sec">2 · Paste the transaction table</h2>
+      <p class="help">Select the table on your bank page and paste. Tabs between columns are what
+        makes this reliable — don't retype or reformat it.</p>
+      <label class="field"><span>Paste</span><textarea id="pasteBox" spellcheck="false"></textarea></label>
+      <div class="btnrow">
+        <button class="btn" id="btnParse">Add to ledger</button>
+        <button class="btn ghost" id="btnDemoTD">Sample TD</button>
+        <button class="btn ghost" id="btnDemoBMO">Sample BMO</button>
+        <button class="btn ghost" id="btnClear">Clear ledger</button>
+      </div>
+
+      <div id="importResult" style="margin-top:20px"></div>
+    </div>
+
+    <aside class="rail">
+      <h2 class="sec">Ledger</h2>
+      <div class="readout" id="integrity"></div>
+      <div class="panel" style="margin-top:14px">
+        <h2 class="sec">Cards loaded</h2>
+        <div id="cardList" class="rulelist"></div>
+      </div>
+      <div class="panel">
+        <h2 class="sec">Coverage</h2>
+        <div id="coverage" style="font-size:12.5px;color:var(--ink-soft)">Nothing imported yet.</div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== 02 REVIEW ===================== -->
+<section class="view" id="view-review">
+  <div class="grid2">
+    <div>
+      <div class="btnrow" style="margin-bottom:16px">
+        <button class="btn ghost small" id="btnGroup">Group by merchant</button>
+        <button class="btn ghost small" id="btnOnlyUndecided" aria-pressed="false">Show undecided only</button>
+        <button class="btn ghost small" id="btnApplyRules">Re-apply rules</button>
+      </div>
+      <div id="ledger"></div>
+    </div>
+    <aside class="rail">
+      <h2 class="sec">Progress</h2>
+      <div class="stat"><div class="k">Decided</div><div class="v" id="pDecided">0 / 0</div></div>
+      <div class="stat"><div class="k">Your shared spend</div><div class="v small" id="pShared">$0.00</div></div>
+      <div class="stat"><div class="k">Partner owes you</div><div class="v" id="pOwed">$0.00</div></div>
+      <div class="stat"><div class="k">Kept private</div><div class="v small" id="pPrivate">0 items</div></div>
+      <div class="stat" style="border-bottom:1px solid var(--rule)"><div class="k">Remembered merchants</div><div class="v small" id="pRules">0</div></div>
+
+      <h2 class="sec" style="margin-top:20px">Keyboard</h2>
+      <div class="keys">
+        <kbd>J</kbd> <kbd>K</kbd> move<br>
+        <kbd>1</kbd> all mine &nbsp; <kbd>2</kbd> 70/30 &nbsp; <kbd>3</kbd> 50/50<br>
+        <kbd>4</kbd> 30/70 &nbsp; <kbd>5</kbd> all theirs &nbsp; <kbd>C</kbd> custom %<br>
+        <kbd>⇧</kbd>+number = assign <em>and</em> remember
+      </div>
+      <p class="note">70/30 means you bear 70%. Remembering writes a rule that fires on every future
+        import. Remember Farm Boy; don't remember Uber — that one stays a decision.</p>
+      <p class="storemode" id="storeMode"></p>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== 03 SETTLE ===================== -->
+<section class="view" id="view-settle">
+  <div class="grid2">
+    <div>
+      <h2 class="sec">Before you settle</h2>
+      <div class="checks" id="checks"></div>
+      <div class="btnrow" style="margin:18px 0">
+        <button class="btn" id="btnExport">Download my shared file</button>
+        <label class="btn ghost" style="cursor:pointer">Load partner's file
+          <input type="file" id="filePartner" accept=".json" hidden></label>
+        <button class="btn ghost" id="btnCloseMonth">Close month &amp; archive</button>
+      </div>
+      <div id="settleFlags"></div>
+      <h2 class="sec" style="margin-top:20px">Shared items</h2>
+      <p class="help">Only these leave your computer. Anything marked all mine is absent from the
+        export file entirely — not hidden, absent.</p>
+      <table class="mini" id="sharedTable"></table>
+    </div>
+    <aside class="rail">
+      <div class="verdict">
+        <div class="lbl">Settlement</div>
+        <div class="num" id="netNum">—</div>
+        <div class="dir" id="netDir">Load your partner's file to settle</div>
+      </div>
+      <div class="stat" style="margin-top:16px"><div class="k">You paid for shared</div><div class="v small" id="sMine">$0.00</div></div>
+      <div class="stat"><div class="k">They paid for shared</div><div class="v small" id="sTheirs">$0.00</div></div>
+      <div class="stat" style="border-bottom:1px solid var(--rule)"><div class="k">Their claims on you</div><div class="v small" id="sClaims">0 items</div></div>
+      <p class="note">Both of you compute this from the same two files. If your numbers disagree,
+        one file is stale — that mismatch is a feature.</p>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== 04 SETUP ===================== -->
+<section class="view" id="view-setup">
+  <div class="grid2">
+    <div>
+      <h2 class="sec">Who and which cards</h2>
+      <p class="help">Set once. Fixed options stop two things going wrong: a mistyped card label
+        letting the same transaction import twice, and a mistyped name defeating the check that
+        stops you loading your own export as your partner's.</p>
+      <div class="row2">
+        <label class="field"><span>Name A</span><input type="text" id="nameA" value="Me"></label>
+        <label class="field"><span>Name B</span><input type="text" id="nameB" value="Partner"></label>
+      </div>
+      <label class="field"><span>Card labels, one per line</span>
+        <textarea id="cardsBox" style="min-height:80px"></textarea></label>
+
+      <h2 class="sec" style="margin-top:22px">Auto-default small unknowns</h2>
+      <p class="help">Transactions below this amount with no matching rule get assigned automatically.
+        <strong>Leave this at 0 for your first month.</strong> Half your transactions are under $25 but
+        they're only about a sixth of the money, and they repeat — so tag them once, let them become
+        rules, then raise the threshold. Setting it high in month one bakes in a bias you'd never see.</p>
+      <div class="row2">
+        <label class="field"><span>Threshold</span><input type="number" id="threshold" value="0" min="0" step="1"></label>
+        <label class="field"><span>Assign them to</span>
+          <select id="defaultUnknown">
+            <option value="1">All mine (conservative)</option>
+            <option value="0.5">50/50</option>
+          </select></label>
+      </div>
+
+      <h2 class="sec" style="margin-top:22px">Excluded line patterns</h2>
+      <p class="help">Lines containing any of these are dropped as non-purchases. One per line.</p>
+      <textarea id="excludeBox" style="min-height:120px"></textarea>
+
+      <h2 class="sec" style="margin-top:22px">Save &amp; restore</h2>
+      <p class="help">Save your session to carry rules into next month and to move between laptops.</p>
+      <div class="btnrow">
+        <button class="btn" id="btnSaveSession">Save session</button>
+        <label class="btn ghost" style="cursor:pointer">Load session
+          <input type="file" id="fileSession" accept=".json" hidden></label>
+      </div>
+    </div>
+    <aside>
+      <h2 class="sec">Self-test</h2>
+      <p class="help" style="font-size:12.5px">Runs synthetic fixtures through the parser and
+        checks 24 known answers. Run it after any change to this file — green means nothing
+        that worked before is broken.</p>
+      <div class="panel">
+        <button class="btn small" id="btnSelfTest">Run self-test</button>
+        <div id="testResults" style="margin-top:12px"></div>
+      </div>
+
+      <h2 class="sec" style="margin-top:22px">Closed months</h2>
+      <div class="panel"><div class="rulelist" id="closedList"></div></div>
+
+      <h2 class="sec" style="margin-top:22px">Remembered merchants</h2>
+      <p class="help" style="font-size:12.5px">Built as you tag. Family rules cover every name variant
+        of the same merchant.</p>
+      <div class="panel"><div class="rulelist" id="ruleList"></div></div>
+    </aside>
+  </div>
+</section>
+
+</div>
+
+<script>
+"use strict";
+
+/* ==ENGINE-START== pure functions, no DOM ================================= */
+
+var NOISE = [
+  /^Posted Transactions/i, /^Transactions\s+Transaction date/i,
+  /^Statement balance/i, /^Minimum payment/i,
+  /^Total\b/i, /^Date$/i, /^Transaction Description$/i,
+  /^Debit$/i, /^Credit$/i, /^Balance$/i,
+  /^\s*Pending\s*$/i, /^\s*Posted\s*$/i,
+  /^\w{3}\s+\d{1,2},\s+\d{4}\s*-\s*\w{3}\s+\d{1,2},\s+\d{4}/i
+];
+
+var EXCLUDE_DEFAULT = [
+  "PREAUTHORIZED PAYMENT","PRE-AUTHORIZED PAYMENT","PAYMENT - THANK YOU","PAIEMENT",
+  "AUTOPAY","TRSF FROM/DE","TRSF TO/A","TRANSFER TO","TRANSFER FROM",
+  "INTEREST","INTERET","ANNUAL FEE","CASH ADVANCE","BALANCE FORWARD","PREVIOUS BALANCE",
+  "E-TRANSFER","INTERAC E-TRANSFER","OVERLIMIT","CREDIT LIMIT"
+];
+
+var PROCESSORS = [
+  {re:/^SQ\s*\*\s*/i,               name:"Square"},
+  {re:/^TST[-*]\s*/i,               name:"Toast"},
+  {re:/^FS\s*\*\s*/i,               name:"Fullsteam"},
+  {re:/^KLARNA\s*\*\s*/i,           name:"Klarna"},
+  {re:/^AMZN\s*MKTP\s*CA\s*\*\s*/i, name:"Amazon"},
+  {re:/^AMAZON\.CA\s*\*\s*/i,       name:"Amazon"},
+  {re:/^HOPP\/O\/\s*/i,             name:"Hopp"},
+  {re:/^PRESTO\s+APPL\/\s*/i,       name:"Presto"},
+  {re:/^LS\s+(?=\S)/i,              name:"Lightspeed"},
+  {re:/^SP\s+(?=\S)/i,              name:"Shopify"}
+];
+
+/* order matters — eats before the bare Uber pattern */
+var FAMILIES = [
+  {re:/UBEREATS|UBER\s*EATS/i,                       name:"Uber Eats",  family:"uber-eats", cat:"Food delivery"},
+  {re:/UBERDIRECT|UBER\s*ONE/i,                      name:"Uber One",   family:"uber-one",  cat:"Subscriptions"},
+  {re:/UBERTRIP|UBER\s*HOLDINGS|^UBER\s*CANADA$/i,   name:"Uber",       family:"uber-ride", cat:"Transport"},
+  {re:/^LYFT/i,                                      name:"Lyft",       family:"lyft-ride", cat:"Transport"},
+  {re:/AMAZON|AMZN/i,                                name:"Amazon",     family:"amazon",    cat:"Shopping"},
+  {re:/APPLE\.COM/i,                                 name:"Apple",      family:"apple",     cat:"Subscriptions"},
+  {re:/MICROSOFT/i,                                  name:"Microsoft",  family:"microsoft", cat:"Subscriptions"},
+  {re:/ANTHROPIC/i,                                  name:"Anthropic",  family:"anthropic", cat:"Subscriptions"},
+  {re:/OPENAI/i,                                     name:"OpenAI",     family:"openai",    cat:"Subscriptions"},
+  {re:/SPOTIFY/i,                                    name:"Spotify",    family:"spotify",   cat:"Subscriptions"},
+  {re:/DOLLARSHAVECLUB/i,                            name:"Dollar Shave Club", family:"dsc", cat:"Subscriptions"},
+  {re:/WALMART/i,                                    name:"Walmart",    family:"walmart",   cat:"Groceries"},
+  {re:/FARM\s*BOY/i,                                 name:"Farm Boy",   family:"farmboy",   cat:"Groceries"},
+  {re:/IMPACT\s*KITCHEN/i,                           name:"Impact Kitchen", family:"impact", cat:"Restaurants"},
+  {re:/CINEPLEX/i,                                   name:"Cineplex",   family:"cineplex",  cat:"Entertainment"},
+  {re:/YUK\s*YUK|YUKYUKS/i,                          name:"Yuk Yuk's",  family:"yukyuks",   cat:"Entertainment"},
+  {re:/WYGO/i,                                       name:"Wygo",       family:"wygo",      cat:"Entertainment"},
+  {re:/HM\s*ONLINE|H&M/i,                            name:"H&M",        family:"hm",        cat:"Shopping"},
+  {re:/NEW\s*BALANCE/i,                              name:"New Balance",family:"newbalance",cat:"Shopping"},
+  {re:/BEANFIELD/i,                                  name:"Beanfield Fibre", family:"beanfield", cat:"Household"},
+  {re:/HOME\s*DEPOT/i,                               name:"Home Depot", family:"homedepot", cat:"Household"},
+  {re:/SQUARE\s*ONE\s*INSURANCE/i,                   name:"Square One Insurance", family:"sqoneins", cat:"Household"},
+  {re:/PRESTO/i,                                     name:"Presto",     family:"presto",    cat:"Transport"},
+  {re:/BIKE\s*SHARE/i,                               name:"Bike Share Toronto", family:"bikeshare", cat:"Transport"},
+  {re:/TORONTO\s*HARBOUR|CANADA\s*BOAT\s*SAFETY/i,   name:null,         family:null,        cat:"Boating"},
+  {re:/VAPE/i,                                       name:null,         family:null,        cat:"Personal care"},
+  {re:/HOPP\/O\//i,                                  name:"Hopp",       family:"hopp",      cat:"Uncategorised"}
+];
+
+var CATEGORIES = [
+  {re:/METRO|RABBA|HASTY\s*MARKET|NATURES\s*EMPORIUM|DOLLARAMA|LOBLAWS|NO\s*FRILLS/i, cat:"Groceries"},
+  {re:/COFFEE|CAFE|GELAT|KITCHEN|SHAWARMA|CHICKEN|SUBS|BOWL|KABOB|NASHVI|COTTAGE\s*CHEESE|RENDEZVOUS|MADO|MOS\s*MOS|QISHR/i, cat:"Restaurants"},
+  {re:/EVENTBRITE|TICKET|TOURS|HIDDEN\s*RIVERS/i, cat:"Entertainment"},
+  {re:/WINNERS|IKEA|YVES\s*ROCHER|MR\.?\s*BIG|UPS\s*STORE|BRAND\s*MOMENTUM/i, cat:"Shopping"}
+];
+
+function titleCase(s){
+  return s.toLowerCase().replace(/\b[a-z]/g, function(c){ return c.toUpperCase(); })
+          .replace(/\b(Ca|Inc|Llc|Ltd)\b/g, function(m){ return m.toUpperCase(); });
+}
+
+/* Explicit list, because a greedy "word before province" regex eats the merchant
+   name — "SQ *NEO COFFEE BAR Toronto ON" becomes "Neo". Add cities as you meet them. */
+var CITY_RE = new RegExp("\\s+(NORTH YORK|SAN FRANCISCO|RICHMOND HILL|OLD TORONTO|THORNHILL|ETOBICOKE|" +
+  "SCARBOROUGH|MISSISSAUGA|BRAMPTON|MARKHAM|VAUGHAN|OAKVILLE|BURLINGTON|PICKERING|AJAX|WHITBY|OSHAWA|" +
+  "TORONTO|VANCOUVER|MONTREAL|CALGARY|OTTAWA|HALIFAX|WATERLOO|KITCHENER|LONDON|WINNIPEG|EDMONTON|" +
+  "VICTORIA|BURNABY|RICHMOND|SURREY|LAVAL|QUEBEC|GATINEAU|HAMILTON|BARRIE|GUELPH|WINDSOR|SEATTLE)" +
+  "\\s+(ON|BC|AB|QC|NS|NB|MB|SK|NL|PE|YT|NT|NU|CA|NY|WA|TX)\\s*$", "i");
+var PROV_RE = /\s+(ON|BC|AB|QC|NS|NB|MB|SK|NL|PE|YT|NT|NU|CA|NY|WA|TX)\s*$/i;
+
+function canonicalise(raw, bank){
+  var original = String(raw).replace(/\s+/g," ").trim();
+  var s = original, processor = null, city = null;
+
+  for(var i=0;i<PROCESSORS.length;i++){
+    if(PROCESSORS[i].re.test(s)){ processor = PROCESSORS[i].name; s = s.replace(PROCESSORS[i].re,""); break; }
+  }
+  if(bank === "bmo"){
+    var loc = s.match(CITY_RE);
+    if(loc){ city = titleCase(loc[1]); s = s.slice(0, s.length - loc[0].length); }
+    else s = s.replace(PROV_RE, "");   // unknown city: drop the province, keep the rest
+  }
+
+  /* Match families and categories against the ORIGINAL text — the processor prefix
+     often carries the identifying token (PRESTO APPL/, AMZN MKTP CA*). */
+  var family = null, cat = null, name = null;
+  for(var j=0;j<FAMILIES.length;j++){
+    if(FAMILIES[j].re.test(original)){
+      family = FAMILIES[j].family; cat = FAMILIES[j].cat;
+      if(FAMILIES[j].name) name = FAMILIES[j].name;
+      break;
+    }
+  }
+  if(!cat){
+    for(var k=0;k<CATEGORIES.length;k++){ if(CATEGORIES[k].re.test(original)){ cat = CATEGORIES[k].cat; break; } }
+  }
+
+  var cleaned = s
+    .replace(/[*\/][A-Z0-9]{6,}\s*$/i,"")   // order ids
+    .replace(/#\s*\d+\s*$/,"")              // store numbers
+    .replace(/\s+\d{2,4}\s*$/,"")           // trailing store number
+    .replace(/\s+(WEB\s*QPS|SUMME|QUA)\s*$/i,"")
+    .replace(/[\s\-.,*]+$/,"")
+    .replace(/\s+/g," ").trim();
+  if(!cleaned) cleaned = s.trim();
+
+  var display = name || titleCase(cleaned);
+  return {
+    merchant: display,
+    key: (family || display).toUpperCase(),
+    family: family,
+    processor: processor,
+    city: city,
+    category: cat || "Uncategorised"
+  };
+}
+
+function parseMoney(t){
+  if(t === undefined || t === null) return null;
+  var s = String(t).trim();
+  if(!s) return null;
+  var m = s.match(/^([-+])?\$?\s*([\d,]+\.\d{2})$/);
+  if(!m) return null;
+  var v = parseFloat(m[2].replace(/,/g,""));
+  return { value: v, sign: m[1] || null };
+}
+
+var MONTHS = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+function parseDate(t, fallbackYear){
+  var s = String(t||"").trim();
+  var m = s.match(/^(20\d{2})-(\d{2})-(\d{2})$/);
+  if(m) return m[1]+"-"+m[2]+"-"+m[3];
+  m = s.match(/^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s*(20\d{2})?$/);
+  if(m){
+    var mo = MONTHS[m[1].slice(0,3).toLowerCase()];
+    if(mo) return pad(m[3] ? +m[3] : fallbackYear) + "-" + pad2(mo) + "-" + pad2(+m[2]);
+  }
+  return null;
+}
+function pad(y){ return String(y); }
+function pad2(n){ return String(n).padStart(2,"0"); }
+
+function isNoise(line){
+  var t = line.trim();
+  if(!t) return true;
+  for(var i=0;i<NOISE.length;i++) if(NOISE[i].test(t)) return true;
+  return false;
+}
+function matchExclusion(text, patterns){
+  var up = text.toUpperCase();
+  for(var i=0;i<patterns.length;i++){
+    var p = patterns[i].trim(); if(!p) continue;
+    if(up.indexOf(p.toUpperCase()) !== -1) return p;
+  }
+  return null;
+}
+
+/* ---- TD: Date | Description | Debit | Credit | Balance ---- */
+function parseTD(text, opts){
+  var lines = String(text).split(/\r?\n/);
+  var rows = [], dropped = [], blocks = [], ranges = [];
+  var block = null, year = opts.year;
+
+  for(var i=0;i<lines.length;i++){
+    var line = lines[i];
+    if(!line.trim()) continue;
+
+    var cov = line.match(/Posted Transactions\s*(\d{4}-\d{2}-\d{2})\s*(?:-|to)\s*(\d{4}-\d{2}-\d{2}|Today)/i);
+    if(cov){
+      ranges.push({from:cov[1], to: /today/i.test(cov[2]) ? opts.today : cov[2]});
+      block = {from:cov[1], to:cov[2], debit:0, credit:0, statedDebit:null, statedCredit:null, count:0};
+      blocks.push(block);
+      dropped.push({line:line.trim(), why:"coverage header"});
+      continue;
+    }
+
+    var f = line.split("\t");
+    if(/^Total\b/i.test(line.trim())){
+      if(block){
+        var td = parseMoney(f[2]) || parseMoney(f[1]);
+        var tc = parseMoney(f[3]) || parseMoney(f[2]);
+        if(td) block.statedDebit = td.value;
+        if(tc && tc !== td) block.statedCredit = tc.value;
+      }
+      dropped.push({line:line.trim(), why:"block total"});
+      continue;
+    }
+    if(isNoise(line)){ dropped.push({line:line.trim(), why:"header / label"}); continue; }
+
+    if(f.length < 4){ dropped.push({line:line.trim(), why:"no column structure"}); continue; }
+
+    var date = parseDate(f[0], year);
+    if(!date){ dropped.push({line:line.trim(), why:"no date in column 1"}); continue; }
+
+    var debit = parseMoney(f[2]), credit = parseMoney(f[3]), balance = parseMoney(f[4]);
+    if(!debit && !credit){ dropped.push({line:line.trim(), why:"no amount"}); continue; }
+    if(debit && credit){ dropped.push({line:line.trim(), why:"debit and credit both set"}); continue; }
+
+    var amount = debit ? debit.value : -credit.value;
+    var desc = (f[1]||"").trim();
+    var ex = matchExclusion(desc, opts.excludes);
+    if(block){ block.count++; if(debit) block.debit += debit.value; else block.credit += credit.value; }
+    if(ex){ dropped.push({line:desc + "  " + (debit?debit.value:credit.value), why:"excluded: "+ex}); continue; }
+
+    rows.push(makeRow(date, desc, amount, "td", opts.card, balance ? balance.value : null, false));
+  }
+  return {rows:rows, dropped:dropped, blocks:blocks, ranges:ranges, tabs: lines.some(function(l){return l.indexOf("\t")!==-1;})};
+}
+
+/* ---- BMO: Date | Description+City | Signed amount ---- */
+function parseBMO(text, opts){
+  var lines = String(text).split(/\r?\n/);
+  var rows = [], dropped = [], pending = false, year = opts.year;
+  var minD = null, maxD = null;
+
+  for(var i=0;i<lines.length;i++){
+    var line = lines[i];
+    if(!line.trim()) continue;
+    if(/^\s*Pending\s*$/i.test(line)){ pending = true; dropped.push({line:"Pending", why:"section marker"}); continue; }
+    if(/^\s*Posted\s*$/i.test(line)){ pending = false; dropped.push({line:"Posted", why:"section marker"}); continue; }
+    if(isNoise(line)){ dropped.push({line:line.trim(), why:"header / label"}); continue; }
+
+    var f = line.split("\t").filter(function(x,ix){ return ix < 3 || x.trim(); });
+    var date, desc, amt;
+
+    if(f.length >= 3 && parseDate(f[0], year) && parseMoney(f[2])){
+      date = parseDate(f[0], year); desc = (f[1]||"").trim(); amt = parseMoney(f[2]);
+    } else {
+      // fallback: sign-anchored, works when tabs are lost to spaces
+      var m = line.match(/^(.*?)\s{1,}([-+])\$([\d,]+\.\d{2})\s*$/);
+      if(!m){ dropped.push({line:line.trim(), why:"unparseable"}); continue; }
+      var head = m[1].trim();
+      var dm = head.match(/^([A-Za-z]{3,9}\.?\s+\d{1,2},?\s*(?:20\d{2})?)\s+(.*)$/);
+      if(!dm){ dropped.push({line:line.trim(), why:"no date"}); continue; }
+      date = parseDate(dm[1], year); desc = dm[2].trim();
+      amt = { value: parseFloat(m[3].replace(/,/g,"")), sign: m[2] };
+      if(!date){ dropped.push({line:line.trim(), why:"no date"}); continue; }
+    }
+
+    var amount = amt.sign === "+" ? -amt.value : amt.value;   // -$ spend, +$ credit
+    var ex = matchExclusion(desc, opts.excludes);
+    if(ex){ dropped.push({line:desc+"  "+amt.value, why:"excluded: "+ex}); continue; }
+
+    if(!minD || date < minD) minD = date;
+    if(!maxD || date > maxD) maxD = date;
+    rows.push(makeRow(date, desc, amount, "bmo", opts.card, null, pending));
+  }
+  return {rows:rows, dropped:dropped, blocks:[], ranges: minD ? [{from:minD, to:maxD, inferred:true}] : [], tabs:true};
+}
+
+/* ---- generic heuristic fallback ---- */
+function parseGeneric(text, opts){
+  var lines = String(text).split(/\r?\n/), rows = [], dropped = [], lastDate = null;
+  for(var i=0;i<lines.length;i++){
+    var line = lines[i];
+    if(!line.trim()) continue;
+    if(isNoise(line)){ dropped.push({line:line.trim(), why:"header / label"}); continue; }
+    var dm = line.match(/(20\d{2}-\d{2}-\d{2})|([A-Za-z]{3,9}\.?\s+\d{1,2},?\s*(?:20\d{2})?)/);
+    if(dm) lastDate = parseDate((dm[1]||dm[2]).trim(), opts.year) || lastDate;
+    var re = /(-)?\$?\s?([\d,]+\.\d{2})/g, m, last = null;
+    while((m = re.exec(line)) !== null) last = m;
+    if(!last || !lastDate){ dropped.push({line:line.trim(), why:"no amount or date"}); continue; }
+    var desc = line.slice(0, last.index).replace(dm ? (dm[1]||dm[2]) : "", "").replace(/[\t]+/g," ").trim();
+    var ex = matchExclusion(desc, opts.excludes);
+    if(ex){ dropped.push({line:desc, why:"excluded: "+ex}); continue; }
+    var val = parseFloat(last[2].replace(/,/g,"")) * (last[1] ? -1 : 1);
+    rows.push(makeRow(lastDate, desc, val, "generic", opts.card, null, false));
+  }
+  return {rows:rows, dropped:dropped, blocks:[], ranges:[], tabs:false};
+}
+
+function makeRow(date, raw, amount, bank, card, balance, pending){
+  var c = canonicalise(raw, bank);
+  return {
+    id: date + "|" + c.key + "|" + amount.toFixed(2) + "|" + card,
+    date: date, raw: raw, merchant: c.merchant, key: c.key, family: c.family,
+    processor: c.processor, city: c.city, category: c.category,
+    amount: amount, bank: bank, card: card, balance: balance,
+    pending: !!pending, bnpl: c.processor === "Klarna",
+    subscription: c.category === "Subscriptions",
+    refund: amount < 0, large: Math.abs(amount) >= 150,
+    occurrences: 1, share: null, decided: false, auto: false, pairedWith: null
+  };
+}
+
+function parsePaste(text, bank, opts){
+  if(bank === "td")  return parseTD(text, opts);
+  if(bank === "bmo") return parseBMO(text, opts);
+  return parseGeneric(text, opts);
+}
+
+/* balance guard — an amount must never equal that row's balance */
+function balanceViolations(rows){
+  return rows.filter(function(r){
+    return r.balance !== null && Math.abs(Math.abs(r.amount) - Math.abs(r.balance)) < 0.005;
+  });
+}
+
+function mergeRanges(ranges){
+  if(!ranges.length) return [];
+  var rs = ranges.slice().sort(function(a,b){ return a.from < b.from ? -1 : 1; });
+  var out = [rs[0]];
+  for(var i=1;i<rs.length;i++){
+    var last = out[out.length-1];
+    if(dayAfter(last.to) >= rs[i].from){ if(rs[i].to > last.to) last.to = rs[i].to; }
+    else out.push(rs[i]);
+  }
+  return out;
+}
+function dayAfter(iso){
+  var d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate()+1);
+  return d.toISOString().slice(0,10);
+}
+function periodBounds(period){
+  var y = +period.slice(0,4), m = +period.slice(5,7);
+  var last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { start: period + "-01", end: period + "-" + pad2(last) };
+}
+function coverageGap(ranges, period){
+  var b = periodBounds(period), merged = mergeRanges(ranges);
+  for(var i=0;i<merged.length;i++){
+    if(merged[i].from <= b.start && merged[i].to >= b.end) return null;
+  }
+  var covered = merged.filter(function(r){ return r.to >= b.start && r.from <= b.end; });
+  if(!covered.length) return {from:b.start, to:b.end};
+  var from = covered[0].from > b.start ? b.start : null;
+  var to   = covered[covered.length-1].to < b.end ? b.end : null;
+  return {
+    from: from || covered[covered.length-1].to,
+    to:   to   || covered[0].from,
+    partial: true,
+    have: covered.map(function(r){ return r.from + "→" + r.to; }).join(", ")
+  };
+}
+/* ==ENGINE-END== ========================================================== */
+
+var VERSION = "0.3.0";
+
+/* ==========================================================================
+   SELF-TEST
+   Fixtures are SYNTHETIC — invented merchants and round numbers — but they
+   reproduce every structural quirk of the real TD and BMO pastes: the balance
+   column, double tabs on empty credit, two statement blocks, the minimum-payment
+   line that looks like a purchase, BMO's Pending section, signed amounts, city
+   suffixes, a refund that returns under a different merchant name, a same-day
+   duplicate, and a small merchant that repeats innocently.
+
+   They are synthetic on purpose: this file is meant to be hostable in a public
+   repo, and real statements have no business in one.
+   ========================================================================== */
+var FIXTURE_TD = [
+  "Posted Transactions2026-05-21 to Today (Since last statement)",
+  "Date","Transaction Description","Debit","Credit","Balance\t",
+  "Jun 2, 2026\tSAMPLE CAFE ONE\t$12.00\t\t$1,012.00\t",
+  "May 30, 2026\tSP TESTVENDOR\t$40.00\t\t$1,000.00\t",
+  "May 28, 2026\tSQ *SAMPLE DELI\t$25.00\t\t$960.00\t",
+  "Total\t\t$77.00\t$0.00\t\t",
+  "Apr 19, 2026 - May 20, 2026 (Last statement)",
+  "Statement balance for the selected period: $500.00",
+  "Minimum payment and due date: $10.00 by Jun 10, 2026",
+  "Posted Transactions2026-04-19 - 2026-05-20 (Last statement)",
+  "Date","Transaction Description","Debit","Credit","Balance\t",
+  "May 15, 2026\tPREAUTHORIZED PAYMENT\t\t$300.00\t$500.00\t",
+  "May 12, 2026\tUBER CANADA/UBEREATS\t$30.00\t\t$800.00\t",
+  "May 12, 2026\tUBER CANADA\t\t$30.00\t$770.00\t",
+  "May 10, 2026\tSAMPLE CINEMA\t$50.00\t\t$820.00\t",
+  "May 10, 2026\tSAMPLE CINEMA\t\t$20.00\t$800.00\t",
+  "May 08, 2026\tFS *SAMPLE HARBOUR\t$80.00\t\t$880.00\t",
+  "May 08, 2026\tFS *SAMPLE HARBOUR\t$80.00\t\t$800.00\t",
+  "May 07, 2026\tUber Holdings Canada Inc.\t$11.00\t\t$884.00\t",
+  "May 06, 2026\tSQ *SAMPLE DELI\t$5.00\t\t$885.00\t",
+  "May 05, 2026\tFARM BOY #99\t$60.00\t\t$860.00\t",
+  "May 04, 2026\tSQ *SAMPLE DELI\t$5.00\t\t$890.00\t",
+  "May 02, 2026\tSQ *SAMPLE DELI\t$5.00\t\t$895.00\t",
+  "Apr 30, 2026\tAmazon.ca*ABC123XYZ\t$45.00\t\t$900.00\t",
+  "Total\t\t$371.00\t$350.00\t\t"
+].join("\n");
+
+var FIXTURE_BMO = [
+  "Transactions Transaction date sorted descending",
+  "Pending",
+  "May 31, 2026\tSAMPLE HARDWARE TORONTO ON\t-$90.00\t",
+  "Posted",
+  "May 29, 2026\tSAMPLE SOFTWARE Mississauga ON\t+$6.00\t",
+  "May 27, 2026\tSQ *SAMPLE COFFEE Toronto ON\t-$8.00\t",
+  "May 25, 2026\tUBER CANADA/UBEREATS TORONTO ON\t-$37.00\t",
+  "May 23, 2026\tKlarna*Sample Shop Vancouver BC\t-$53.00\t",
+  "May 20, 2026\tTRSF FROM/DE ACCT/CPT 1234-XXXX-999\t+$98.00\t",
+  "May 18, 2026\tBEANFIELD FIBRE 1 L.P. TORONTO ON\t-$73.00\t",
+  "May 11, 2026\tUBER CANADA/UBERTRIP TORONTO ON\t-$14.00\t",
+  "May 10, 2026\tLYFT *1 RIDE 05-08 VANCOUVER BC\t-$6.00\t",
+  "Apr 26, 2026\tAPPLE.COM/BILL TORONTO ON\t-$4.00\t"
+].join("\n");
+
+function runSelfTest(){
+  var T = [], opts = {year:2026, today:"2026-08-06", excludes:EXCLUDE_DEFAULT, card:"Fixture"};
+  function assert(id, label, actual, expected){
+    var ok = String(actual) === String(expected);
+    T.push({id:id, label:label, ok:ok, actual:actual, expected:expected});
+  }
+  var b = periodBounds("2026-05");
+  var inMay = function(r){ return r.date >= b.start && r.date <= b.end; };
+  var td = parsePaste(FIXTURE_TD, "td", opts);
+  var bm = parsePaste(FIXTURE_BMO, "bmo", opts);
+  var tdMay = td.rows.filter(inMay), bmMay = bm.rows.filter(inMay);
+  var all = tdMay.concat(bmMay);
+  var sum = function(rows){ return +rows.reduce(function(s,r){ return s+r.amount; },0).toFixed(2); };
+
+  assert("T1","TD May row count", tdMay.length, 13);
+  assert("T2","TD May net", sum(tdMay), 341);
+  assert("T3","TD May credit rows", tdMay.filter(function(r){return r.amount<0;}).length, 2);
+  assert("T4","Balance-column violations", balanceViolations(td.rows).length, 0);
+  assert("T5","BMO May row count", bmMay.length, 8);
+  assert("T6","BMO May net", sum(bmMay), 275);
+  assert("T7","BMO pending flagged", bmMay.filter(function(r){return r.pending;}).length, 1);
+  assert("T8","Combined May rows / net", all.length + " / " + sum(all), "21 / 616");
+  assert("T9","TD block totals reconcile",
+    td.blocks.map(function(x){ return x.debit.toFixed(2)+"="+(x.statedDebit||0).toFixed(2); }).join(" "),
+    "77.00=77.00 371.00=371.00");
+  assert("T10","Coverage for 2026-05, both blocks", coverageGap(td.ranges,"2026-05"), null);
+  assert("T11","Coverage gap with only one block",
+    coverageGap([{from:"2026-05-21", to:"2026-08-06"}], "2026-05") ? "gap" : "none", "gap");
+  var uberRaw = {}, uberFam = {};
+  td.rows.concat(bm.rows).filter(function(r){ return /UBER|LYFT/i.test(r.raw); })
+    .forEach(function(r){ uberRaw[r.raw]=1; uberFam[r.key]=1; });
+  assert("T12","Uber/Lyft raw -> families",
+    Object.keys(uberRaw).length + " -> " + Object.keys(uberFam).length, "6 -> 3");
+  assert("T12b","Uber One is its own family, not a ride",
+    canonicalise("UberDirectCA_PASS","td").family, "uber-one");
+  assert("T12c","Uber Eats separate from Uber rides",
+    canonicalise("UBER CANADA/UBEREATS","td").family + "|" + canonicalise("UBER CANADA/UBERTRIP","td").family,
+    "uber-eats|uber-ride");
+  assert("T13","Repeat merchant collapses to one key",
+    Object.keys(all.filter(function(r){ return /DELI/i.test(r.raw); })
+      .reduce(function(a,r){ a[r.key]=1; return a; },{})).length, 1);
+  assert("T14a","Canonical: SQ * prefix stripped",
+    canonicalise("SQ *SAMPLE COFFEE Toronto ON","bmo").merchant, "Sample Coffee");
+  assert("T14b","Canonical: city captured",
+    canonicalise("SQ *SAMPLE COFFEE Toronto ON","bmo").city, "Toronto");
+  assert("T14c","Canonical: store number stripped",
+    canonicalise("FARM BOY #99","td").merchant, "Farm Boy");
+  assert("T14d","Canonical: Amazon order id",
+    canonicalise("Amazon.ca*ABC123XYZ","td").merchant, "Amazon");
+  assert("T14e","Canonical: Klarna flagged as instalment",
+    canonicalise("Klarna*Sample Shop Vancouver BC","bmo").processor, "Klarna");
+  var dupes = fixtureDupes(all);
+  assert("T15a","Duplicates flagged", dupes.length, 1);
+  assert("T15b","Small repeats not flagged",
+    dupes.filter(function(d){ return /DELI/i.test(d.raw); }).length, 0);
+  var pairs = fixturePairs(all);
+  assert("T16a","Exact refund pairing", pairs.exact, 1);
+  assert("T16b","Likely (cross-name) refund pairing", pairs.weak, 1);
+  assert("T16c","Unmatched credit surfaced", pairs.none, 1);
+  assert("T17a","Card payment excluded",
+    td.dropped.filter(function(d){ return /PREAUTHORIZED/i.test(d.line); }).length, 1);
+  assert("T17b","Internal transfer excluded",
+    bm.dropped.filter(function(d){ return /TRSF/i.test(d.line); }).length, 1);
+  assert("T17c","Minimum-payment line not imported",
+    td.rows.filter(function(r){ return /MINIMUM/i.test(r.raw); }).length, 0);
+  var ids = {}; var dupAdds = 0;
+  tdMay.forEach(function(r){ ids[r.id] = 1; });
+  parsePaste(FIXTURE_TD,"td",opts).rows.filter(inMay).forEach(function(r){ if(!ids[r.id]) dupAdds++; });
+  assert("T18","Re-importing the same paste adds nothing", dupAdds, 0);
+  var demo = [{amount:100, share:0.5},{amount:60, share:0}];
+  assert("T19","Settlement maths",
+    +demo.reduce(function(s,i){ return s + i.amount*(1-i.share); },0).toFixed(2), 110);
+  /* Assembled from fragments so the pattern doesn't match its own source text. */
+  var netRe = new RegExp("\\b" + "fet" + "ch\\s*\\(|XMLHttp" + "Request");
+  assert("T20","No network calls in source",
+    netRe.test(document.documentElement.outerHTML) ? "found" : "none", "none");
+  return T;
+}
+function fixtureDupes(rows){
+  var g = {}, hits = [];
+  rows.forEach(function(t){ var k = t.key+"|"+t.amount.toFixed(2); (g[k]=g[k]||[]).push(t); });
+  Object.keys(g).forEach(function(k){
+    var a = g[k].sort(function(x,y){ return x.date < y.date ? -1 : 1; });
+    for(var i=1;i<a.length;i++){
+      var gap = (Date.parse(a[i].date)-Date.parse(a[i-1].date))/86400000, amt = Math.abs(a[i].amount);
+      if(gap === 0 || (gap <= 3 && amt >= 50)) hits.push(a[i]);
+    }
+  });
+  return hits;
+}
+function fixturePairs(rows){
+  var charges = rows.filter(function(t){ return t.amount > 0; });
+  var out = {exact:0, weak:0, none:0};
+  rows.filter(function(t){ return t.amount < 0; }).forEach(function(rf){
+    var p = pairFor(rf, charges);
+    if(!p.charge) out.none++; else if(p.weak) out.weak++; else out.exact++;
+  });
+  return out;
+}
+
+var state = {
+  period:"2026-07", names:["Me","Partner"], meIndex:0, meName:"Me", youName:"Partner",
+  cards:["TD Visa","BMO Mastercard"],
+  txns:[], rules:[], threshold:0, defaultUnknown:1,
+  partner:null, onlyUndecided:false, groupBy:"day",
+  confirmedTotals:false, cursor:0,
+  ranges:[], blocks:[], dropped:[], outOfPeriod:[], lastImport:null,
+  closedPeriods:{}
+};
+function syncNames(){
+  state.meName  = state.names[state.meIndex] || "Me";
+  state.youName = state.names[1 - state.meIndex] || "Partner";
+}
+var excludePatterns = EXCLUDE_DEFAULT.slice();
+
+var $  = function(s){ return document.querySelector(s); };
+var $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
+function money(n){ return (n<0?"-":"") + "$" + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,","); }
+function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+
+/* ---------------- rules ---------------- */
+function ruleFor(t){
+  var best = null;
+  for(var i=0;i<state.rules.length;i++){
+    var r = state.rules[i];
+    if(r.type === "family" && t.family === r.pattern) return r;
+    if(r.type === "key" && t.key.indexOf(r.pattern) !== -1){
+      if(!best || r.pattern.length > best.pattern.length) best = r;
+    }
+  }
+  return best;
+}
+function rememberRule(t, share){
+  var type = t.family ? "family" : "key";
+  var pattern = t.family || t.key.slice(0,24);
+  var ex = state.rules.filter(function(r){ return r.type===type && r.pattern===pattern; })[0];
+  if(ex) ex.share = share; else state.rules.push({type:type, pattern:pattern, share:share, label:t.merchant});
+}
+function hasRule(t){
+  return state.rules.some(function(r){
+    return (r.type==="family" && t.family===r.pattern) || (r.type==="key" && t.key.indexOf(r.pattern)!==-1);
+  });
+}
+function applyRules(){
+  var i, t;
+  for(i=0;i<state.txns.length;i++){
+    t = state.txns[i];
+    if(t.decided && !t.auto) continue;
+    var r = ruleFor(t);
+    if(r){ t.share = r.share; t.decided = true; t.auto = true; continue; }
+    if(state.threshold > 0 && Math.abs(t.amount) < state.threshold){
+      t.share = state.defaultUnknown; t.decided = true; t.auto = true; continue;
+    }
+    if(t.auto){ t.share = null; t.decided = false; t.auto = false; }
+  }
+  pairRefunds();
+}
+/* Refunds don't always come back under the same merchant string. Uber charges as
+   UBER CANADA/UBEREATS and refunds as plain UBER CANADA. But matching on merchant
+   alone is worse: it will happily attach a $30 refund to an unrelated $11 charge at
+   the same merchant. Precedence, strongest first:
+     1. same merchant AND same amount        -> certain
+     2. different merchant, same amount, ≤3d -> likely, needs confirming
+     3. same merchant, different amount      -> partial refund, certain enough
+   Exported as a pure function so the self-test exercises the real logic. */
+function pairFor(rf, charges){
+  var exact = charges.filter(function(c){
+    return c.key === rf.key && Math.abs(c.amount + rf.amount) < 0.005 && c.date <= rf.date;
+  }).sort(function(a,b){ return a.date < b.date ? 1 : -1; })[0];
+  if(exact) return {charge:exact, weak:false};
+
+  var cross = charges.filter(function(c){
+    return c.key !== rf.key && Math.abs(c.amount + rf.amount) < 0.005 &&
+           Math.abs(Date.parse(c.date) - Date.parse(rf.date)) / 86400000 <= 3;
+  }).sort(function(a,b){ return a.date < b.date ? 1 : -1; })[0];
+  if(cross) return {charge:cross, weak:true};
+
+  var partial = charges.filter(function(c){
+    return c.key === rf.key && c.date <= rf.date;
+  }).sort(function(a,b){ return a.date < b.date ? 1 : -1; })[0];
+  if(partial) return {charge:partial, weak:false};
+
+  return {charge:null, weak:false};
+}
+function pairRefunds(){
+  var charges = state.txns.filter(function(t){ return t.amount > 0; });
+  state.txns.filter(function(t){ return t.amount < 0; }).forEach(function(rf){
+    var p = pairFor(rf, charges);
+    rf.weakPair = p.weak;
+    rf.pairedWith = p.charge ? p.charge.id : null;
+    rf.pairedLabel = p.charge ? p.charge.date + " " + p.charge.merchant : null;
+    if(p.charge && p.charge.decided && !(rf.decided && !rf.auto)){
+      rf.share = p.charge.share; rf.decided = true; rf.auto = true;
+    }
+  });
+}
+function countOccurrences(){
+  var c = {};
+  state.txns.forEach(function(t){ c[t.key] = (c[t.key]||0) + 1; });
+  state.txns.forEach(function(t){ t.occurrences = c[t.key]; });
+}
+
+/* ---------------- import ---------------- */
+function doImport(){
+  var raw = $("#pasteBox").value;
+  var bank = $("#bank").value;
+  var card = $("#cardLabel").value.trim() || "Card";
+  var out = $("#importResult");
+  if(!raw.trim()){ out.innerHTML = '<div class="flag">Nothing to parse — paste the table first.</div>'; return; }
+
+  var opts = {
+    year: +state.period.slice(0,4) || new Date().getFullYear(),
+    today: new Date().toISOString().slice(0,10),
+    excludes: excludePatterns, card: card
+  };
+  var res = parsePaste(raw, bank, opts);
+
+  var viol = balanceViolations(res.rows);
+  if(viol.length){
+    out.innerHTML = '<div class="flag stop"><strong>Import refused.</strong> ' + viol.length +
+      ' row(s) have an amount identical to the running balance, which means the columns were read wrong. ' +
+      'Nothing was added. Re-copy the table without reformatting it.</div>';
+    return;
+  }
+  if(bank === "td" && !res.tabs){
+    out.innerHTML = '<div class="flag stop"><strong>Import refused.</strong> No tab characters found. ' +
+      'TD needs the tab-separated copy straight from the page — without columns there is no way to tell ' +
+      'the amount from the running balance.</div>';
+    return;
+  }
+
+  var b = periodBounds(state.period);
+  var inP = [], outP = [];
+  res.rows.forEach(function(r){ (r.date >= b.start && r.date <= b.end ? inP : outP).push(r); });
+
+  var have = {}; state.txns.forEach(function(t){ have[t.id] = true; });
+  var added = 0, dupes = 0;
+  inP.forEach(function(t){ if(have[t.id]){ dupes++; return; } have[t.id] = true; state.txns.push(t); added++; });
+
+  state.dropped = state.dropped.concat(res.dropped);
+  state.outOfPeriod = state.outOfPeriod.concat(outP.map(function(r){
+    return {line:r.date + "  " + r.merchant + "  " + money(r.amount), why:"outside " + state.period};
+  }));
+  state.ranges = state.ranges.concat(res.ranges);
+  state.blocks = state.blocks.concat(res.blocks);
+
+  countOccurrences(); applyRules();
+
+  var pend = inP.filter(function(r){ return r.pending; }).length;
+  var html = '<div class="flag good"><strong>Added ' + added + ' transactions</strong> for ' +
+    esc(state.period) + (dupes ? ", skipped " + dupes + " already in the ledger" : "") +
+    (pend ? ", " + pend + " marked pending and excluded from settlement" : "") + ".</div>";
+
+  html += blockReconHTML(res.blocks);
+  html += dropPanel("Dropped " + res.dropped.length + " non-transaction lines", res.dropped);
+  html += dropPanel("Filtered out " + outP.length + " transactions outside " + state.period,
+                    outP.map(function(r){ return {line:r.date+"  "+r.merchant+"  "+money(r.amount), why:"out of period"}; }));
+  out.innerHTML = html;
+  $("#pasteBox").value = "";
+  renderAll();
+}
+
+function blockReconHTML(blocks){
+  var h = "";
+  blocks.forEach(function(b){
+    if(b.statedDebit === null) return;
+    var diff = Math.abs(b.debit - b.statedDebit);
+    h += diff < 0.02
+      ? '<div class="flag good">Block ' + esc(b.from) + " → " + esc(b.to) + ": parsed debits " +
+        money(b.debit) + " match the bank's stated total.</div>"
+      : '<div class="flag stop">Block ' + esc(b.from) + " → " + esc(b.to) + ": parsed debits " +
+        money(b.debit) + " but the bank says " + money(b.statedDebit) + " — " + money(diff) +
+        " unaccounted for. Rows were lost.</div>";
+  });
+  return h;
+}
+function dropPanel(title, items){
+  if(!items.length) return "";
+  return '<details class="drop"><summary>' + esc(title) + '</summary><div class="inner">' +
+    items.map(function(d){ return '<div><span class="why">' + esc(d.why) + '</span><span>' + esc(d.line) + '</span></div>'; }).join("") +
+    '</div></details>';
+}
+
+/* ---------------- render ---------------- */
+function visibleTxns(){
+  var list = state.txns.slice();
+  if(state.groupBy === "merchant"){
+    list.sort(function(a,b){
+      if(a.key !== b.key) return a.key < b.key ? -1 : 1;
+      return a.date < b.date ? -1 : 1;
+    });
+  } else {
+    list.sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+  }
+  return state.onlyUndecided ? list.filter(function(t){ return !t.decided; }) : list;
+}
+
+function renderLedger(){
+  var host = $("#ledger"), list = visibleTxns();
+  if(!list.length){
+    host.innerHTML = '<div class="empty">Nothing here yet. Import a card on step 01.</div>';
+    renderProgress(); return;
+  }
+  if(state.cursor >= list.length) state.cursor = list.length - 1;
+  if(state.cursor < 0) state.cursor = 0;
+
+  var groups = [], seen = {};
+  list.forEach(function(t){
+    var g = state.groupBy === "merchant" ? t.key : t.date;
+    if(!seen[g]){ seen[g] = {label:g, rows:[]}; groups.push(seen[g]); }
+    seen[g].rows.push(t);
+  });
+
+  var html = "", idx = 0;
+  groups.forEach(function(g){
+    var sum = g.rows.reduce(function(s,t){ return s + t.amount; }, 0);
+    var head;
+    if(state.groupBy === "merchant"){
+      head = '<span class="d">' + esc(g.rows[0].merchant) + '</span>' +
+             '<span class="ctx">' + esc(g.rows[0].category) + (g.rows.length>2 ? " · recurring" : "") + '</span>' +
+             '<span class="bulk">' + ["1","0.7","0.5","0.3","0"].map(function(v,i){
+                return '<button data-bulk="'+v+'" data-group="'+esc(g.label)+'">' +
+                       ["Mine","70/30","50/50","30/70","Theirs"][i] + '</button>';
+             }).join("") + '</span>';
+    } else {
+      head = '<span class="d">' + fmtDay(g.label) + '</span>' +
+             '<span class="ctx">' + (g.rows.length >= 3 ? "several purchases — likely one occasion" : "") + '</span>' +
+             '<span class="meta">' + g.rows.length + " · " + money(sum) + '</span>';
+    }
+    html += '<div class="daygroup"><div class="dayhead">' + head + '</div>';
+    g.rows.forEach(function(t){
+      var i = idx++;
+      var pct = t.share === null ? 100 : t.share * 100;
+      var chips = "";
+      if(t.category !== "Uncategorised") chips += '<span class="chip">' + esc(t.category) + '</span>';
+      if(t.bnpl)         chips += '<span class="chip f">instalment</span>';
+      if(t.pending)      chips += '<span class="chip f">pending</span>';
+      if(t.refund)       chips += '<span class="chip r">refund' + (t.pairedLabel ? (t.weakPair ? " ?" : " ✓") : " unmatched") + '</span>';
+      if(t.occurrences >= 3) chips += '<span class="chip">×' + t.occurrences + '</span>';
+      var sub = [t.raw, t.processor ? "via " + t.processor : "", t.city || "", t.card,
+                 t.pairedLabel ? (t.weakPair ? "likely refund of " : "refund of ") + t.pairedLabel : ""
+                ].filter(Boolean).join("  ·  ");
+      html += '<div class="txn' + (i===state.cursor?" cursor":"") + (t.decided?"":" undecided") +
+              '" data-i="' + i + '" data-id="' + esc(t.id) + '">' +
+        '<div><div class="m1">' + esc(t.merchant) + chips + '</div><span class="m2">' + esc(sub) + '</span></div>' +
+        '<div class="amt' + (t.amount<0?" neg":"") + '">' + money(t.amount) +
+          '<div class="splitbar"><i style="width:' + pct + '%"></i></div></div>' +
+        '<div class="seg">' +
+          segBtn(t,"mine",1,"Mine") + segBtn(t,"mostly",0.7,"70/30") + segBtn(t,"half",0.5,"50/50") +
+          segBtn(t,"mostlyt",0.3,"30/70") + segBtn(t,"theirs",0,"Theirs") +
+          '<button class="pin" aria-pressed="' + (hasRule(t)?"true":"false") + '" title="Remember this merchant">◉</button>' +
+        '</div></div>';
+    });
+    html += '</div>';
+  });
+  host.innerHTML = html;
+  renderProgress();
+}
+function segBtn(t,cls,val,label){
+  var on = t.decided && t.share !== null && Math.abs(t.share - val) < 0.001;
+  return '<button class="'+cls+'" data-share="'+val+'" aria-pressed="'+on+'">'+label+'</button>';
+}
+function fmtDay(iso){
+  var p = iso.split("-");
+  var dt = new Date(Date.UTC(+p[0], +p[1]-1, +p[2]));
+  return dt.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",timeZone:"UTC"});
+}
+
+function sharedItems(){
+  return state.txns.filter(function(t){ return t.decided && t.share !== null && t.share < 1 && !t.pending; });
+}
+function renderProgress(){
+  var total = state.txns.length;
+  var done  = state.txns.filter(function(t){ return t.decided; }).length;
+  var shared = sharedItems();
+  $("#pDecided").textContent = done + " / " + total;
+  $("#pShared").textContent  = money(shared.reduce(function(s,t){ return s+t.amount; },0));
+  $("#pOwed").textContent    = money(shared.reduce(function(s,t){ return s + t.amount*(1-t.share); },0));
+  $("#pPrivate").textContent = (total - shared.length) + " items";
+  $("#pRules").textContent   = state.rules.length;
+  renderIntegrity(); autosave();
+}
+function renderIntegrity(){
+  var sum = state.txns.reduce(function(s,t){ return s+t.amount; },0);
+  var pend = state.txns.filter(function(t){ return t.pending; }).length;
+  $("#integrity").innerHTML =
+    '<div><div class="k">Transactions</div><div class="v">' + state.txns.length + '</div></div>' +
+    '<div><div class="k">Net</div><div class="v">' + money(sum) + '</div></div>' +
+    '<div><div class="k">Pending</div><div class="v">' + pend + '</div></div>';
+  var cards = {};
+  state.txns.forEach(function(t){ cards[t.card] = (cards[t.card]||0)+1; });
+  var keys = Object.keys(cards);
+  $("#cardList").innerHTML = keys.length
+    ? keys.map(function(k){ return '<div><span>'+esc(k)+'</span><span>'+cards[k]+'</span></div>'; }).join("")
+    : '<div style="border:none;color:var(--ink-faint)">None yet</div>';
+  renderCoverage();
+}
+function renderCoverage(){
+  var el = $("#coverage");
+  if(!state.ranges.length){ el.innerHTML = "Nothing imported yet."; return; }
+  var gap = coverageGap(state.ranges, state.period);
+  var inferred = state.ranges.some(function(r){ return r.inferred; });
+  var merged = mergeRanges(state.ranges).map(function(r){ return r.from + " → " + r.to; }).join("<br>");
+  if(!gap){
+    el.innerHTML = '<div style="color:var(--ok);font-weight:600">✓ ' + esc(state.period) + ' fully covered</div>' +
+      '<div style="font-family:var(--mono);font-size:11.5px;margin-top:6px">' + merged + '</div>' +
+      (inferred ? '<div class="note">Inferred from transaction dates — a quiet week looks the same as a missing paste.</div>' : "");
+  } else {
+    el.innerHTML = '<div style="color:var(--warn);font-weight:600">! Gap in ' + esc(state.period) + '</div>' +
+      '<div style="font-family:var(--mono);font-size:11.5px;margin-top:6px">have ' + merged + '</div>' +
+      '<div class="note">Missing ' + esc(gap.from) + " → " + esc(gap.to) + '. Paste the other statement block.</div>';
+  }
+}
+function renderRules(){
+  $("#ruleList").innerHTML = state.rules.length
+    ? state.rules.map(function(r,i){
+        var lbl = r.share===1 ? "mine" : r.share===0 ? "theirs" : Math.round(r.share*100)+"/"+Math.round(100-r.share*100);
+        return '<div><span>' + esc(r.label || r.pattern) + (r.type==="family"?" ⁝fam":"") + '</span><span>' +
+               lbl + ' <button data-delrule="'+i+'" title="Forget">×</button></span></div>';
+      }).join("")
+    : '<div style="border:none;color:var(--ink-faint)">No rules yet — they build as you tag.</div>';
+}
+
+/* ---------------- checks ---------------- */
+function suspectedDupes(){
+  var groups = {}, hits = [];
+  state.txns.forEach(function(t){
+    var k = t.key + "|" + t.amount.toFixed(2);   // signed, so refunds never pair with charges
+    (groups[k] = groups[k] || []).push(t);
+  });
+  /* A $5.37 lunch at the same place on the 8th, 10th and 13th is a habit, not a
+     double-paste. Only same-day repeats count for small amounts; the 3-day window
+     is reserved for amounts large enough that a real duplicate would matter. */
+  Object.keys(groups).forEach(function(k){
+    var g = groups[k].sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+    for(var i=1;i<g.length;i++){
+      var gap = (Date.parse(g[i].date) - Date.parse(g[i-1].date)) / 86400000;
+      var amt = Math.abs(g[i].amount);
+      if(gap === 0 || (gap <= 3 && amt >= 50)) hits.push(g[i]);
+    }
+  });
+  return hits;
+}
+function ck(ok, title, okMsg, warnMsg, list){
+  return '<div class="ck ' + (ok?"pass":"warn") + '"><span class="mark">' + (ok?"✓":"!") +
+    '</span><div class="body"><strong>' + esc(title) + '</strong><span>' + esc(ok?okMsg:warnMsg) + '</span>' +
+    (!ok && list && list.length ? '<ul>' + list.map(function(l){ return '<li>'+esc(l)+'</li>'; }).join("") + '</ul>' : '') +
+    '</div></div>';
+}
+function renderChecks(){
+  var undecided = state.txns.filter(function(t){ return !t.decided && !t.pending; });
+  var dupes = suspectedDupes();
+  var bnpl  = state.txns.filter(function(t){ return t.bnpl; });
+  var bigs  = state.txns.filter(function(t){ return Math.abs(t.amount) >= 400; });
+  var pend  = state.txns.filter(function(t){ return t.pending; });
+  var refundsUnpaired = state.txns.filter(function(t){ return t.refund && !t.pairedWith; });
+  var weakPairs = state.txns.filter(function(t){ return t.refund && t.pairedWith && t.weakPair; });
+  var cards = {}; state.txns.forEach(function(t){ cards[t.card]=1; });
+  var cardNames = Object.keys(cards);
+  var gap = state.ranges.length ? coverageGap(state.ranges, state.period) : {from:"?",to:"?"};
+  var blockBad = state.blocks.filter(function(b){ return b.statedDebit !== null && Math.abs(b.debit-b.statedDebit) >= 0.02; });
+
+  var rows = [
+    ck(state.txns.length > 0, "Ledger has transactions",
+       state.txns.length + " across " + cardNames.length + " card" + (cardNames.length===1?"":"s"),
+       "Nothing imported yet."),
+    ck(cardNames.length >= 2, "Both your cards imported", cardNames.join(" · "),
+       "Only " + cardNames.join(", ") + " loaded. Import your second card before settling."),
+    ck(!gap, "Period fully covered", esc(state.period) + " covered with no gap.",
+       "Coverage gap in " + state.period + (gap && gap.from ? " — missing " + gap.from + " → " + gap.to : "") +
+       ". Transactions may be missing entirely."),
+    ck(blockBad.length === 0, "Bank totals reconcile",
+       state.blocks.length ? "Parsed sums match every stated block total." : "No stated totals to check against.",
+       blockBad.length + " block(s) don't match the bank's own total — rows were lost during parsing."),
+    ck(undecided.length === 0, "Every transaction decided", "Nothing left undecided.",
+       undecided.length + " undecided — they'd be treated as yours by default.",
+       undecided.slice(0,6).map(function(t){ return t.date+"  "+t.merchant+"  "+money(t.amount); })),
+    ck(pend.length === 0, "No pending transactions", "Everything is posted.",
+       pend.length + " pending item(s) excluded from settlement — amounts still change.",
+       pend.slice(0,4).map(function(t){ return t.date+"  "+t.merchant+"  "+money(t.amount); })),
+    ck(bnpl.length === 0, "No instalment charges", "No buy-now-pay-later charges this month.",
+       bnpl.length + " Klarna instalment(s). The charge isn't the purchase — a split item may span several months.",
+       bnpl.slice(0,6).map(function(t){ return t.date+"  "+t.merchant+"  "+money(t.amount); })),
+    ck(refundsUnpaired.length === 0, "Refunds matched to a charge", "Every credit lines up with a purchase.",
+       refundsUnpaired.length + " credit(s) with no matching charge this month — likely a refund for something settled last month.",
+       refundsUnpaired.slice(0,4).map(function(t){ return t.date+"  "+t.merchant+"  "+money(t.amount); })),
+    ck(weakPairs.length === 0, "Refund pairings certain",
+       "Every refund matched its charge by merchant.",
+       weakPairs.length + " refund(s) matched only by amount and date, because the refund came back under a different merchant name. Confirm these.",
+       weakPairs.slice(0,4).map(function(t){ return t.date+"  "+t.merchant+"  "+money(t.amount)+"  ←  "+t.pairedLabel; })),
+    ck(dupes.length === 0, "No suspected duplicates", "Nothing looks pasted twice.",
+       dupes.length + " look like duplicates — same merchant and amount within 3 days. Advisory only.",
+       dupes.slice(0,6).map(function(t){ return t.date+"  "+t.merchant+"  "+money(t.amount); })),
+    ck(bigs.every(function(t){ return !t.auto; }), "Large items decided by hand",
+       bigs.length ? bigs.length + " item(s) over $400, all decided manually." : "No items over $400.",
+       "Some items over $400 were auto-assigned. These carry most of your error — confirm them.",
+       bigs.filter(function(t){ return t.auto; }).map(function(t){ return t.date+"  "+t.merchant+"  "+money(t.amount); }))
+  ];
+
+  var html = rows.join("");
+  html += '<div class="ck ' + (state.confirmedTotals?"pass":"warn") + '">' +
+    '<input type="checkbox" id="ckTotals"' + (state.confirmedTotals?" checked":"") + '>' +
+    '<div class="body"><strong><label for="ckTotals">I checked the count and net against my bank</label></strong>' +
+    '<span>' + state.txns.length + " transactions, net " + money(state.txns.reduce(function(s,t){return s+t.amount;},0)) +
+    ".</span></div></div>";
+  html += '<div class="ck ' + (state.partner?"pass":"warn") + '"><span class="mark">' + (state.partner?"✓":"!") +
+    '</span><div class="body"><strong>Partner file loaded</strong><span>' +
+    (state.partner ? "From " + esc(state.partner.owner) + ", covering " + esc(state.partner.period) + "."
+                   : "No partner file yet — export yours now and settle when theirs arrives.") +
+    '</span></div></div>';
+
+  var open = rows.filter(function(r){ return r.indexOf('class="ck warn"') !== -1; }).length +
+             (state.confirmedTotals?0:1) + (state.partner?0:1);
+  html += '<div class="gate">' + (open === 0
+    ? "All checks clear."
+    : open + " check" + (open===1?"":"s") + " still open. You can settle anyway — read them first.") + '</div>';
+  $("#checks").innerHTML = html;
+}
+
+/* ---------------- settlement ---------------- */
+function renderSettle(){
+  renderChecks();
+  var mine = sharedItems();
+  var myClaim = mine.reduce(function(s,t){ return s + t.amount*(1-t.share); },0);
+  $("#sMine").textContent = money(mine.reduce(function(s,t){ return s+t.amount; },0));
+
+  var theirClaim = 0, theirCount = 0, theirTotal = 0;
+  if(state.partner && state.partner.items){
+    theirClaim = state.partner.items.reduce(function(s,i){ return s + i.amount*(1-i.share); },0);
+    theirCount = state.partner.items.length;
+    theirTotal = state.partner.items.reduce(function(s,i){ return s + i.amount; },0);
+  }
+  $("#sTheirs").textContent = money(theirTotal);
+  $("#sClaims").textContent = theirCount + " items";
+
+  var net = myClaim - theirClaim;
+  if(state.partner){
+    $("#netNum").textContent = money(Math.abs(net));
+    $("#netDir").textContent = Math.abs(net) < 0.005 ? "You're square"
+      : net > 0 ? state.youName + " owes " + state.meName : state.meName + " owes " + state.youName;
+  } else {
+    $("#netNum").textContent = "—";
+    $("#netDir").textContent = "Load your partner's file to settle";
+  }
+
+  var flags = "";
+  if(state.partner && state.partner.period !== state.period)
+    flags += '<div class="flag">Period mismatch: their file covers ' + esc(state.partner.period) +
+             ', yours covers ' + esc(state.period) + '.</div>';
+  var asym = (state.partner && state.partner.items ? state.partner.items : [])
+             .filter(function(i){ return i.share!==0.5 && i.share!==0 && i.share!==1; });
+  if(asym.length)
+    flags += '<div class="flag">' + asym.length + ' asymmetric claim' + (asym.length>1?'s':'') +
+             ' against you — check you agreed to each.</div>';
+  $("#settleFlags").innerHTML = flags;
+
+  var rows = mine.map(function(t){ return {date:t.date, merchant:t.merchant, amount:t.amount, share:t.share, dirn:"you paid"}; })
+    .concat((state.partner && state.partner.items ? state.partner.items : [])
+      .map(function(i){ return {date:i.date, merchant:i.merchant, amount:i.amount, share:i.share, dirn:"they paid"}; }));
+  $("#sharedTable").innerHTML = rows.length
+    ? '<thead><tr><th>Date</th><th>Merchant</th><th>Who paid</th><th style="text-align:right">Amount</th><th style="text-align:right">Owed to payer</th></tr></thead><tbody>' +
+      rows.sort(function(a,b){ return a.date<b.date?-1:1; }).map(function(r){
+        return '<tr><td>'+r.date+'</td><td>'+esc(r.merchant)+'</td><td>'+r.dirn+'</td><td class="n">'+
+               money(r.amount)+'</td><td class="n">'+money(r.amount*(1-r.share))+'</td></tr>';
+      }).join("") + '</tbody>'
+    : '<tbody><tr><td class="empty" colspan="5">Tag some transactions as shared first.</td></tr></tbody>';
+}
+
+/* ---------------- month status ---------------- */
+function monthStatus(){
+  var closed = state.closedPeriods[state.period];
+  if(closed) return {cls:"closed", html:"<strong>" + esc(state.period) + " closed</strong> on " +
+    esc(closed.closedAt.slice(0,10)) + " — settled " + money(Math.abs(closed.net)) + ", " + esc(closed.direction) + "."};
+  if(!state.txns.length) return {cls:"", html:"<strong>" + esc(state.period) + "</strong> — nothing imported yet."};
+  var undecided = state.txns.filter(function(t){ return !t.decided && !t.pending; }).length;
+  if(undecided) return {cls:"", html:"<strong>" + esc(state.period) + " in progress</strong> — " +
+    (state.txns.length - undecided) + " of " + state.txns.length + " decided."};
+  if(!state.partner) return {cls:"wait", html:"<strong>Your side of " + esc(state.period) +
+    " is done.</strong> Waiting for " + esc(state.youName) + "'s file."};
+  return {cls:"ready", html:"<strong>Ready to settle " + esc(state.period) + ".</strong> Both files loaded."};
+}
+function renderBanner(){
+  var s = monthStatus();
+  $("#statusBanner").innerHTML = '<div class="banner ' + s.cls + '"><span class="dot"></span><span>' + s.html + '</span></div>';
+}
+
+/* ---------------- archive ---------------- */
+function buildArchive(){
+  var mine = sharedItems();
+  var theirs = (state.partner && state.partner.items) ? state.partner.items : [];
+  var aClaim = mine.reduce(function(s,t){ return s + t.amount*(1-t.share); },0);
+  var bClaim = theirs.reduce(function(s,i){ return s + i.amount*(1-i.share); },0);
+  var net = aClaim - bClaim;
+  var items = mine.map(function(t){
+    return {date:t.date, merchant:t.merchant, category:t.category, amount:+t.amount.toFixed(2),
+            payer:"a", shareOfPayer:t.share, owedToPayer:+(t.amount*(1-t.share)).toFixed(2)};
+  }).concat(theirs.map(function(i){
+    return {date:i.date, merchant:i.merchant, category:i.category || "Uncategorised", amount:+i.amount.toFixed(2),
+            payer:"b", shareOfPayer:i.share, owedToPayer:+(i.amount*(1-i.share)).toFixed(2)};
+  })).sort(function(x,y){ return x.date < y.date ? -1 : 1; });
+
+  return {
+    format:"split-ledger-archive/v1",
+    period:state.period,
+    closed:new Date().toISOString(),
+    toolVersion:VERSION,
+    people:{a:state.meName, b:state.youName},
+    settlement:{
+      aPaidShared:+mine.reduce(function(s,t){ return s+t.amount; },0).toFixed(2),
+      bPaidShared:+theirs.reduce(function(s,i){ return s+i.amount; },0).toFixed(2),
+      aClaim:+aClaim.toFixed(2), bClaim:+bClaim.toFixed(2),
+      net:+Math.abs(net).toFixed(2),
+      direction: Math.abs(net) < 0.005 ? "square" : (net > 0 ? "b_owes_a" : "a_owes_b")
+    },
+    items:items
+  };
+}
+function closeMonth(){
+  if(state.closedPeriods[state.period]){
+    if(!confirm(state.period + " is already closed. Close it again and download a fresh archive?\n\n" +
+                "The earlier archive file you downloaded is not touched.")) return;
+  } else if(!state.partner){
+    if(!confirm("No partner file loaded, so the settlement is one-sided.\n\nClose " +
+                state.period + " anyway?")) return;
+  }
+  var arc = buildArchive();
+  download("split-" + state.period + "-archive.json", arc);
+  state.closedPeriods[state.period] = {
+    closedAt: arc.closed, net: arc.settlement.net,
+    direction: arc.settlement.direction === "square" ? "square"
+      : (arc.settlement.direction === "b_owes_a" ? state.youName + " owed " + state.meName
+                                                 : state.meName + " owed " + state.youName),
+    items: arc.items.length
+  };
+  renderBanner(); renderClosed(); autosave();
+}
+function renderClosed(){
+  var keys = Object.keys(state.closedPeriods).sort();
+  $("#closedList").innerHTML = keys.length
+    ? keys.map(function(k){
+        var c = state.closedPeriods[k];
+        return '<div><span>' + esc(k) + '</span><span>' + money(c.net) + ' · ' + c.items + ' items</span></div>';
+      }).join("")
+    : '<div style="border:none;color:var(--ink-faint)">None yet. Closing a month downloads its archive.</div>';
+}
+
+/* ---------------- self-test rendering ---------------- */
+function renderSelfTest(){
+  var T = runSelfTest();
+  var pass = T.filter(function(t){ return t.ok; }).length;
+  var ok = pass === T.length;
+  $("#testResults").innerHTML =
+    '<div class="tsum ' + (ok?"p":"f") + '">' + pass + " / " + T.length +
+    (ok ? " passing" : " passing — investigate before shipping") + '</div>' +
+    T.map(function(t){
+      return '<div class="trow ' + (t.ok?"p":"f") + '"><span class="id">' + esc(t.id) +
+        '</span><span class="st">' + (t.ok?"✓":"✗") + '</span><span class="lb">' + esc(t.label) + '</span>' +
+        (t.ok ? "" : '<span class="got">got ' + esc(t.actual) + ", want " + esc(t.expected) + '</span>') + '</div>';
+    }).join("");
+}
+
+/* ---------------- persistence ---------------- */
+var STORE_KEY = "splitledger.v2", storeOK = null, saveTimer = null;
+function storeAvailable(){
+  if(storeOK !== null) return storeOK;
+  try{ window.localStorage.setItem(STORE_KEY+".p","1"); window.localStorage.removeItem(STORE_KEY+".p"); storeOK = true; }
+  catch(e){ storeOK = false; }
+  return storeOK;
+}
+function snapshot(){
+  return {format:"split-ledger-session/v3", version:VERSION, period:state.period,
+    names:state.names, meIndex:state.meIndex, cards:state.cards,
+    meName:state.meName, youName:state.youName,
+    threshold:state.threshold, defaultUnknown:state.defaultUnknown, rules:state.rules,
+    excludePatterns:excludePatterns, txns:state.txns, ranges:state.ranges, blocks:state.blocks,
+    closedPeriods:state.closedPeriods};
+}
+function autosave(){
+  if(!storeAvailable()) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(function(){
+    try{ window.localStorage.setItem(STORE_KEY, JSON.stringify(snapshot())); }
+    catch(e){ storeOK = false; showStoreMode(); }
+  }, 400);
+}
+function applySession(d){
+  if(!d || !/^split-ledger-session\/v[123]$/.test(d.format||"")) return false;
+  state.period = d.period || state.period;
+  /* older sessions stored only meName/youName — migrate them into the names list */
+  state.names = d.names || [d.meName || "Me", d.youName || "Partner"];
+  state.meIndex = typeof d.meIndex === "number" ? d.meIndex : 0;
+  state.cards = d.cards || state.cards;
+  state.threshold = d.threshold || 0; state.defaultUnknown = d.defaultUnknown || 1;
+  state.rules = d.rules || []; state.txns = d.txns || [];
+  state.ranges = d.ranges || []; state.blocks = d.blocks || [];
+  state.closedPeriods = d.closedPeriods || {};
+  excludePatterns = d.excludePatterns || EXCLUDE_DEFAULT.slice();
+  syncNames();
+  return true;
+}
+function autoload(){
+  if(!storeAvailable()) return;
+  try{ var raw = window.localStorage.getItem(STORE_KEY); if(raw) applySession(JSON.parse(raw)); }catch(e){}
+}
+function showStoreMode(){
+  var el = $("#storeMode"); if(!el) return;
+  el.textContent = storeAvailable()
+    ? "Auto-saving to this browser. Still save a session file to move laptops."
+    : "No browser storage here — use Save session to keep your rules.";
+}
+function download(name, obj){
+  var blob = new Blob([JSON.stringify(obj,null,2)], {type:"application/json"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+}
+function readJSON(file, cb){
+  var r = new FileReader();
+  r.onload = function(){ try{ cb(JSON.parse(r.result)); }catch(e){ alert("That file isn't readable JSON."); } };
+  r.readAsText(file);
+}
+
+/* ---------------- events ---------------- */
+$$("nav.steps button").forEach(function(b){
+  b.onclick = function(){
+    $$("nav.steps button").forEach(function(x){ x.setAttribute("aria-selected","false"); });
+    b.setAttribute("aria-selected","true");
+    $$(".view").forEach(function(v){ v.classList.remove("active"); });
+    $("#view-"+b.dataset.view).classList.add("active");
+    if(b.dataset.view === "review") renderLedger();
+    if(b.dataset.view === "settle") renderSettle();
+    if(b.dataset.view === "setup")  renderRules();
+  };
+});
+$("#period").oninput  = function(e){ state.period = e.target.value.trim(); renderCoverage(); renderBanner(); };
+$("#iAm").onchange    = function(e){ state.meIndex = +e.target.value; syncNames(); hydrateNames(); renderSettle(); renderBanner(); autosave(); };
+$("#nameA").oninput   = function(e){ state.names[0] = e.target.value || "Me"; syncNames(); hydrateNames(); autosave(); };
+$("#nameB").oninput   = function(e){ state.names[1] = e.target.value || "Partner"; syncNames(); hydrateNames(); autosave(); };
+$("#cardsBox").oninput = function(e){
+  state.cards = e.target.value.split(/\r?\n/).map(function(s){ return s.trim(); }).filter(Boolean);
+  hydrateCards(); autosave();
+};
+function hydrateNames(){
+  $("#iAm").innerHTML = state.names.map(function(n,i){
+    return '<option value="'+i+'"'+(i===state.meIndex?" selected":"")+'>'+esc(n)+'</option>';
+  }).join("");
+  $("#otherName").textContent = "· settling with " + state.youName;
+  $("#nameA").value = state.names[0];
+  $("#nameB").value = state.names[1];
+}
+function hydrateCards(){
+  var cur = $("#cardLabel").value;
+  $("#cardLabel").innerHTML = state.cards.map(function(c){
+    return '<option'+(c===cur?" selected":"")+'>'+esc(c)+'</option>';
+  }).join("");
+  $("#cardsBox").value = state.cards.join("\n");
+}
+$("#bank").onchange   = function(e){
+  var want = e.target.value === "td" ? /^TD/i : e.target.value === "bmo" ? /^BMO/i : null;
+  if(!want) return;
+  var match = state.cards.filter(function(c){ return want.test(c); })[0];
+  if(match) $("#cardLabel").value = match;
+};
+$("#btnParse").onclick = doImport;
+$("#btnClear").onclick = function(){
+  if(!confirm("Clear all transactions? Rules and settings stay.")) return;
+  state.txns = []; state.partner = null; state.ranges = []; state.blocks = [];
+  state.dropped = []; state.outOfPeriod = [];
+  $("#importResult").innerHTML = ""; renderAll();
+};
+$("#btnGroup").onclick = function(e){
+  state.groupBy = state.groupBy === "day" ? "merchant" : "day";
+  e.target.textContent = state.groupBy === "day" ? "Group by merchant" : "Group by day";
+  state.cursor = 0; renderLedger();
+};
+$("#btnOnlyUndecided").onclick = function(e){
+  state.onlyUndecided = !state.onlyUndecided;
+  e.target.setAttribute("aria-pressed", state.onlyUndecided);
+  e.target.textContent = state.onlyUndecided ? "Show everything" : "Show undecided only";
+  state.cursor = 0; renderLedger();
+};
+$("#btnApplyRules").onclick = function(){ applyRules(); renderLedger(); };
+
+$("#ledger").onclick = function(e){
+  var bulk = e.target.closest("button[data-bulk]");
+  if(bulk){
+    var share = parseFloat(bulk.dataset.bulk), grp = bulk.dataset.group;
+    state.txns.forEach(function(t){
+      if(t.key === grp){ t.share = share; t.decided = true; t.auto = false; }
+    });
+    renderLedger(); return;
+  }
+  var row = e.target.closest(".txn"); if(!row) return;
+  state.cursor = +row.dataset.i;
+  var t = state.txns.filter(function(x){ return x.id === row.dataset.id; })[0];
+  var seg = e.target.closest("button[data-share]");
+  if(seg && t){ t.share = parseFloat(seg.dataset.share); t.decided = true; t.auto = false; pairRefunds(); renderLedger(); return; }
+  var pin = e.target.closest(".pin");
+  if(pin && t){
+    if(!t.decided){ alert("Assign a split first, then remember it."); return; }
+    if(hasRule(t)){
+      state.rules = state.rules.filter(function(r){
+        return !((r.type==="family" && t.family===r.pattern) || (r.type==="key" && t.key.indexOf(r.pattern)!==-1));
+      });
+    } else rememberRule(t, t.share);
+    renderLedger(); renderRules(); return;
+  }
+  renderLedger();
+};
+
+document.addEventListener("keydown", function(e){
+  if(!$("#view-review").classList.contains("active")) return;
+  if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  var list = visibleTxns(); if(!list.length) return;
+  var key = e.key.toLowerCase();
+  if(key === "j" || e.key === "ArrowDown"){ state.cursor = Math.min(state.cursor+1, list.length-1); e.preventDefault(); renderLedger(); return; }
+  if(key === "k" || e.key === "ArrowUp"){ state.cursor = Math.max(state.cursor-1, 0); e.preventDefault(); renderLedger(); return; }
+  var map = {"1":1,"!":1,"2":0.7,"@":0.7,"3":0.5,"#":0.5,"4":0.3,"$":0.3,"5":0,"%":0};
+  if(map[e.key] !== undefined){
+    var t = list[state.cursor];
+    if(t){
+      t.share = map[e.key]; t.decided = true; t.auto = false;
+      if(e.shiftKey) rememberRule(t, t.share);
+      if(state.cursor < list.length-1) state.cursor++;
+      pairRefunds();
+    }
+    e.preventDefault(); renderLedger(); renderRules(); return;
+  }
+  if(key === "c"){
+    var t2 = list[state.cursor]; if(!t2) return;
+    var v = prompt("Your share as a percentage (e.g. 65 means you bear 65%):","65");
+    var n = parseFloat(v);
+    if(!isNaN(n) && n>=0 && n<=100){
+      t2.share = n/100; t2.decided = true; t2.auto = false;
+      if(state.cursor < list.length-1) state.cursor++;
+    }
+    e.preventDefault(); renderLedger();
+  }
+});
+
+$("#threshold").oninput = function(e){ state.threshold = parseFloat(e.target.value)||0; applyRules(); renderLedger(); };
+$("#defaultUnknown").onchange = function(e){ state.defaultUnknown = parseFloat(e.target.value); applyRules(); renderLedger(); };
+$("#excludeBox").oninput = function(e){ excludePatterns = e.target.value.split(/\r?\n/).filter(Boolean); };
+$("#ruleList").onclick = function(e){
+  var b = e.target.closest("button[data-delrule]"); if(!b) return;
+  state.rules.splice(+b.dataset.delrule,1); applyRules(); renderRules(); renderLedger();
+};
+$("#checks").addEventListener("change", function(e){
+  if(e.target.id === "ckTotals"){ state.confirmedTotals = e.target.checked; renderChecks(); }
+});
+$("#btnExport").onclick = function(){
+  var items = sharedItems().map(function(t){
+    return {date:t.date, merchant:t.merchant, category:t.category, amount:+t.amount.toFixed(2), share:t.share};
+  });
+  download("split-"+state.period+"-"+state.meName.toLowerCase().replace(/\W+/g,"")+".json", {
+    format:"split-ledger/v1", toolVersion:VERSION, period:state.period, owner:state.meName,
+    generated:new Date().toISOString(), items:items,
+    totals:{sharedPaidByOwner:+items.reduce(function(s,i){return s+i.amount;},0).toFixed(2)}
+  });
+};
+$("#btnCloseMonth").onclick = closeMonth;
+$("#btnSelfTest").onclick = renderSelfTest;
+$("#filePartner").onchange = function(e){
+  var f = e.target.files[0]; if(!f) return;
+  readJSON(f, function(d){
+    if(d.format !== "split-ledger/v1"){ alert("That doesn't look like a Split Ledger shared file."); return; }
+    /* Loading your own export here would double-count every shared item and produce a
+       settlement that looks entirely plausible. Hard stop. */
+    if(String(d.owner).trim().toLowerCase() === String(state.meName).trim().toLowerCase()){
+      alert("That file was exported by " + d.owner + " — that's you.\n\n" +
+            "Loading it here would count your own shared items twice and give you a wrong " +
+            "settlement that still looks believable. Load " + state.youName + "'s file instead.");
+      return;
+    }
+    if(String(d.owner).trim().toLowerCase() !== String(state.youName).trim().toLowerCase()){
+      if(!confirm("This file says it's from \"" + d.owner + "\", but you're settling with " +
+                  state.youName + ".\n\nLoad it anyway?")) return;
+    }
+    state.partner = d; renderSettle(); renderBanner();
+  });
+  e.target.value = "";
+};
+$("#btnSaveSession").onclick = function(){ download("split-session-"+state.period+".json", snapshot()); };
+$("#fileSession").onchange = function(e){
+  var f = e.target.files[0]; if(!f) return;
+  readJSON(f, function(d){ if(!applySession(d)){ alert("That isn't a session file."); return; } hydrate(); });
+  e.target.value = "";
+};
+
+/* ---------------- samples (the real formats) ---------------- */
+$("#btnDemoTD").onclick = function(){
+  $("#bank").value = "td"; $("#cardLabel").value = "TD Visa";
+  $("#pasteBox").value = [
+    "Posted Transactions2026-07-21 to Today (Since last statement)",
+    "Date\tTransaction Description\tDebit\tCredit\tBalance\t",
+    "Aug 3, 2026\tUBER CANADA/UBEREATS\t$32.62\t\t$2,921.93\t",
+    "Jul 31, 2026\tFS *TORONTO HARBOUR NAUTI\t$159.02\t\t$2,217.36\t",
+    "Jul 31, 2026\tFS *TORONTO HARBOUR NAUTI\t$159.02\t\t$2,058.34\t",
+    "Jul 28, 2026\tAmazon.ca*5Z82A1DO0\t$40.37\t\t$1,899.32\t",
+    "Jul 28, 2026\tMETRO 62\t$97.19\t\t$1,858.95\t",
+    "Jul 28, 2026\tTST-Chen Chens Nashvi\t$29.93\t\t$1,761.76\t",
+    "Total\t\t$518.15\t$0.00\t\t",
+    "Posted Transactions2026-06-19 - 2026-07-20 (Last statement)",
+    "Jul 9, 2026\tPREAUTHORIZED PAYMENT\t\t$2,575.10\t$1,731.83\t",
+    "Jul 6, 2026\tIMPACT KITCHEN QUEENS QUA\t$5.37\t\t$4,306.93\t",
+    "Jul 6, 2026\tAMZN MKTP CA*JW0KC4Q13\t$54.91\t\t$4,301.56\t",
+    "Jul 6, 2026\tCINEPLEX 8030 WEB QPS\t\t$57.06\t$4,246.65\t",
+    "Jul 5, 2026\tFARM BOY #43\t$17.36\t\t$4,303.71\t",
+    "Jul 5, 2026\tCINEPLEX 8030 WEB QPS\t$60.46\t\t$4,286.35\t",
+    "Jul 5, 2026\tUBER CANADA/UBEREATS\t$42.08\t\t$4,219.90\t",
+    "Jul 5, 2026\tNEW BALANCE TORONTO SUMME\t$214.69\t\t$4,177.82\t",
+    "Jul 4, 2026\tFARM BOY #43\t$117.54\t\t$3,963.13\t",
+    "Jul 3, 2026\tUberDirectCA_PASS\t$9.03\t\t$3,845.59\t",
+    "Jul 3, 2026\tUBER CANADA\t\t$20.18\t$3,800.58\t",
+    "Jul 3, 2026\tUBER CANADA/UBEREATS\t$20.18\t\t$3,820.76\t",
+    "Jul 1, 2026\tRABBA 125 Q\t$21.29\t\t$3,733.71\t",
+    "Jun 30, 2026\tMADO YONGE ST\t$13.53\t\t$3,712.42\t"
+  ].join("\n");
+  $("#importResult").innerHTML = '<div class="flag">Sample pasted — hit Add to ledger. Watch the Aug and Jun rows get filtered out.</div>';
+};
+$("#btnDemoBMO").onclick = function(){
+  $("#bank").value = "bmo"; $("#cardLabel").value = "BMO Mastercard";
+  $("#pasteBox").value = [
+    "Transactions Transaction date sorted descending",
+    "Pending",
+    "Aug 05, 2026\tTHE HOME DEPOT #7274\t-$90.36\t",
+    "Posted",
+    "Jul 29, 2026\tMicrosoft*Microsoft 36 Mississauga ON\t+$6.29\t",
+    "Jul 27, 2026\tSQ *NEO COFFEE BAR Toronto ON\t-$8.19\t",
+    "Jul 25, 2026\tUBER CANADA/UBEREATS TORONTO ON\t-$37.89\t",
+    "Jul 24, 2026\tLS Daves Hot Chicken Toronto ON\t-$52.59\t",
+    "Jul 23, 2026\tKlarna*New Balance C Toronto ON\t-$53.68\t",
+    "Jul 23, 2026\tIMPACT KITCHEN QUEENS TORONTO ON\t-$7.90\t",
+    "Jul 19, 2026\tTRSF FROM/DE ACCT/CPT 3626-XXXX-242\t+$98.96\t",
+    "Jul 18, 2026\tBEANFIELD FIBRE 1 L.P. TORONTO ON\t-$73.45\t",
+    "Jul 16, 2026\tTST-The Cottage Cheese Toronto ON\t-$146.67\t",
+    "Jul 13, 2026\tIMPACT KITCHEN QUEENS TORONTO ON\t-$5.37\t",
+    "Jul 11, 2026\tUBER CANADA/UBERTRIP TORONTO ON\t-$14.68\t",
+    "Jul 10, 2026\tLYFT *1 RIDE 07-08 VANCOUVER BC\t-$6.98\t",
+    "Jul 10, 2026\tIMPACT KITCHEN QUEENS TORONTO ON\t-$5.37\t",
+    "Jun 26, 2026\tAPPLE.COM/BILL TORONTO ON\t-$4.51\t"
+  ].join("\n");
+  $("#importResult").innerHTML = '<div class="flag">Sample pasted — hit Add to ledger. The pending row and the transfer should both drop out.</div>';
+};
+
+/* ---------------- boot ---------------- */
+function renderAll(){
+  countOccurrences(); renderIntegrity(); renderProgress();
+  renderLedger(); renderRules(); renderSettle(); renderBanner(); renderClosed();
+}
+function hydrate(){
+  syncNames();
+  $("#verTag").textContent = "v" + VERSION;
+  $("#period").value = state.period;
+  $("#threshold").value = state.threshold;
+  $("#defaultUnknown").value = String(state.defaultUnknown);
+  $("#excludeBox").value = excludePatterns.join("\n");
+  hydrateNames(); hydrateCards();
+  showStoreMode(); applyRules(); renderAll();
+}
+autoload();
+hydrate();
+</script>
+</body>
+</html>

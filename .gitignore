@@ -1,0 +1,8 @@
+# Runtime data files — never commit real financial data.
+# See README.md "Data and privacy".
+split-*.json
+split-session-*.json
+split-*-archive.json
+
+# OS / editor cruft
+.DS_Store

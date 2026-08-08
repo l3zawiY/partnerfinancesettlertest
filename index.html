@@ -1,14 +1,15 @@
 <!--
-  SPLIT LEDGER v0.2
+  SPLIT LEDGER v0.3.1
   Single-file, offline, no-account reconciliation of shared expenses
   between two people with separate cards.
 
-  WHAT CHANGED FROM v0.1
-  ----------------------
-  v0.1 guessed at bank formats and took the last money value on a line as the
-  amount. On TD that is the running balance, which silently produced plausible
-  but wrong rows. v0.2 parses by column position, per bank, and refuses the
-  import if any amount matches a balance.
+  WHY PARSING IS PER-BANK AND BY COLUMN
+  -------------------------------------
+  The obvious approach — take the last money value on a line as the amount —
+  is wrong on TD, where that value is the running balance. It produces rows
+  that look entirely plausible and are entirely wrong. So each bank is parsed
+  by column position, and an import is refused outright if any amount matches
+  a balance. Don't remove that guard (invariant 6 in CLAUDE.md).
 
   HOW TO CHANGE THIS FILE
   -----------------------
@@ -32,6 +33,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Keeps a hosted copy out of search results. Not access control: anyone with the URL
+     can still open it, and gets an empty tool — the data is never on the host. Note this
+     covers the Pages site only; a public repo page is indexed separately. -->
+<meta name="robots" content="noindex, nofollow">
+<!-- Belt and braces. Nothing here links out today (invariant 1), so this does nothing
+     yet; it stops the URL leaking in a Referer header if anything ever does. -->
+<meta name="referrer" content="no-referrer">
 <title>Split Ledger</title>
 <style>
 :root{
@@ -211,7 +219,7 @@ table.mini tr:nth-child(even) td{background:var(--band)}
 <div class="wrap">
 
 <header class="masthead">
-  <div class="brand"><h1>Split Ledger</h1><span class="ver" id="verTag">v0.3.0</span></div>
+  <div class="brand"><h1>Split Ledger</h1><span class="ver" id="verTag">v0.3.1</span></div>
   <div class="who">
     <span>I am</span>
     <select id="iAm" aria-label="Which of you is using this" style="width:auto;padding:4px 8px"></select>
@@ -758,7 +766,7 @@ function coverageGap(ranges, period){
 }
 /* ==ENGINE-END== ========================================================== */
 
-var VERSION = "0.3.0";
+var VERSION = "0.3.1";
 
 /* ==========================================================================
    SELF-TEST

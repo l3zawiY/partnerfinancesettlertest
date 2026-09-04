@@ -44,6 +44,7 @@ Filename: `split-<period>-<owner>.json`
 | `amount` | Positive is spend, negative is a refund |
 | `share` | Fraction the **owner** bears. `0.5` even, `0` partner owes all. Never `1` — those aren't exported |
 | `category` | Present so the analytics tool can group without re-deriving. Only ever describes shared spending |
+| `edited` | Optional, `true` only when the payer corrected a mis-parsed amount by hand. Additive in 0.4.0; older readers ignore it. Absent means the amount is exactly as the bank produced it |
 
 Settlement: for each item the non-payer owes `amount × (1 − share)`. Net the two
 directions.
@@ -124,9 +125,17 @@ storage automatically and downloadable as a manual backup.
   "txns": [],
   "ranges": [],
   "blocks": [],
-  "closedPeriods": { "2026-07": { "closedAt": "...", "net": 151.55, "direction": "...", "items": 42 } }
+  "closedPeriods": { "2026-07": { "closedAt": "...", "net": 151.55, "direction": "...", "items": 42 } },
+
+  "partner": null,
+  "confirmedTotals": false,
+  "view": { "groupBy": "day", "onlyUndecided": false, "cursor": 0 }
 }
 ```
+
+`partner`, `confirmedTotals` and `view` were added in 0.4.0 **without bumping the version**,
+because they are additive: an older build reads the same `v3` file and ignores them. Each is
+read only when present, so an older session file cannot wipe a partner file just loaded.
 
 `applySession()` reads `v1`, `v2`, and `v3`. Older sessions stored only `meName` and
 `youName`; those migrate into `names` on load. **Keep this backward compatibility** —
@@ -141,7 +150,7 @@ Not persisted as a contract, but stable enough that changing it ripples widely.
 ```js
 {
   id, date, raw, merchant, key, family, processor, city, category,
-  amount, bank, card, balance,
+  amount, originalAmount, bank, card, balance,
   pending, bnpl, subscription, refund, large,
   occurrences, share, decided, auto, pairedWith, pairedLabel, weakPair
 }
@@ -154,3 +163,8 @@ Not persisted as a contract, but stable enough that changing it ripples widely.
   when canonicalisation gets something wrong.
 - `auto: true` means a rule or the threshold decided it; a manual decision sets it false
   and is never overwritten by `applyRules()`.
+- `originalAmount` is absent until someone corrects the amount by hand, and then holds the
+  figure as imported. `id` keeps the **imported** amount even after a correction — rules,
+  refund pairings and closed archives all reference it, so it must not move.
+- `bnpl: true` (a Klarna charge) means the row takes no merchant rule: the same key covers
+  both a normal purchase at that merchant and whatever the instalment plan financed.

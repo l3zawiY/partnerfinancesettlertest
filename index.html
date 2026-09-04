@@ -133,6 +133,7 @@ details.drop .inner .why{color:var(--ink-faint);flex:none;width:112px}
 .chip.f{background:#fdf1dd;color:var(--warn)}
 .chip.r{background:#e6f0e9;color:var(--ok)}
 .txn .amt{font-family:var(--mono);text-align:right;font-size:14px}
+.txn .amt.editable{cursor:pointer;border-bottom:1px dashed var(--ink-faint)}
 .txn .amt.neg{color:var(--ok)}
 .splitbar{height:4px;background:var(--theirs);border-radius:2px;overflow:hidden;margin-top:5px}
 .splitbar i{display:block;height:100%;background:var(--mine)}
@@ -766,7 +767,29 @@ function coverageGap(ranges, period){
 }
 /* ==ENGINE-END== ========================================================== */
 
-var VERSION = "0.3.1";
+var VERSION = "0.4.0";
+
+/* ==========================================================================
+   POLICY
+   Pure rules the app enforces. Deliberately outside the ENGINE markers — the
+   engine is frozen — but above the app state, so the headless harness reaches
+   them and they can be asserted. No DOM here either.
+   ========================================================================== */
+
+/* An instalment charge never inherits a merchant rule. KLARNA*Walmart cleans down
+   to the same key as a grocery run, so a "Walmart 50/50" rule would silently split
+   whatever the plan financed — which may be nothing like a normal purchase there.
+   The row is otherwise ordinary: counted, splittable, exportable. */
+function ruleEligible(t){ return !t.bnpl; }
+
+/* Correcting an amount by hand is the one place the ledger stops matching the bank,
+   so it is gated high: a mis-parsed row is almost always a big one (the running
+   balance read as the amount), and a low gate would turn this into a spreadsheet.
+   A row already corrected stays editable, so a bad correction can be undone even
+   once the amount sits below the gate. */
+var EDIT_MIN = 1000;
+function canEditAmount(t){ return Math.abs(t.amount) >= EDIT_MIN || t.originalAmount != null; }
+function amountEdited(t){ return t.originalAmount != null && Math.abs(t.originalAmount - t.amount) >= 0.005; }
 
 /* ==========================================================================
    SELF-TEST
@@ -898,6 +921,15 @@ function runSelfTest(){
     +demo.reduce(function(s,i){ return s + i.amount*(1-i.share); },0).toFixed(2), 110);
   /* Assembled from fragments so the pattern doesn't match its own source text. */
   var netRe = new RegExp("\\b" + "fet" + "ch\\s*\\(|XMLHttp" + "Request");
+  var klarnaRow = all.filter(function(r){ return r.bnpl; })[0];
+  var plainRow  = all.filter(function(r){ return !r.bnpl; })[0];
+  assert("T21","Instalments never inherit a merchant rule",
+    ruleEligible(klarnaRow) + "|" + ruleEligible(plainRow), "false|true");
+  assert("T22","Amount edits gated at $1,000",
+    canEditAmount({amount:999.99}) + "|" + canEditAmount({amount:1000}) + "|" +
+    canEditAmount({amount:52, originalAmount:3500}), "false|true|true");
+  assert("T23","A corrected amount is flagged as edited",
+    amountEdited({amount:52, originalAmount:3500}) + "|" + amountEdited({amount:52}), "true|false");
   assert("T20","No network calls in source",
     netRe.test(document.documentElement.outerHTML) ? "found" : "none", "none");
   return T;
@@ -972,7 +1004,7 @@ function applyRules(){
   for(i=0;i<state.txns.length;i++){
     t = state.txns[i];
     if(t.decided && !t.auto) continue;
-    var r = ruleFor(t);
+    var r = ruleEligible(t) ? ruleFor(t) : null;
     if(r){ t.share = r.share; t.decided = true; t.auto = true; continue; }
     if(state.threshold > 0 && Math.abs(t.amount) < state.threshold){
       t.share = state.defaultUnknown; t.decided = true; t.auto = true; continue;
@@ -1160,21 +1192,24 @@ function renderLedger(){
       var chips = "";
       if(t.category !== "Uncategorised") chips += '<span class="chip">' + esc(t.category) + '</span>';
       if(t.bnpl)         chips += '<span class="chip f">instalment</span>';
+      if(amountEdited(t)) chips += '<span class="chip f">edited</span>';
       if(t.pending)      chips += '<span class="chip f">pending</span>';
       if(t.refund)       chips += '<span class="chip r">refund' + (t.pairedLabel ? (t.weakPair ? " ?" : " ✓") : " unmatched") + '</span>';
       if(t.occurrences >= 3) chips += '<span class="chip">×' + t.occurrences + '</span>';
       var sub = [t.raw, t.processor ? "via " + t.processor : "", t.city || "", t.card,
+                 amountEdited(t) ? "bank line said " + money(t.originalAmount) : "",
                  t.pairedLabel ? (t.weakPair ? "likely refund of " : "refund of ") + t.pairedLabel : ""
                 ].filter(Boolean).join("  ·  ");
       html += '<div class="txn' + (i===state.cursor?" cursor":"") + (t.decided?"":" undecided") +
               '" data-i="' + i + '" data-id="' + esc(t.id) + '">' +
         '<div><div class="m1">' + esc(t.merchant) + chips + '</div><span class="m2">' + esc(sub) + '</span></div>' +
-        '<div class="amt' + (t.amount<0?" neg":"") + '">' + money(t.amount) +
+        '<div class="amt' + (t.amount<0?" neg":"") + (canEditAmount(t)?" editable":"") + '"' +
+          (canEditAmount(t)?' title="Click to correct a mis-parsed amount"':"") + '>' + money(t.amount) +
           '<div class="splitbar"><i style="width:' + pct + '%"></i></div></div>' +
         '<div class="seg">' +
           segBtn(t,"mine",1,"Mine") + segBtn(t,"mostly",0.7,"70/30") + segBtn(t,"half",0.5,"50/50") +
           segBtn(t,"mostlyt",0.3,"30/70") + segBtn(t,"theirs",0,"Theirs") +
-          '<button class="pin" aria-pressed="' + (hasRule(t)?"true":"false") + '" title="Remember this merchant">◉</button>' +
+          '<button class="pin" aria-pressed="' + (hasRule(t)&&!t.bnpl?"true":"false") + '" title="Remember this merchant">◉</button>' +
         '</div></div>';
     });
     html += '</div>';
@@ -1190,6 +1225,30 @@ function fmtDay(iso){
   var p = iso.split("-");
   var dt = new Date(Date.UTC(+p[0], +p[1]-1, +p[2]));
   return dt.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",timeZone:"UTC"});
+}
+
+/* The correction is never silent: the imported figure is kept in originalAmount, the
+   row wears an "edited" chip, it is listed in the checks, and the flag travels in the
+   shared export so your partner sees it too. The id keeps the imported amount on
+   purpose — rules, refund pairings and archives all reference it. */
+function editAmount(t){
+  if(!canEditAmount(t)) return;
+  var was = t.originalAmount != null ? t.originalAmount : t.amount;
+  var v = prompt("Corrected amount for " + t.merchant + " on " + t.date +
+    ".\n\nPositive is money spent, negative is money returned.\nThe bank line was read as " +
+    money(was) + ".", t.amount.toFixed(2));
+  if(v === null) return;
+  var num = parseFloat(String(v).replace(/[$,\s]/g,""));
+  if(isNaN(num) || !isFinite(num) || Math.abs(num) < 0.01){
+    alert("That is not an amount. Nothing changed."); return;
+  }
+  if(t.originalAmount == null) t.originalAmount = t.amount;
+  t.amount = +num.toFixed(2);
+  t.refund = t.amount < 0;              /* a correction can flip a debit into a credit */
+  t.large  = Math.abs(t.amount) >= 150;
+  state.confirmedTotals = false;        /* the net you ticked against the bank just moved */
+  pairRefunds();
+  renderLedger(); renderSettle();
 }
 
 function sharedItems(){
@@ -1277,6 +1336,7 @@ function renderChecks(){
   var undecided = state.txns.filter(function(t){ return !t.decided && !t.pending; });
   var dupes = suspectedDupes();
   var bnpl  = state.txns.filter(function(t){ return t.bnpl; });
+  var edited = state.txns.filter(function(t){ return amountEdited(t); });
   var bigs  = state.txns.filter(function(t){ return Math.abs(t.amount) >= 400; });
   var pend  = state.txns.filter(function(t){ return t.pending; });
   var refundsUnpaired = state.txns.filter(function(t){ return t.refund && !t.pairedWith; });
@@ -1307,6 +1367,9 @@ function renderChecks(){
     ck(bnpl.length === 0, "No instalment charges", "No buy-now-pay-later charges this month.",
        bnpl.length + " Klarna instalment(s). The charge isn't the purchase — a split item may span several months.",
        bnpl.slice(0,6).map(function(t){ return t.date+"  "+t.merchant+"  "+money(t.amount); })),
+    ck(edited.length === 0, "Amounts as imported", "No amount was changed by hand.",
+       edited.length + " amount(s) corrected by hand — the ledger no longer matches the bank line for line.",
+       edited.slice(0,6).map(function(t){ return t.date+"  "+t.merchant+"  "+money(t.originalAmount)+" → "+money(t.amount); })),
     ck(refundsUnpaired.length === 0, "Refunds matched to a charge", "Every credit lines up with a purchase.",
        refundsUnpaired.length + " credit(s) with no matching charge this month — likely a refund for something settled last month.",
        refundsUnpaired.slice(0,4).map(function(t){ return t.date+"  "+t.merchant+"  "+money(t.amount); })),
@@ -1380,13 +1443,16 @@ function renderSettle(){
              ' against you — check you agreed to each.</div>';
   $("#settleFlags").innerHTML = flags;
 
-  var rows = mine.map(function(t){ return {date:t.date, merchant:t.merchant, amount:t.amount, share:t.share, dirn:"you paid"}; })
+  var rows = mine.map(function(t){ return {date:t.date, merchant:t.merchant, amount:t.amount, share:t.share,
+                                          edited:amountEdited(t), dirn:"you paid"}; })
     .concat((state.partner && state.partner.items ? state.partner.items : [])
-      .map(function(i){ return {date:i.date, merchant:i.merchant, amount:i.amount, share:i.share, dirn:"they paid"}; }));
+      .map(function(i){ return {date:i.date, merchant:i.merchant, amount:i.amount, share:i.share,
+                                edited:!!i.edited, dirn:"they paid"}; }));
   $("#sharedTable").innerHTML = rows.length
     ? '<thead><tr><th>Date</th><th>Merchant</th><th>Who paid</th><th style="text-align:right">Amount</th><th style="text-align:right">Owed to payer</th></tr></thead><tbody>' +
       rows.sort(function(a,b){ return a.date<b.date?-1:1; }).map(function(r){
-        return '<tr><td>'+r.date+'</td><td>'+esc(r.merchant)+'</td><td>'+r.dirn+'</td><td class="n">'+
+        return '<tr><td>'+r.date+'</td><td>'+esc(r.merchant) +
+               (r.edited ? ' <span class="chip f">edited</span>' : "") + '</td><td>'+r.dirn+'</td><td class="n">'+
                money(r.amount)+'</td><td class="n">'+money(r.amount*(1-r.share))+'</td></tr>';
       }).join("") + '</tbody>'
     : '<tbody><tr><td class="empty" colspan="5">Tag some transactions as shared first.</td></tr></tbody>';
@@ -1499,7 +1565,10 @@ function snapshot(){
     meName:state.meName, youName:state.youName,
     threshold:state.threshold, defaultUnknown:state.defaultUnknown, rules:state.rules,
     excludePatterns:excludePatterns, txns:state.txns, ranges:state.ranges, blocks:state.blocks,
-    closedPeriods:state.closedPeriods};
+    closedPeriods:state.closedPeriods,
+    /* Additive since v3, so an older build still reads this file and ignores them. */
+    partner:state.partner, confirmedTotals:state.confirmedTotals,
+    view:{groupBy:state.groupBy, onlyUndecided:state.onlyUndecided, cursor:state.cursor}};
 }
 function autosave(){
   if(!storeAvailable()) return;
@@ -1520,6 +1589,15 @@ function applySession(d){
   state.rules = d.rules || []; state.txns = d.txns || [];
   state.ranges = d.ranges || []; state.blocks = d.blocks || [];
   state.closedPeriods = d.closedPeriods || {};
+  /* Guarded: a session file written before these existed must not wipe a partner
+     file you just loaded. */
+  if(typeof d.partner !== "undefined") state.partner = d.partner;
+  if(typeof d.confirmedTotals !== "undefined") state.confirmedTotals = !!d.confirmedTotals;
+  if(d.view){
+    state.groupBy = d.view.groupBy === "merchant" ? "merchant" : "day";
+    state.onlyUndecided = !!d.view.onlyUndecided;
+    state.cursor = typeof d.view.cursor === "number" ? d.view.cursor : 0;
+  }
   excludePatterns = d.excludePatterns || EXCLUDE_DEFAULT.slice();
   syncNames();
   return true;
@@ -1595,15 +1673,14 @@ $("#btnClear").onclick = function(){
   state.dropped = []; state.outOfPeriod = [];
   $("#importResult").innerHTML = ""; renderAll();
 };
-$("#btnGroup").onclick = function(e){
+$("#btnGroup").onclick = function(){
   state.groupBy = state.groupBy === "day" ? "merchant" : "day";
-  e.target.textContent = state.groupBy === "day" ? "Group by merchant" : "Group by day";
+  hydrateView();
   state.cursor = 0; renderLedger();
 };
-$("#btnOnlyUndecided").onclick = function(e){
+$("#btnOnlyUndecided").onclick = function(){
   state.onlyUndecided = !state.onlyUndecided;
-  e.target.setAttribute("aria-pressed", state.onlyUndecided);
-  e.target.textContent = state.onlyUndecided ? "Show everything" : "Show undecided only";
+  hydrateView();
   state.cursor = 0; renderLedger();
 };
 $("#btnApplyRules").onclick = function(){ applyRules(); renderLedger(); };
@@ -1620,10 +1697,14 @@ $("#ledger").onclick = function(e){
   var row = e.target.closest(".txn"); if(!row) return;
   state.cursor = +row.dataset.i;
   var t = state.txns.filter(function(x){ return x.id === row.dataset.id; })[0];
+  var amtCell = e.target.closest(".amt.editable");
+  if(amtCell && t && !e.target.closest(".splitbar")){ editAmount(t); return; }
   var seg = e.target.closest("button[data-share]");
   if(seg && t){ t.share = parseFloat(seg.dataset.share); t.decided = true; t.auto = false; pairRefunds(); renderLedger(); return; }
   var pin = e.target.closest(".pin");
   if(pin && t){
+    if(t.bnpl){ alert("Instalment charges don't get a merchant rule.\n\nThe plan may be financing " +
+      "something quite unlike a normal purchase at this merchant, so each instalment is decided by hand."); return; }
     if(!t.decided){ alert("Assign a split first, then remember it."); return; }
     if(hasRule(t)){
       state.rules = state.rules.filter(function(r){
@@ -1638,6 +1719,9 @@ $("#ledger").onclick = function(e){
 document.addEventListener("keydown", function(e){
   if(!$("#view-review").classList.contains("active")) return;
   if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  /* Cmd+C is a copy, not a request for the custom-share dialog. Shift stays live —
+     the shifted digits are the "remember this as a rule" shortcuts. */
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
   var list = visibleTxns(); if(!list.length) return;
   var key = e.key.toLowerCase();
   if(key === "j" || e.key === "ArrowDown"){ state.cursor = Math.min(state.cursor+1, list.length-1); e.preventDefault(); renderLedger(); return; }
@@ -1677,7 +1761,9 @@ $("#checks").addEventListener("change", function(e){
 });
 $("#btnExport").onclick = function(){
   var items = sharedItems().map(function(t){
-    return {date:t.date, merchant:t.merchant, category:t.category, amount:+t.amount.toFixed(2), share:t.share};
+    var it = {date:t.date, merchant:t.merchant, category:t.category, amount:+t.amount.toFixed(2), share:t.share};
+    if(amountEdited(t)) it.edited = true;   /* corrected by hand — the bank line read differently */
+    return it;
   });
   download("split-"+state.period+"-"+state.meName.toLowerCase().replace(/\W+/g,"")+".json", {
     format:"split-ledger/v1", toolVersion:VERSION, period:state.period, owner:state.meName,
@@ -1775,6 +1861,11 @@ function renderAll(){
   countOccurrences(); renderIntegrity(); renderProgress();
   renderLedger(); renderRules(); renderSettle(); renderBanner(); renderClosed();
 }
+function hydrateView(){
+  $("#btnGroup").textContent = state.groupBy === "day" ? "Group by merchant" : "Group by day";
+  $("#btnOnlyUndecided").textContent = state.onlyUndecided ? "Show everything" : "Show undecided only";
+  $("#btnOnlyUndecided").setAttribute("aria-pressed", state.onlyUndecided);
+}
 function hydrate(){
   syncNames();
   $("#verTag").textContent = "v" + VERSION;
@@ -1782,7 +1873,7 @@ function hydrate(){
   $("#threshold").value = state.threshold;
   $("#defaultUnknown").value = String(state.defaultUnknown);
   $("#excludeBox").value = excludePatterns.join("\n");
-  hydrateNames(); hydrateCards();
+  hydrateNames(); hydrateCards(); hydrateView();
   showStoreMode(); applyRules(); renderAll();
 }
 autoload();

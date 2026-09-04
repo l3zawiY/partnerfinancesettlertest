@@ -5,6 +5,46 @@ and archive. Bump both together.
 
 ---
 
+## 0.4.0
+
+**Added**
+
+- **Correct a mis-parsed amount by hand**, gated at $1,000 (`EDIT_MIN`). Click the amount
+  on a review row. The imported figure is kept in `originalAmount`, the row wears an
+  `edited` chip showing what the bank line said, a new check lists every corrected row,
+  the "I checked the count and net" tick is cleared, and the shared export carries
+  `edited: true`. Gated high because the rows that get mis-parsed are the big ones — a
+  running balance read as an amount — and a low gate turns the ledger into a spreadsheet.
+  A row already corrected stays editable so a bad correction can be undone.
+- **Session storage now keeps the loaded partner file, the count-and-net tick, and the
+  view toggles** (grouping, undecided-only, cursor). Previously all four reset on reload.
+  Additive to `split-ledger-session/v3` — the version is deliberately *not* bumped, so an
+  older build still reads the file and ignores the new fields. Reading is guarded: a
+  session file written before these existed no longer wipes a partner file just loaded.
+- Assertions T21, T22, T23 covering instalment rule-eligibility, the edit gate and the
+  edited flag. 31 -> 34.
+
+**Fixed**
+
+- **Cmd+C in step 02 opened the custom-share dialog.** The keyboard handler matched bare
+  letters and digits without checking for a modifier, so every OS shortcut in the review
+  view was also a split command — Cmd+C prompted for a percentage, Cmd+1..5 reassigned the
+  highlighted row, Cmd+K moved the cursor. Meta, Ctrl and Alt now bail out; Shift stays
+  live because the shifted digits are the remember-as-rule shortcuts.
+- **Klarna instalments inherited the financed merchant's rule.** `KLARNA*Walmart` cleans
+  down to the same key as an ordinary Walmart run, so a "Walmart 50/50" rule silently
+  auto-split whatever the plan was financing. Instalment rows no longer take merchant
+  rules (`ruleEligible()`) and can no longer have one pinned from them. They are otherwise
+  ordinary rows — counted, splittable, exported — and the amount threshold still applies,
+  so small instalments are not new work.
+
+**Changed**
+
+- The two review toggles render their labels from one place (`hydrateView()`), so restored
+  state and button text cannot disagree.
+
+---
+
 ## 0.3.0
 
 **Added**

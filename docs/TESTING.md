@@ -52,6 +52,9 @@ business in one.
 | T18 | Re-importing the same paste adds nothing |
 | T19 | Settlement arithmetic |
 | T20 | No network calls anywhere in the source |
+| T21 | An instalment charge never inherits a merchant rule |
+| T22 | Hand-correcting an amount is gated at $1,000, and a corrected row stays editable |
+| T23 | A corrected row reports itself as edited; an untouched one does not |
 
 ### Adding assertions
 
@@ -79,8 +82,16 @@ Run the rows relevant to what you touched.
 | Export | Open the export in a text editor | every item has a category; **no private items present** |
 | Review | Tag with 1–5 and J/K only | no mouse needed |
 | Review | Shift+number on a merchant | rule created, visible in the rules list |
+| Review | Cmd+C / Ctrl+C, Cmd+1, Cmd+K with a row highlighted | copies / does nothing — no dialog, no split reassigned |
+| Review | Click an amount under $1,000 | nothing happens; no dashed underline on it |
+| Review | Click an amount of $1,000+, correct it | chip reads edited, sub-line shows the bank figure, checks list it, the count-and-net tick clears |
+| Review | Correct an amount, then correct it back | still editable below the gate; edited chip and check row disappear |
+| Review | Pin a Klarna instalment row | refused with an explanation; the merchant rule is not created |
+| Review | Set a rule on a merchant that also appears as a Klarna charge | the ordinary rows auto-split, the instalment stays undecided |
 | Review | Group by merchant, use a bulk button | all rows for that merchant change together |
 | State | Tag, quit the browser completely, reopen tomorrow | work intact, banner states where you are |
+| State | Load a partner file, tick count-and-net, group by merchant, reload | all three come back; toggle labels match what is on screen |
+| State | Load a session file saved by 0.3.x | loads; a partner file already open is not wiped |
 | Settle | Close month, open the archive in a text editor | valid, matches the on-screen figure to the cent |
 | Settle | Close the same month twice | warns; the first archive file is untouched |
 

@@ -113,6 +113,7 @@ something, it's wrong.
 | S3 | Running cumulative balance so settlement can slip a month |
 | S4 | Ingest a shared note capturing the handful of asymmetric splits agreed verbally |
 | S5 | Multi-currency and foreign-exchange fee handling |
+| S6 | Optional Amazon order-context paste: match order totals and full product names to imported Amazon charges, show the evidence in Review, and keep every split decision human |
 
 ### Explicitly out of scope
 
@@ -121,7 +122,7 @@ something, it's wrong.
 - A mobile app
 - Executing payments
 - Any AI deciding splits autonomously
-- Order-history enrichment from third-party sites *(parked — high value, high complexity)*
+- Automatic retailer connections, browser scraping, or account access
 
 ---
 
@@ -172,6 +173,12 @@ ride a favour — exists only in the users' heads and is not recoverable from ba
 An agent would guess at the one thing only they know, add nondeterminism to arithmetic
 that must be exact, and still need every guess reviewed.
 
+**Amazon context is evidence, not a decision.** A manually pasted Amazon order page may
+help identify what produced a vague bank charge. Matching stays local and deterministic,
+ambiguous results stay visible, full product names are shown verbatim, and no match ever
+assigns a split. Product and order details remain private session context and never enter
+the shared export or month archive. See `docs/AMAZON-CONTEXT-PLAN.md`.
+
 ---
 
 ## 8. Known weaknesses
@@ -180,7 +187,8 @@ that must be exact, and still need every guess reviewed.
   The tool can be excellent and still go unused. This is the original problem and it
   remains unsolved.
 - **Recall for context-dependent purchases** is mitigated by day grouping, not solved.
-  The parked enrichment work is the real fix.
+  The planned Amazon context helper addresses one high-friction merchant only; other
+  context-dependent merchants remain manual.
 - **Instalment purchases** (buy-now-pay-later) are flagged but not modelled — the charge
   isn't the purchase, so a split item can span several months.
 - **The partner's bank pages are untested.** They're assumed to render identically.

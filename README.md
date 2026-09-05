@@ -65,7 +65,8 @@ where you left off.
 node test/run-tests.js
 ```
 
-31 assertions over synthetic fixtures. Also runnable in-browser from step 04.
+Behavioural assertions over synthetic fixtures. Also runnable in-browser from step 04;
+the command reports the current total.
 
 Fixtures are synthetic on purpose — this repo is hostable publicly, and real bank
 statements have no business in one.

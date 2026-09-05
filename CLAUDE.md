@@ -86,14 +86,16 @@ These are not preferences. Breaking any of them is a defect, not a design change
 
 ## Architecture map
 
-`index.html` is one file in five sections, in this order:
+`index.html` is one file in seven sections, in this order:
 
 | Section | Marker | Contents | Change frequency |
 |---|---|---|---|
 | Styles | `<style>` | CSS variables and layout | Occasional |
 | Markup | `<body>` | Four step panels: Import, Review, Settle, Rules & files | Occasional |
 | **Engine** | `==ENGINE-START==` / `==ENGINE-END==` | Pure functions: parsers, canonicalisation, coverage, date/money helpers. **No DOM access.** | **Rare — treat as frozen** |
-| Fixtures & self-test | after `==ENGINE-END==` | Synthetic pastes and 31 assertions | When behaviour changes |
+| Policy | `POLICY` comment block | Pure app rules kept outside the frozen engine and reachable by the headless harness | Occasional |
+| Amazon context | `==AMAZON-CONTEXT-START==` / `==AMAZON-CONTEXT-END==` | Pure Amazon order parsing and, later, matching. **No DOM access.** | During S6 |
+| Fixtures & self-test | `SELF-TEST` comment block | Synthetic pastes and behavioural assertions | When behaviour changes |
 | App | after fixtures | State, rules, rendering, persistence, events | Most changes land here |
 
 **The engine is deliberately DOM-free** so the test harness can load and exercise it in
@@ -117,7 +119,7 @@ Node without a browser. Any DOM access added inside the engine markers breaks
 ## How to test
 
 **In the browser:** open `index.html`, go to step 04, click **Run self-test**. Expect
-31/31 green.
+every assertion to be green.
 
 **Headless, for agents and CI:**
 

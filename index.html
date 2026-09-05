@@ -1072,6 +1072,55 @@ var FIXTURE_BMO = [
   "Apr 26, 2026\tAPPLE.COM/BILL TORONTO ON\t-$4.00\t"
 ].join("\n");
 
+var FIXTURE_AMAZON = [
+  "Your Orders",
+  "12 orders placed in", "past 3 months", "View transactions",
+  "Order placed", "September 3, 2026", "Total", "$45.67",
+  "Ship to", "Sample Recipient", "Ordered by", "Sample Person",
+  "Order # 700-1111111-2222222", "View order details Invoice",
+  "Delivered 4 September", "Package was handed to a receptionist",
+  "Sample Household Cleaner, 1 L",
+  "Sample Household Cleaner, 1 L - Fragrance Free",
+  "Buy it again", "View your item",
+  "Sample Storage Bag, Blue", "Sample Storage Bag, Blue",
+  "Auto-delivered: Every 3 months", "Write a product review", "Next→\\",
+  /* The copied page repeated this order block. */
+  "Order placed", "September 3, 2026", "Total", "$45.67",
+  "Order # 700-1111111-2222222", "Delivered 4 September",
+  "Sample Household Cleaner, 1 L - Fragrance Free",
+  "Sample Storage Bag, Blue",
+  "Order placed", "September 1, 2026", "Total", "$120.00",
+  "Order # 700-3333333-4444444", "Purchased with monthly payments View and manage",
+  "Sample Electronic Device with Accessories", "Get product support",
+  /* Structurally incomplete and therefore reported, not guessed. */
+  "Order placed", "September 2, 2026",
+  "Order # 700-5555555-6666666", "Sample Incomplete Order"
+].join("\n");
+
+var FIXTURE_AMAZON_MATCH_ORDERS = [
+  {orderId:"700-1000000-0000001",orderDate:"2026-09-03",total:45.67,monthlyPayments:false},
+  {orderId:"700-1000000-0000002",orderDate:"2026-09-10",total:21.46,monthlyPayments:false},
+  {orderId:"700-1000000-0000003",orderDate:"2026-09-11",total:21.46,monthlyPayments:false},
+  {orderId:"700-1000000-0000004",orderDate:"2026-09-25",total:38.58,monthlyPayments:false},
+  {orderId:"700-1000000-0000005",orderDate:"2026-09-20",total:90.83,monthlyPayments:true},
+  {orderId:"700-1000000-0000006",orderDate:"2026-09-01",total:10.00,monthlyPayments:false},
+  {orderId:"700-1000000-0000007",orderDate:"2026-09-30",total:100.00,monthlyPayments:false}
+];
+var FIXTURE_AMAZON_MATCH_TXNS = [
+  {id:"a",family:"amazon",date:"2026-09-05",amount:45.67},
+  {id:"b",family:"amazon",date:"2026-09-10",amount:21.46},
+  {id:"c",family:"amazon",date:"2026-09-11",amount:21.46},
+  {id:"d",family:"amazon",date:"2026-09-26",amount:26.79},
+  {id:"e",family:"amazon",date:"2026-09-26",amount:11.79},
+  {id:"f",family:"amazon",date:"2026-09-21",amount:90.83},
+  {id:"g",family:"amazon",date:"2026-09-20",amount:10.00},
+  {id:"h",family:"amazon",date:"2026-09-30",amount:25.00},
+  {id:"i",family:"amazon",date:"2026-09-30",amount:25.00},
+  {id:"j",family:"amazon",date:"2026-09-30",amount:25.00},
+  {id:"k",family:"amazon",date:"2026-09-30",amount:25.00},
+  {id:"not-amazon",family:"sample",date:"2026-09-05",amount:45.67}
+];
+
 function runSelfTest(){
   var T = [], opts = {year:2026, today:"2026-08-06", excludes:EXCLUDE_DEFAULT, card:"Fixture"};
   function assert(id, label, actual, expected){
@@ -1155,6 +1204,75 @@ function runSelfTest(){
     canEditAmount({amount:52, originalAmount:3500}), "false|true|true");
   assert("T23","A corrected amount is flagged as edited",
     amountEdited({amount:52, originalAmount:3500}) + "|" + amountEdited({amount:52}), "true|false");
+  var amazon = parseAmazonOrders(FIXTURE_AMAZON);
+  assert("T24a","Amazon repeated order blocks deduplicate", amazon.orders.length, 2);
+  assert("T24b","Amazon order fields parse",
+    amazon.orders[0].orderDate + "|" + amazon.orders[0].total + "|" + amazon.orders[0].orderId,
+    "2026-09-03|45.67|700-1111111-2222222");
+  assert("T24c","Amazon full product titles survive in source order",
+    amazon.orders[0].products.join("|"),
+    "Sample Household Cleaner, 1 L - Fragrance Free|Sample Storage Bag, Blue");
+  assert("T24d","Amazon subscription and monthly-payment flags parse",
+    amazon.orders[0].subscription + "|" + amazon.orders[1].monthlyPayments, "true|true");
+  assert("T24e","Amazon shipping identity and delivery noise are discarded",
+    /Recipient|Person|receptionist|Delivered/.test(JSON.stringify(amazon.orders)) ? "found" : "none", "none");
+  assert("T24f","Amazon incomplete order blocks are reported", amazon.invalidBlocks, 1);
+  var matchTxnsBefore = JSON.stringify(FIXTURE_AMAZON_MATCH_TXNS);
+  var matchOrdersBefore = JSON.stringify(FIXTURE_AMAZON_MATCH_ORDERS);
+  var matches = matchAmazonOrders(FIXTURE_AMAZON_MATCH_TXNS,FIXTURE_AMAZON_MATCH_ORDERS,{windowDays:7});
+  var matchById = {}; matches.forEach(function(m){ matchById[m.txnId] = m; });
+  assert("T25a","Amazon unique exact total becomes an explained candidate",
+    matchById.a.kind + "|" + matchById.a.orderIds[0] + "|" + !!matchById.a.evidence,
+    "exact|700-1000000-0000001|true");
+  assert("T25b","Amazon repeated exact totals stay ambiguous",
+    matchById.b.kind + "|" + matchById.c.kind, "ambiguous|ambiguous");
+  assert("T25c","Amazon two-charge sum stays order-level",
+    matchById.d.kind + "|" + matchById.e.kind + "|" + matchById.d.orderIds[0],
+    "split-order|split-order|700-1000000-0000004");
+  assert("T25d","Amazon monthly-payment total stays manual", matchById.f.kind, "instalment");
+  assert("T25e","Amazon distant equal total stays unmatched", matchById.g.kind, "unmatched");
+  assert("T25f","Amazon matcher does not search four-charge combinations",
+    [matchById.h.kind,matchById.i.kind,matchById.j.kind,matchById.k.kind].join("|"),
+    "unmatched|unmatched|unmatched|unmatched");
+  assert("T25g","Amazon matcher ignores other merchants", matches.length, 11);
+  assert("T25h","Amazon matching never mutates its inputs",
+    (JSON.stringify(FIXTURE_AMAZON_MATCH_TXNS) === matchTxnsBefore) + "|" +
+    (JSON.stringify(FIXTURE_AMAZON_MATCH_ORDERS) === matchOrdersBefore), "true|true");
+  var matchSummary = summarizeAmazonMatches(matches);
+  assert("T26","Amazon import summary counts every match state",
+    [matchSummary.total,matchSummary.exact,matchSummary.ambiguous,matchSummary.splitOrder,
+     matchSummary.instalment,matchSummary.unmatched].join("|"), "11|1|2|2|1|5");
+  var reviewSuggested = amazonReviewState(matchById.a,FIXTURE_AMAZON_MATCH_ORDERS,null);
+  var reviewAmbiguous = amazonReviewState(matchById.b,FIXTURE_AMAZON_MATCH_ORDERS,null);
+  var reviewConfirmed = amazonReviewState(matchById.b,FIXTURE_AMAZON_MATCH_ORDERS,
+    {status:"confirmed",orderId:"700-1000000-0000002"});
+  var reviewRejected = amazonReviewState(matchById.a,FIXTURE_AMAZON_MATCH_ORDERS,{status:"rejected"});
+  assert("T27a","Amazon exact suggestion resolves its order for Review",
+    reviewSuggested.kind + "|" + reviewSuggested.orders[0].orderId,
+    "exact|700-1000000-0000001");
+  assert("T27b","Amazon Review keeps every ambiguous order visible",
+    reviewAmbiguous.kind + "|" + reviewAmbiguous.orders.length, "ambiguous|2");
+  assert("T27c","Amazon confirmation selects one order without changing the match",
+    reviewConfirmed.kind + "|" + reviewConfirmed.orders[0].orderId,
+    "confirmed|700-1000000-0000002");
+  assert("T27d","Amazon rejected suggestion carries no order context",
+    reviewRejected.kind + "|" + reviewRejected.orders.length, "rejected|0");
+  assert("T28a","Amazon navigation text never becomes a product",
+    /Next|Previous/.test(amazon.orders[0].products.join("|")) ? "found" : "none", "none");
+  assert("T28b","Amazon paste reports advertised and repeated order counts",
+    amazon.advertisedOrderCount + "|" + amazon.duplicateBlocks + "|" + amazonPasteMayBeIncomplete(amazon),
+    "12|1|true");
+  var ordinaryDecisions = {b:{status:"confirmed",orderId:"700-1000000-0000002"}};
+  var splitDecisions = {d:{status:"confirmed",orderId:"700-1000000-0000004"}};
+  assert("T28c","A confirmed ordinary Amazon order cannot be reused",
+    amazonConfirmationConflict("c","700-1000000-0000002",matches,ordinaryDecisions), true);
+  assert("T28d","A confirmed split Amazon order remains available to its linked charges",
+    amazonConfirmationConflict("e","700-1000000-0000004",matches,splitDecisions), false);
+  assert("T28e","Amazon occurrence chip names bank charges clearly",
+    amazonOccurrenceChipText({family:"amazon",occurrences:16}) + "|" +
+    amazonOccurrenceChipText({family:"sample",occurrences:4}), "16 bank charges|×4");
+  assert("T28f","Amazon ambiguity explains the competing orders and charges",
+    matchById.b.evidence.indexOf("2 Amazon orders and 2 bank charges") >= 0, true);
   assert("T20","No network calls in source",
     netRe.test(document.documentElement.outerHTML) ? "found" : "none", "none");
   return T;

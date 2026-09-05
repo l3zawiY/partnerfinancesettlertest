@@ -29,6 +29,9 @@ They reproduce every structural quirk of the real bank pastes:
 - A refund that returns under a *different* merchant string than the charge
 - A same-day duplicate that should be flagged
 - A small merchant repeating every few days that should **not** be flagged
+- Noisy Amazon order-page text with repeated blocks and titles, multiple products,
+  subscription and monthly-payment flags, personal shipping details, page navigation,
+  an advertised order count, and a malformed order
 
 They are synthetic because this repo is hostable publicly and real statements have no
 business in one.
@@ -55,6 +58,11 @@ business in one.
 | T21 | An instalment charge never inherits a merchant rule |
 | T22 | Hand-correcting an amount is gated at $1,000, and a corrected row stays editable |
 | T23 | A corrected row reports itself as edited; an untouched one does not |
+| T24a–T24f | Amazon order parsing: block and title deduplication, core fields, verbatim products, subscription/instalment flags, privacy filtering, malformed-block reporting |
+| T25a–T25h | Amazon matching: unique exact evidence, equal-total ambiguity, constrained split-order sums, monthly-payment and date guards, combination limit, merchant scope, no input mutation |
+| T26 | Amazon Import summary counts every matcher state |
+| T27a–T27d | Amazon Review state: exact and ambiguous order resolution, single-order confirmation, and rejection without leaked context |
+| T28a–T28f | Amazon corrective trust: navigation filtering, paste completeness metadata, ordinary-order consumption with split-order exception, explicit occurrence labels, and concrete ambiguity evidence |
 
 ### Adding assertions
 
@@ -76,6 +84,23 @@ Run the rows relevant to what you touched.
 | Import | Paste a real statement, compare count and net to the bank's own display | match |
 | Import | Paste without tab characters (retyped or reformatted) | refused with a clear message, nothing added |
 | Import | Same card imported twice | second import adds 0 rows |
+| Amazon context | Before an Amazon bank row exists | optional paste controls are disabled with a clear explanation |
+| Amazon context | Add an Amazon bank row, paste a valid noisy Your Orders page | controls enable; summary reports parsed orders and every match state |
+| Amazon context | Paste one copied page from a view that advertises more orders | usable orders match; advisory warns that missing pages can prevent matches |
+| Amazon context | Paste the same order page twice | summary reports unique orders and repeated blocks ignored; no duplicate orders appear |
+| Amazon context | Paste blank or unusable text | clear error; bank transactions and previous valid Amazon context stay unchanged |
+| Amazon context | Clear Amazon context | parsed orders and summary disappear; bank transactions remain |
+| Amazon context | Reload after matching in 0.4.3 | context disappears and the preview limitation was disclosed beforehand |
+| Amazon Review | Open Review after matching | every exact suggestion shows all source product titles on additional lines plus its evidence |
+| Amazon Review | Confirm, reject, then reconsider an exact suggestion | each state is clear; the transaction amount and split remain unchanged |
+| Amazon Review | Inspect an ambiguous equal-total charge | every candidate and its full products are visible; choosing one confirms only that order |
+| Amazon Review | Resolve the first of two equal-total charges | its ordinary order becomes unavailable on the second charge; changing the first decision releases it |
+| Amazon Review | Inspect a possible split-order charge | order-level products appear with an explicit warning that items are not allocated to the charge |
+| Amazon Review | Confirm both charges in one detected split order | the shared order remains available to both explicitly linked charges |
+| Amazon Review | Inspect monthly-payment and unmatched charges | each remains clearly manual without invented product allocation |
+| Amazon Review | Compare an Amazon candidate with its bank row | bank charge date and Amazon order date are visible together; Amazon chip says the number of bank charges |
+| Amazon Review | Use J/K and 1–5 around tall enriched rows | keyboard navigation and split assignment still work normally |
+| Amazon Review | Review a very long product title at a narrow window width | full text wraps; transaction amount and split controls remain usable |
 | Identity | Switch "I am" and export | filename and `owner` change accordingly |
 | **Identity** | **Load your own export as the partner file** | **rejected with an explanation** |
 | Identity | Load a file from an unrecognised name | asks for confirmation first |

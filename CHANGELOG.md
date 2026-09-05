@@ -5,6 +5,96 @@ and archive. Bump both together.
 
 ---
 
+## 0.4.5
+
+**Added**
+
+- Amazon Import now reports unique orders, repeated order blocks, monthly-payment orders
+  found, and possible monthly-payment charge matches as separate concepts. When Amazon's
+  advertised order count exceeds the pasted unique orders, an advisory explains that
+  missing pages can prevent matches without rejecting the usable context.
+- Amazon Review shows the bank charge date beside each Amazon order date. Equal-total
+  ambiguity now states the competing order and bank-charge counts, and Amazon occurrence
+  chips use an explicit label such as `16 bank charges`.
+
+**Fixed**
+
+- Amazon page-navigation labels such as `Next` no longer leak into product names.
+- Confirming an ordinary Amazon order consumes it for other charges, preventing the same
+  order from being assigned twice. Detected split orders remain deliberately available to
+  each of their linked charges.
+- Assertions T28a–T28f cover parser noise, paste completeness metadata, confirmation
+  consumption, the split-order exception, occurrence wording, and concrete ambiguity.
+
+## 0.4.4
+
+**Added**
+
+- **Amazon evidence in Review.** Amazon rows now show every matched product title
+  verbatim on additional lines while retaining the original bank description, amount,
+  and split controls. Exact suggestions can be confirmed or rejected; ambiguous rows
+  show every candidate for explicit selection; split-order, monthly-payment, and
+  unmatched states explain their limits instead of guessing.
+- Confirmed and rejected suggestions can be reconsidered. These actions change only
+  local context state and never touch transaction amounts, split decisions, or
+  settlement arithmetic.
+- Assertions T27a–T27d covering Review order resolution, ambiguity, confirmation, and
+  rejection, plus manual checks for multiline content and keyboard behavior.
+
+**Known limitation**
+
+- Amazon orders, matches, and confirmations still live in memory only and disappear on
+  reload. Phase 5 will add private-session persistence and output privacy assertions.
+
+## 0.4.3
+
+**Added**
+
+- **Optional Amazon context paste in Import.** Section 3 enables after a posted Amazon
+  charge enters the ledger, accepts copied Your Orders text, runs the tested parser and
+  matcher locally, and summarizes exact, ambiguous, possible split-order,
+  monthly-payment, and unmatched results. Empty or unusable input leaves existing data
+  unchanged, and clearing Amazon context never clears bank transactions.
+- Assertion T26 for complete match-state summary counts, plus manual checks for enablement,
+  valid and invalid paste, clearing, and the temporary reload limitation.
+
+**Known limitation**
+
+- Version 0.4.3 keeps Amazon orders and matches in memory only. Reloading clears them,
+  and Review rows are not enriched yet; both facts are stated in the preview UI.
+
+## 0.4.2
+
+**Added**
+
+- **Pure Amazon order matcher**, the second internal phase of PRODUCT S6. It produces
+  explained results for unique exact totals, repeated-total ambiguity, constrained
+  two- or three-charge order sums, monthly-payment orders, and unmatched charges. It
+  matches only posted Amazon spending, uses integer cents and an explicit date window,
+  and never mutates transactions, amounts, split decisions, or orders. There is still
+  no user-facing Amazon interface.
+- Assertions T25a–T25h covering each match state, the three-charge search limit,
+  non-Amazon exclusion, and input immutability.
+
+## 0.4.1
+
+**Added**
+
+- **Pure Amazon Your Orders parser**, the first internal phase of PRODUCT S6. It extracts
+  order date, total, order number, verbatim product titles, subscription status, and
+  monthly-payment status from noisy copied page text. It deduplicates repeated order
+  blocks and adjacent short/full title variants, discards shipping identity and page
+  controls, and reports incomplete blocks rather than guessing. There is no user-facing
+  import or matching UI yet.
+- Synthetic Amazon fixture and assertions T24a–T24f covering fields, deduplication,
+  verbatim titles, flags, privacy filtering, and malformed input.
+
+**Fixed**
+
+- The architecture map now includes the existing Policy section and the new Amazon
+  Context section, and fixed assertion totals were removed from evergreen docs.
+- The stale hardcoded header version was removed; startup fills it from `VERSION`.
+
 ## 0.4.0
 
 **Added**

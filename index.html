@@ -124,11 +124,21 @@ details.drop .inner .why{color:var(--ink-faint);flex:none;width:112px}
 .dayhead .bulk button:hover{background:var(--band)}
 
 .txn{display:grid;grid-template-columns:1fr 108px 348px;gap:14px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--hairline);background:var(--card)}
+.txn>div:first-child{min-width:0}
 .daygroup .txn:nth-child(even){background:var(--band)}
 .txn.cursor{box-shadow:inset 3px 0 0 var(--ink);background:#fffdf2}
 .txn.undecided .m1::after{content:"?";font-family:var(--mono);color:var(--warn);margin-left:7px;font-weight:700}
 .txn .m1{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .txn .m2{display:block;font-size:11px;color:var(--ink-faint);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.amazonctx{margin-top:7px;padding:7px 9px;border-left:3px solid var(--mine);background:var(--band);font-size:11.5px;line-height:1.4}
+.amazonctx.warn{border-left-color:var(--warn);background:#fdf9ef}
+.amazonctx.muted{border-left-color:var(--rule);color:var(--ink-soft)}
+.amazonproduct{display:block;color:var(--ink);margin:2px 0;overflow-wrap:anywhere}
+.amazonmeta{display:block;color:var(--ink-soft);font-family:var(--mono);font-size:10.5px;margin-top:5px}
+.amazoncandidate{padding:5px 0;border-bottom:1px solid var(--hairline)}
+.amazoncandidate:last-of-type{border-bottom:none}
+.amazonactions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.amazonactions button{border:1px solid var(--rule);background:var(--paper);border-radius:var(--r);padding:3px 7px;cursor:pointer;font-size:10.5px}
 .chip{display:inline-block;font-size:10px;letter-spacing:.04em;padding:1px 6px;border-radius:10px;background:var(--band);color:var(--ink-soft);margin-left:6px;vertical-align:1px}
 .chip.f{background:#fdf1dd;color:var(--warn)}
 .chip.r{background:#e6f0e9;color:var(--ok)}
@@ -268,6 +278,19 @@ table.mini tr:nth-child(even) td{background:var(--band)}
       </div>
 
       <div id="importResult" style="margin-top:20px"></div>
+
+      <div class="panel" style="margin-top:24px">
+        <h2 class="sec">3 · Add Amazon order context — optional</h2>
+        <p class="help" id="amazonHelp">Add a posted Amazon charge to the ledger first.
+          This supplies product context only and never chooses a split.</p>
+        <label class="field"><span>Paste from Amazon Your Orders</span>
+          <textarea id="amazonPaste" spellcheck="false" disabled></textarea></label>
+        <div class="btnrow">
+          <button class="btn" id="btnAmazonMatch" disabled>Match Amazon orders</button>
+          <button class="btn ghost" id="btnAmazonClear" disabled>Clear Amazon context</button>
+        </div>
+        <div id="amazonResult" style="margin-top:14px"></div>
+      </div>
     </div>
 
     <aside class="rail">
@@ -1306,6 +1329,8 @@ var state = {
   partner:null, onlyUndecided:false, groupBy:"day",
   confirmedTotals:false, cursor:0,
   ranges:[], blocks:[], dropped:[], outOfPeriod:[], lastImport:null,
+  amazonOrders:[], amazonMatches:[], amazonInvalidBlocks:0, amazonDuplicateBlocks:0,
+  amazonAdvertisedOrderCount:null, amazonDecisions:{},
   closedPeriods:{}
 };
 function syncNames(){
@@ -1461,6 +1486,65 @@ function doImport(){
   renderAll();
 }
 
+function doAmazonImport(){
+  var raw = $("#amazonPaste").value;
+  if(!raw.trim()){
+    $("#amazonResult").innerHTML = '<div class="flag">Nothing to parse — paste the Amazon Your Orders page first.</div>';
+    return;
+  }
+  var parsed = parseAmazonOrders(raw);
+  if(!parsed.orders.length){
+    $("#amazonResult").innerHTML = '<div class="flag stop"><strong>No Amazon orders found.</strong> ' +
+      'Copy the Your Orders page, including the Order placed, Total, and Order # lines. Nothing changed.</div>';
+    return;
+  }
+  state.amazonOrders = parsed.orders;
+  state.amazonInvalidBlocks = parsed.invalidBlocks;
+  state.amazonDuplicateBlocks = parsed.duplicateBlocks;
+  state.amazonAdvertisedOrderCount = parsed.advertisedOrderCount;
+  state.amazonDecisions = {};
+  $("#amazonPaste").value = ""; /* raw Amazon page text is never retained */
+  renderAmazonImport();
+  renderLedger();
+}
+
+function renderAmazonImport(){
+  var charges = state.txns.filter(isAmazonCharge);
+  var enabled = charges.length > 0;
+  $("#amazonPaste").disabled = !enabled;
+  $("#btnAmazonMatch").disabled = !enabled;
+  $("#btnAmazonClear").disabled = !state.amazonOrders.length;
+  $("#amazonHelp").textContent = enabled
+    ? charges.length + " posted Amazon charge" + (charges.length===1?"":"s") +
+      " in the ledger. Paste Your Orders; matching supplies context only and never chooses a split."
+    : "Add a posted Amazon charge to the ledger first. This supplies product context only and never chooses a split.";
+
+  if(!state.amazonOrders.length) return;
+  state.amazonMatches = matchAmazonOrders(state.txns,state.amazonOrders,{windowDays:AMAZON_MATCH_WINDOW_DAYS});
+  var s = summarizeAmazonMatches(state.amazonMatches);
+  var monthlyOrders = state.amazonOrders.filter(function(o){ return o.monthlyPayments; }).length;
+  var html = '<div class="flag good"><strong>Read ' + state.amazonOrders.length + ' unique Amazon order' +
+    (state.amazonOrders.length===1?'':'s') + '.</strong> ' +
+    (state.amazonDuplicateBlocks ? 'Ignored ' + state.amazonDuplicateBlocks + ' repeated order block' +
+      (state.amazonDuplicateBlocks===1?'':'s') + '. ' : '') +
+    'Found ' + monthlyOrders + ' order' + (monthlyOrders===1?'':'s') + ' marked as monthly payments. ' +
+    'Compared with ' + s.total + ' posted Amazon bank charge' + (s.total===1?'':'s') + ': ' + s.exact + ' exact, ' +
+    s.ambiguous + ' ambiguous, ' + s.splitOrder + ' possible split-order, ' +
+    s.instalment + ' possible monthly-payment charge match' + (s.instalment===1?'':'es') + ', ' +
+    s.unmatched + ' unmatched.</div>';
+  if(state.amazonAdvertisedOrderCount !== null && state.amazonAdvertisedOrderCount > state.amazonOrders.length){
+    html += '<div class="flag"><strong>This Amazon paste may be incomplete.</strong> Amazon says the view contains ' +
+      state.amazonAdvertisedOrderCount + ' orders, but this paste contained ' + state.amazonOrders.length +
+      ' unique orders. Missing pages can prevent matches; you can paste several copied pages together.</div>';
+  }
+  if(state.amazonInvalidBlocks){
+    html += '<div class="flag">Skipped ' + state.amazonInvalidBlocks +
+      ' incomplete order block' + (state.amazonInvalidBlocks===1?'':'s') + ' rather than guessing.</div>';
+  }
+  html += '<p class="note">Preview limitation: Amazon context and confirmations are kept in memory and will disappear when this page reloads.</p>';
+  $("#amazonResult").innerHTML = html;
+}
+
 function blockReconHTML(blocks){
   var h = "";
   blocks.forEach(function(b){
@@ -1494,6 +1578,67 @@ function visibleTxns(){
     list.sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
   }
   return state.onlyUndecided ? list.filter(function(t){ return !t.decided; }) : list;
+}
+
+function amazonMatchFor(txnId){
+  return state.amazonMatches.filter(function(m){ return m.txnId === txnId; })[0] || null;
+}
+function amazonProductsHTML(order){
+  return order.products.map(function(title){
+    return '<span class="amazonproduct">' + esc(title) + '</span>';
+  }).join("");
+}
+function amazonOrderMeta(order,t){
+  return "Bank charge " + t.date + " · Amazon order " + order.orderDate + " · " + money(order.total);
+}
+function amazonCandidateHTML(order,buttonLabel,t){
+  var unavailable = amazonConfirmationConflict(t.id,order.orderId,state.amazonMatches,state.amazonDecisions);
+  return '<div class="amazoncandidate">' + amazonProductsHTML(order) +
+    '<span class="amazonmeta">' + esc(amazonOrderMeta(order,t)) + '</span>' +
+    '<div class="amazonactions"><button data-amazon-use="' + esc(order.orderId) + '"' +
+    (unavailable ? ' disabled aria-disabled="true"' : '') + '>' +
+    esc(unavailable ? "Already used by another charge" : buttonLabel) + '</button></div></div>';
+}
+function amazonContextHTML(t){
+  if(t.family !== "amazon" || !state.amazonOrders.length) return "";
+  var match = amazonMatchFor(t.id);
+  if(!match) return "";
+  var view = amazonReviewState(match,state.amazonOrders,state.amazonDecisions[t.id]);
+  if(!view) return "";
+  if(view.kind === "rejected"){
+    return '<div class="amazonctx muted"><strong>Amazon suggestion rejected.</strong>' +
+      '<div class="amazonactions"><button data-amazon-reconsider="1">Reconsider</button></div></div>';
+  }
+  if(view.kind === "unmatched"){
+    return '<div class="amazonctx muted"><strong>No reliable Amazon order match found.</strong>' +
+      '<span class="amazonmeta">' + esc(view.evidence) + '</span></div>';
+  }
+  if(view.kind === "confirmed"){
+    var confirmed = view.orders[0];
+    return '<div class="amazonctx"><strong>Amazon order confirmed</strong>' +
+      amazonProductsHTML(confirmed) + '<span class="amazonmeta">' +
+      esc(amazonOrderMeta(confirmed,t) + " · " + view.evidence) + '</span>' +
+      '<div class="amazonactions"><button data-amazon-reconsider="1">Change match</button></div></div>';
+  }
+  if(view.kind === "ambiguous"){
+    var choices = view.orders.map(function(order){ return amazonCandidateHTML(order,"Use this order",t); }).join("");
+    return '<div class="amazonctx warn"><strong>Several Amazon orders could match this charge.</strong>' +
+      '<span class="amazonmeta">' + esc(view.evidence) + '</span>' + choices +
+      '<div class="amazonactions"><button data-amazon-reject="1">Reject all suggestions</button></div></div>';
+  }
+  var order = view.orders[0];
+  if(!order) return '<div class="amazonctx muted"><strong>No usable Amazon order context found.</strong></div>';
+  var heading = view.kind === "exact" ? "Likely Amazon order" :
+    view.kind === "split-order" ? "Possible split Amazon order" : "Possible monthly-payment order";
+  var warning = view.kind === "split-order"
+    ? "Products belong to the order as a whole; the app cannot allocate them to this individual charge."
+    : view.kind === "instalment" ? "This order used monthly payments, so verify it manually." : view.evidence;
+  return '<div class="amazonctx' + (view.kind === "exact" ? "" : " warn") + '"><strong>' +
+    esc(heading) + '</strong>' + amazonProductsHTML(order) + '<span class="amazonmeta">' +
+    esc(amazonOrderMeta(order,t) + " · " + warning) + '</span>' +
+    '<div class="amazonactions"><button data-amazon-use="' + esc(order.orderId) + '">' +
+    (view.kind === "exact" ? "Confirm this order" : "Confirm order context") +
+    '</button><button data-amazon-reject="1">Reject suggestion</button></div></div>';
 }
 
 function renderLedger(){
@@ -1538,14 +1683,17 @@ function renderLedger(){
       if(amountEdited(t)) chips += '<span class="chip f">edited</span>';
       if(t.pending)      chips += '<span class="chip f">pending</span>';
       if(t.refund)       chips += '<span class="chip r">refund' + (t.pairedLabel ? (t.weakPair ? " ?" : " ✓") : " unmatched") + '</span>';
-      if(t.occurrences >= 3) chips += '<span class="chip">×' + t.occurrences + '</span>';
+      var occurrenceChip = amazonOccurrenceChipText(t);
+      if(occurrenceChip) chips += '<span class="chip">' + esc(occurrenceChip) + '</span>';
       var sub = [t.raw, t.processor ? "via " + t.processor : "", t.city || "", t.card,
                  amountEdited(t) ? "bank line said " + money(t.originalAmount) : "",
                  t.pairedLabel ? (t.weakPair ? "likely refund of " : "refund of ") + t.pairedLabel : ""
                 ].filter(Boolean).join("  ·  ");
+      var amazonContext = amazonContextHTML(t);
       html += '<div class="txn' + (i===state.cursor?" cursor":"") + (t.decided?"":" undecided") +
               '" data-i="' + i + '" data-id="' + esc(t.id) + '">' +
-        '<div><div class="m1">' + esc(t.merchant) + chips + '</div><span class="m2">' + esc(sub) + '</span></div>' +
+        '<div><div class="m1">' + esc(t.merchant) + chips + '</div>' + amazonContext +
+          '<span class="m2">' + esc(sub) + '</span></div>' +
         '<div class="amt' + (t.amount<0?" neg":"") + (canEditAmount(t)?" editable":"") + '"' +
           (canEditAmount(t)?' title="Click to correct a mis-parsed amount"':"") + '>' + money(t.amount) +
           '<div class="splitbar"><i style="width:' + pct + '%"></i></div></div>' +
@@ -1980,7 +2128,7 @@ $$("nav.steps button").forEach(function(b){
     if(b.dataset.view === "setup")  renderRules();
   };
 });
-$("#period").oninput  = function(e){ state.period = e.target.value.trim(); renderCoverage(); renderBanner(); };
+$("#period").oninput  = function(e){ state.period = e.target.value.trim(); renderCoverage(); renderBanner(); renderAmazonImport(); };
 $("#iAm").onchange    = function(e){ state.meIndex = +e.target.value; syncNames(); hydrateNames(); renderSettle(); renderBanner(); autosave(); };
 $("#nameA").oninput   = function(e){ state.names[0] = e.target.value || "Me"; syncNames(); hydrateNames(); autosave(); };
 $("#nameB").oninput   = function(e){ state.names[1] = e.target.value || "Partner"; syncNames(); hydrateNames(); autosave(); };
@@ -2010,11 +2158,21 @@ $("#bank").onchange   = function(e){
   if(match) $("#cardLabel").value = match;
 };
 $("#btnParse").onclick = doImport;
+$("#btnAmazonMatch").onclick = doAmazonImport;
+$("#btnAmazonClear").onclick = function(){
+  state.amazonOrders = []; state.amazonMatches = []; state.amazonInvalidBlocks = 0;
+  state.amazonDuplicateBlocks = 0; state.amazonAdvertisedOrderCount = null; state.amazonDecisions = {};
+  $("#amazonPaste").value = ""; $("#amazonResult").innerHTML = "";
+  renderAmazonImport(); renderLedger();
+};
 $("#btnClear").onclick = function(){
   if(!confirm("Clear all transactions? Rules and settings stay.")) return;
   state.txns = []; state.partner = null; state.ranges = []; state.blocks = [];
   state.dropped = []; state.outOfPeriod = [];
-  $("#importResult").innerHTML = ""; renderAll();
+  state.amazonOrders = []; state.amazonMatches = []; state.amazonInvalidBlocks = 0;
+  state.amazonDuplicateBlocks = 0; state.amazonAdvertisedOrderCount = null; state.amazonDecisions = {};
+  $("#importResult").innerHTML = ""; $("#amazonPaste").value = "";
+  $("#amazonResult").innerHTML = ""; renderAll();
 };
 $("#btnGroup").onclick = function(){
   state.groupBy = state.groupBy === "day" ? "merchant" : "day";
@@ -2040,6 +2198,19 @@ $("#ledger").onclick = function(e){
   var row = e.target.closest(".txn"); if(!row) return;
   state.cursor = +row.dataset.i;
   var t = state.txns.filter(function(x){ return x.id === row.dataset.id; })[0];
+  var amazonUse = e.target.closest("button[data-amazon-use]");
+  if(amazonUse && t){
+    if(amazonConfirmationConflict(t.id,amazonUse.dataset.amazonUse,state.amazonMatches,state.amazonDecisions)){
+      alert("That Amazon order is already confirmed for another bank charge. Change the earlier match first.");
+      renderLedger(); return;
+    }
+    state.amazonDecisions[t.id] = {status:"confirmed",orderId:amazonUse.dataset.amazonUse};
+    renderLedger(); return;
+  }
+  var amazonReject = e.target.closest("button[data-amazon-reject]");
+  if(amazonReject && t){ state.amazonDecisions[t.id] = {status:"rejected"}; renderLedger(); return; }
+  var amazonReconsider = e.target.closest("button[data-amazon-reconsider]");
+  if(amazonReconsider && t){ delete state.amazonDecisions[t.id]; renderLedger(); return; }
   var amtCell = e.target.closest(".amt.editable");
   if(amtCell && t && !e.target.closest(".splitbar")){ editAmount(t); return; }
   var seg = e.target.closest("button[data-share]");
@@ -2202,7 +2373,7 @@ $("#btnDemoBMO").onclick = function(){
 /* ---------------- boot ---------------- */
 function renderAll(){
   countOccurrences(); renderIntegrity(); renderProgress();
-  renderLedger(); renderRules(); renderSettle(); renderBanner(); renderClosed();
+  renderLedger(); renderRules(); renderSettle(); renderBanner(); renderClosed(); renderAmazonImport();
 }
 function hydrateView(){
   $("#btnGroup").textContent = state.groupBy === "day" ? "Group by merchant" : "Group by day";

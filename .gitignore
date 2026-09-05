@@ -4,5 +4,9 @@ split-*.json
 split-session-*.json
 split-*-archive.json
 
+# Private discovery inputs — contain real purchase and conversation data.
+resources/chatgpt-raw-conversation.md
+resources/pastedfromamazon.MD
+
 # OS / editor cruft
 .DS_Store

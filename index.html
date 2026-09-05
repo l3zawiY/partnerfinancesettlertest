@@ -791,6 +791,231 @@ var EDIT_MIN = 1000;
 function canEditAmount(t){ return Math.abs(t.amount) >= EDIT_MIN || t.originalAmount != null; }
 function amountEdited(t){ return t.originalAmount != null && Math.abs(t.originalAmount - t.amount) >= 0.005; }
 
+/* ==AMAZON-CONTEXT-START== pure functions, no DOM ======================== */
+
+/* Amazon's copied Your Orders page repeats product labels and surrounds them
+   with buttons, delivery text and personal shipping details. Only the order
+   evidence needed for later matching survives this parser. */
+function amazonNoiseLine(line){
+  return /^(Your Orders|Search all orders|Search Orders|Orders Buy Again Not Yet Shipped|View transactions|View order details(?:\s+Invoice)?|Invoice|Buy it again|View your item|Get product support|Track package|Return items.*|Return or replace items.*|Share gift receipt|Leave seller feedback|Write a product review|Ask a Product-Related Question|View your Subscribe & Save|Problem with order|Email delivery)$/i.test(line) ||
+    /^(Delivered\b|Package was\b|Return window closed\b|\d+ orders placed in\b|past 3 months$|[0-9]+$|←?Previous[\\]*$|Next→?[\\]*$)/i.test(line) ||
+    /^[\\]+$/.test(line);
+}
+function amazonTitleKey(title){ return String(title||"").replace(/\s+/g," ").trim().toLowerCase(); }
+function addAmazonTitle(products, title){
+  var key = amazonTitleKey(title);
+  if(!key) return;
+  for(var i=0;i<products.length;i++) if(amazonTitleKey(products[i]) === key) return;
+  if(products.length){
+    var last = products.length-1, prevKey = amazonTitleKey(products[last]);
+    if(Math.min(prevKey.length,key.length) >= 20 &&
+       (prevKey.indexOf(key) === 0 || key.indexOf(prevKey) === 0)){
+      if(key.length > prevKey.length) products[last] = title;
+      return;
+    }
+  }
+  products.push(title);
+}
+function parseAmazonOrderBlock(lines){
+  var orderDate = null, total = null, orderId = null, orderAt = -1;
+  var monthlyPayments = false, subscription = false;
+  for(var i=1;i<lines.length;i++){
+    var line = lines[i];
+    if(!orderDate) orderDate = parseDate(line);
+    if(/^Total$/i.test(line) && i+1 < lines.length){
+      var money = parseMoney(lines[i+1]); if(money) total = money.value;
+    }
+    var id = line.match(/^Order\s*#\s*(\d{3}-\d{7}-\d{7})$/i);
+    if(id){ orderId = id[1]; orderAt = i; }
+    if(/^Purchased with monthly payments\b/i.test(line)) monthlyPayments = true;
+    if(/^Auto-delivered:/i.test(line)) subscription = true;
+  }
+  if(!orderDate || total === null || !orderId) return null;
+
+  var products = [];
+  for(var j=orderAt+1;j<lines.length;j++){
+    var candidate = lines[j];
+    if(!candidate || amazonNoiseLine(candidate) || /^Purchased with monthly payments\b/i.test(candidate) ||
+       /^Auto-delivered:/i.test(candidate) || /^Order\s*#/i.test(candidate) ||
+       /^Total$/i.test(candidate) || parseMoney(candidate) || parseDate(candidate)) continue;
+    addAmazonTitle(products,candidate);
+  }
+  return {orderId:orderId, orderDate:orderDate, total:total, products:products,
+    monthlyPayments:monthlyPayments, subscription:subscription};
+}
+function parseAmazonOrders(text){
+  var source = String(text||"").replace(/\r/g,"");
+  var advertised = source.match(/(\d[\d,]*)\s+orders placed in/i);
+  var advertisedOrderCount = advertised ? parseInt(advertised[1].replace(/,/g,""),10) : null;
+  var raw = source.split("\n");
+  var lines = raw.map(function(line){ return line.replace(/\s+/g," ").trim(); });
+  var blocks = [], current = null;
+  lines.forEach(function(line){
+    if(/^Order placed$/i.test(line)){
+      if(current) blocks.push(current);
+      current = [line];
+    } else if(current){ current.push(line); }
+  });
+  if(current) blocks.push(current);
+
+  var orders = [], byId = {}, invalidBlocks = 0, duplicateBlocks = 0;
+  blocks.forEach(function(block){
+    var order = parseAmazonOrderBlock(block);
+    if(!order){ invalidBlocks++; return; }
+    if(byId[order.orderId]){
+      duplicateBlocks++;
+      order.products.forEach(function(title){ addAmazonTitle(byId[order.orderId].products,title); });
+      byId[order.orderId].monthlyPayments = byId[order.orderId].monthlyPayments || order.monthlyPayments;
+      byId[order.orderId].subscription = byId[order.orderId].subscription || order.subscription;
+      return;
+    }
+    byId[order.orderId] = order; orders.push(order);
+  });
+  return {orders:orders, invalidBlocks:invalidBlocks, duplicateBlocks:duplicateBlocks,
+    advertisedOrderCount:advertisedOrderCount};
+}
+
+function amazonPasteMayBeIncomplete(parsed){
+  return parsed.advertisedOrderCount !== null && parsed.advertisedOrderCount > parsed.orders.length;
+}
+
+var AMAZON_MATCH_WINDOW_DAYS = 7;
+function amazonCents(amount){ return Math.round(Number(amount) * 100); }
+function amazonDayGap(a,b){ return Math.abs(Date.parse(a)-Date.parse(b)) / 86400000; }
+function isAmazonCharge(t){ return t && t.family === "amazon" && t.amount > 0 && !t.pending; }
+function amazonResult(t,kind,orderIds,evidence){
+  return {txnId:t.id, kind:kind, orderIds:orderIds || [], evidence:evidence};
+}
+
+/* Suggestions carry evidence but never alter transactions or orders. Exact matches
+   are one-to-one. Combination matches are deliberately capped at three charges so a
+   busy month cannot manufacture persuasive coincidences from arbitrary sums. */
+function matchAmazonOrders(txns,orders,opts){
+  var windowDays = opts && typeof opts.windowDays === "number"
+    ? opts.windowDays : AMAZON_MATCH_WINDOW_DAYS;
+  var charges = txns.filter(isAmazonCharge);
+  var regular = orders.filter(function(o){ return !o.monthlyPayments; });
+  var monthly = orders.filter(function(o){ return o.monthlyPayments; });
+  var results = {}, exactCandidates = {}, claims = {};
+
+  charges.forEach(function(t){
+    var candidates = regular.filter(function(o){
+      return amazonCents(o.total) === amazonCents(t.amount) && amazonDayGap(o.orderDate,t.date) <= windowDays;
+    });
+    exactCandidates[t.id] = candidates;
+    candidates.forEach(function(o){ claims[o.orderId] = (claims[o.orderId]||0) + 1; });
+  });
+
+  charges.forEach(function(t){
+    var candidates = exactCandidates[t.id];
+    if(candidates.length === 1 && claims[candidates[0].orderId] === 1){
+      results[t.id] = amazonResult(t,"exact",[candidates[0].orderId],
+        "Exact amount; order date is within " + windowDays + " days.");
+    } else if(candidates.length){
+      var relatedCharges = charges.filter(function(other){
+        return exactCandidates[other.id].some(function(otherOrder){
+          return candidates.some(function(candidate){ return candidate.orderId === otherOrder.orderId; });
+        });
+      }).length;
+      results[t.id] = amazonResult(t,"ambiguous",candidates.map(function(o){ return o.orderId; }),
+        candidates.length + " Amazon orders and " + relatedCharges +
+        " bank charges share this exact amount within the date window. Compare their dates and products.");
+    } else {
+      var instalments = monthly.filter(function(o){
+        return amazonCents(o.total) === amazonCents(t.amount) && amazonDayGap(o.orderDate,t.date) <= windowDays;
+      });
+      results[t.id] = instalments.length
+        ? amazonResult(t,"instalment",instalments.map(function(o){ return o.orderId; }),
+            "The equal-total order is marked as purchased with monthly payments.")
+        : amazonResult(t,"unmatched",[],"No reliable Amazon order candidate was found.");
+    }
+  });
+
+  var usedOrders = {};
+  Object.keys(results).forEach(function(id){
+    if(results[id].kind === "exact") usedOrders[results[id].orderIds[0]] = true;
+  });
+  var openCharges = charges.filter(function(t){ return results[t.id].kind === "unmatched"; });
+  var combos = [];
+  regular.filter(function(o){ return !usedOrders[o.orderId]; }).forEach(function(o){
+    var near = openCharges.filter(function(t){ return amazonDayGap(o.orderDate,t.date) <= windowDays; });
+    for(var a=0;a<near.length;a++) for(var b=a+1;b<near.length;b++){
+      if(amazonCents(near[a].amount)+amazonCents(near[b].amount) === amazonCents(o.total))
+        combos.push({order:o, charges:[near[a],near[b]]});
+      for(var c=b+1;c<near.length;c++){
+        if(amazonCents(near[a].amount)+amazonCents(near[b].amount)+amazonCents(near[c].amount) === amazonCents(o.total))
+          combos.push({order:o, charges:[near[a],near[b],near[c]]});
+      }
+    }
+  });
+
+  var comboUses = {}, orderCombos = {};
+  combos.forEach(function(combo){
+    orderCombos[combo.order.orderId] = (orderCombos[combo.order.orderId]||0) + 1;
+    combo.charges.forEach(function(t){
+      comboUses[t.id] = comboUses[t.id] || [];
+      if(comboUses[t.id].indexOf(combo.order.orderId) === -1) comboUses[t.id].push(combo.order.orderId);
+    });
+  });
+  combos.forEach(function(combo){
+    var unique = orderCombos[combo.order.orderId] === 1 && combo.charges.every(function(t){
+      return comboUses[t.id].length === 1;
+    });
+    combo.charges.forEach(function(t){
+      if(unique){
+        results[t.id] = amazonResult(t,"split-order",[combo.order.orderId],
+          combo.charges.length + " nearby charges add exactly to one order total; products are not allocated to a charge.");
+      } else if(results[t.id].kind === "unmatched"){
+        results[t.id] = amazonResult(t,"ambiguous",comboUses[t.id],
+          "More than one split-order combination is possible.");
+      }
+    });
+  });
+
+  return charges.map(function(t){ return results[t.id]; });
+}
+function summarizeAmazonMatches(matches){
+  var out = {total:matches.length, exact:0, ambiguous:0, splitOrder:0, instalment:0, unmatched:0};
+  matches.forEach(function(m){
+    if(m.kind === "split-order") out.splitOrder++;
+    else if(out[m.kind] !== undefined) out[m.kind]++;
+  });
+  return out;
+}
+function amazonReviewState(match,orders,decision){
+  if(!match) return null;
+  if(decision && decision.status === "rejected") return {kind:"rejected",orders:[],evidence:"Suggestion rejected."};
+  var byId = {};
+  orders.forEach(function(o){ byId[o.orderId] = o; });
+  if(decision && decision.status === "confirmed" && byId[decision.orderId]){
+    return {kind:"confirmed",orders:[byId[decision.orderId]],evidence:"Confirmed by you."};
+  }
+  return {kind:match.kind,orders:match.orderIds.map(function(id){ return byId[id]; }).filter(Boolean),
+    evidence:match.evidence};
+}
+
+/* Ordinary orders are one-to-one even after a manual choice. A detected split order
+   is the deliberate exception because its evidence already links several charges. */
+function amazonConfirmationConflict(txnId,orderId,matches,decisions){
+  var current = matches.filter(function(m){ return m.txnId === txnId; })[0] || null;
+  var conflict = false;
+  Object.keys(decisions || {}).forEach(function(otherTxnId){
+    var decision = decisions[otherTxnId];
+    if(conflict || otherTxnId === txnId || !decision || decision.status !== "confirmed" ||
+       decision.orderId !== orderId) return;
+    var other = matches.filter(function(m){ return m.txnId === otherTxnId; })[0] || null;
+    if(!current || !other || current.kind !== "split-order" || other.kind !== "split-order") conflict = true;
+  });
+  return conflict;
+}
+
+function amazonOccurrenceChipText(t){
+  if(!t || t.occurrences < 3) return "";
+  return t.family === "amazon" ? t.occurrences + " bank charges" : "×" + t.occurrences;
+}
+
+/* ==AMAZON-CONTEXT-END== ================================================ */
+
 /* ==========================================================================
    SELF-TEST
    Fixtures are SYNTHETIC — invented merchants and round numbers — but they

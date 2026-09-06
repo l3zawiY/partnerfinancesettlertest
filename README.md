@@ -1,63 +1,39 @@
 # Split Ledger
 
-A single-file, offline tool for reconciling shared expenses between two people who keep
-separate bank cards.
+Split Ledger is a single-file, offline tool for reconciling shared expenses between two
+people who keep separate cards. Each person imports their own transactions, decides the
+shared portion, and exchanges a JSON file containing only shared items. The settler loads
+both sides and closes the month with one deterministic result.
 
-Each person imports their own card transactions, decides how each purchase splits, and
-exports a file containing **only the shared items**. One of them loads both files and
-gets a settlement figure. Personal purchases never leave the device they were tagged on.
+No accounts, backend, bank connection, telemetry, build step, or runtime network call.
 
-No accounts. No server. No dependencies. No network calls of any kind.
+## Run
 
----
+Open `index.html` directly in a modern browser. Use the fictional TD, BMO, posted-update,
+and Amazon samples under Import to try the full workflow without real data.
 
-## Run it
+## Monthly workflow
 
-Open `index.html` in a browser. That's the whole setup.
+1. Choose the calendar month and import each card's bank table.
+2. Optionally paste Amazon Your Orders text for private product context.
+3. Reconcile imported counts and totals, then review ownership with the mouse or keyboard.
+4. Download the privacy-redacted shared file and exchange it directly with the partner.
+5. The settler loads the partner file, reviews checks, and closes the month.
 
-To try it without real data, use the **Sample TD** / **Sample BMO** buttons on step 01.
+The browser autosaves the private working state. Closing creates an append-only archive
+and offers a clean next-month workspace while retaining settings, rules, and history.
 
-For the second person, either share the hosted URL or send them the file — either way
-they need nothing else.
+## Data and privacy
 
----
+| File | Contents | Destination |
+|---|---|---|
+| Private session | Full ledger, rules, loaded partner data, normalized Amazon context | Own device or private storage only |
+| Shared export | Shared items paid by one person | The other person |
+| Month archive | Both sides' shared items and settlement | Settler's private records |
 
-## The monthly loop
-
-**Both people, independently:**
-
-1. Set the period, e.g. `2026-07`
-2. Pick the bank and card, paste the transaction table straight from the bank page
-3. Repeat for the second card
-4. Check the parsed count and total against what the bank shows
-5. Review — most rows are pre-decided by rules; tag the rest with `1`–`5` and `J`/`K`
-6. Download the shared file
-
-**Then the settler:**
-
-7. Load the partner's file
-8. Work through the pre-settlement checks
-9. **Close month** — downloads the archive and records the settlement
-
-The tool auto-saves as you go, so step 5 can be spread over days. If you finish before
-your partner sends their file, close the tab and come back — the banner will tell you
-where you left off.
-
----
-
-## Files
-
-| Path | What |
-|---|---|
-| `index.html` | The entire application |
-| `CLAUDE.md` | Operating instructions and invariants — read before changing anything |
-| `PRODUCT.md` | Problem, users, jobs to be done, requirements, decisions |
-| `docs/DATA-FORMATS.md` | The three JSON contracts |
-| `docs/TESTING.md` | Test plan and manual checklist |
-| `test/run-tests.js` | Headless test harness |
-| `CHANGELOG.md` | Version history |
-
----
+Never place a session file in a shared folder. Private purchases and Amazon product/order
+context are structurally absent from shared exports and archives. Raw statement and Amazon
+pastes are discarded after processing.
 
 ## Tests
 
@@ -65,46 +41,26 @@ where you left off.
 node test/run-tests.js
 ```
 
-Behavioural assertions over synthetic fixtures. Also runnable in-browser from step 04;
-the command reports the current total.
+The same synthetic assertions run from Rules & Files → Run self-test. Committed fixtures
+are fictional because the repository may be public.
 
-Fixtures are synthetic on purpose — this repo is hostable publicly, and real bank
-statements have no business in one.
+## Documentation map
 
----
+| File | Purpose |
+|---|---|
+| `AGENTS.md` | Concise Codex entry point and approval gate |
+| `CLAUDE.md` | Shared engineering constraints and repository routing |
+| `PRODUCT.md` | Product purpose, boundaries, requirements, and decisions |
+| `docs/TESTING.md` | Current automated and manual release checks |
+| `docs/DATA-FORMATS.md` | Persisted JSON and privacy contracts |
+| `docs/BACKLOG.md` | Unresolved observations and uncommitted ideas |
+| `CHANGELOG.md` | Release history |
 
-## Data and privacy
-
-Three files exist at runtime, with different sensitivities:
-
-| File | Contains | Goes where |
-|---|---|---|
-| **Session** | Everything, including private purchases | Your own device or **private** cloud folder only |
-| **Shared export** | Only shared items | Sent to the other person |
-| **Month archive** | Only shared items, both sides, plus the settlement | Kept by the settler, feeds analytics later |
-
-**Never put the session file in a folder shared with the other person.** That single
-mistake defeats the entire privacy model.
-
-None of these are committed — see `.gitignore`.
-
----
+`docs/archive/` is historical evidence, not routine context. Active documents and the
+verified implementation take precedence.
 
 ## Hosting
 
-Any static host works, since the tool is one file that never calls out. GitHub Pages is
-the simple option: push, enable Pages, bookmark the URL.
-
-Hosting the code is not hosting the data — the page is served, then everything runs in
-your browser exactly as it does locally.
-
-If the repo is public, keep it clean: no names, no amounts, no real merchant strings.
-Names are configured in the app and live in browser storage, not in the source.
-
----
-
-## Deliberate non-features
-
-No backend. No bank connections. No AI deciding splits. No budgeting or charts inside
-this tool — analytics belongs in a separate tool reading archive files, so it can never
-break settlement. Reasoning for each is in `PRODUCT.md`.
+Any static host can serve `index.html`. Hosting the code does not host user data: all
+processing and persistence remain in the browser. A public repository must contain no
+real names, statements, merchants, amounts, orders, sessions, exports, or archives.

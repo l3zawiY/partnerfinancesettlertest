@@ -1,194 +1,114 @@
-# PRODUCT.md
+# Split Ledger product definition
 
-What this is for, who it's for, and why it looks the way it does.
+## Purpose
 
----
+Two people share household costs but keep separate cards. The arithmetic is simple; the
+failure mode is the recurring burden of cleaning statements, recalling vague purchases,
+making roughly 90 decisions across about 130 monthly transactions, and coordinating two
+people. Split Ledger reduces that effort without taking financial judgment away from them.
 
-## 1. The problem
+The core job is: turn each person's bank paste into a trustworthy calendar-month ledger,
+make human ownership decisions fast, exchange only shared items, and produce one auditable
+settlement.
 
-Two people share a household but keep separate finances — four credit cards across two
-banks, no joint account. Shared spending gets paid ad hoc by whoever is present.
+## Users and success
 
-Settling up means deciding, per purchase, who bears what share: roughly **90 decisions
-across ~130 transactions a month**. The manual spreadsheet version of this works and is
-accurate. It is also abandoned within two months, every time.
+- The settler configures their device, reconciles their cards, loads the partner file,
+  closes the month, and retains archives.
+- The partner must remain effectively stateless: open, import, review, export, send.
+- Both use separate laptops and browsers; the cadence is calendar-month, not statement-
+  period.
 
-### Root causes, in order of weight
+Primary success is three consecutive months completed without chasing either person.
+Supporting targets are at most 45 minutes in month one, at most 15 minutes combined by
+month three, no more than 30 explicit decisions in steady state, and results within $20 of
+a fully manual reconciliation.
 
-| # | Cause | Evidence |
-|---|---|---|
-| 1 | **Decision volume** — ~90 judgement calls per cycle | The spreadsheet was accurate and still got dropped |
-| 2 | **Context isn't in the data** — ~40% of transactions can't be classified from merchant and amount alone | The same merchant needs different splits on different occasions: a rideshare can be solo, shared, or a favour |
-| 3 | **Manual data preparation** — copying from bank pages, cleaning until one purchase equals one clean row | Named as a pain point directly |
-| 4 | **Two-party coordination** — both people must finish before anything settles | "Asking my partner to do the same" |
-| 5 | **Recall decay** — a three-week-old charge is hard to reconstruct | Confirmed, partly mitigable by grouping purchases by day |
+## Product invariants
 
-### The framing that matters
+1. Private purchases are absent from exchanged files by construction.
+2. Full histories and normalized retailer context remain local to each person.
+3. The partner needs no account, subscription, build environment, or saved configuration.
+4. Both sides apply the same calendar-month and payer-share rules.
+5. Humans decide ownership; matching and rules provide evidence or defaults only.
+6. Settlement is deterministic, auditable, and independent from future analytics.
 
-This is **not an AI problem and not a data-availability problem.** It's a deterministic
-data problem with a UX bottleneck. The split decisions are irreducibly human — the users
-are willing to make them. The product's job is to make 90 decisions cost what 10
-currently cost.
-
----
-
-## 2. Users
-
-| | |
-|---|---|
-| **Settler** | Technical. Does setup, imports both of their own cards, tags, receives the partner's file, produces the settlement, keeps the history. |
-| **Partner** | Non-technical requirement: **must be stateless.** Opens the page, pastes, tags, exports, sends the file. Nothing to save, nothing to configure, nothing to lose. |
-| Devices | Two separate laptops, two browsers, no shared machine |
-| Cadence | Monthly, calendar month — **not** statement period |
-
-The partner being stateless is a design rule, not an accident. Every feature must be
-checked against it: if it requires the partner to remember, save, or configure
-something, it's wrong.
-
----
-
-## 3. Jobs to be done
-
-1. **When the month ends**, I want all four cards' transactions in one clean list
-   without manual cleaning, so I don't lose twenty minutes before the real work starts.
-2. **When reviewing a transaction**, I want enough context on screen to decide in one
-   second, so I don't have to remember or go hunting in another app.
-3. **When most transactions are obvious**, I want them decided for me, so I only spend
-   attention on the ambiguous ones.
-4. **When we've both tagged**, I want one settlement number we both trust, without
-   either of us auditing the other.
-5. **When I tag my transactions**, I want my personal purchases never to be visible to
-   my partner.
-6. **When I've finished but my partner hasn't**, I want to come back days later and find
-   my work exactly where I left it.
-7. **When several months have closed**, I want to see what we spend on together and how
-   it's changing.
-
----
-
-## 4. Hard constraints
-
-- **C1 — Privacy by construction.** Personal purchases are structurally absent from what
-  gets exchanged, not filtered out of a view.
-- **C2 — No agentic bank access.** Browser-agent access to banking domains is blocked at
-  the platform level. Any design depending on it is non-viable.
-- **C3 — Partner-compatible.** Cannot require a subscription, a developer environment,
-  or a build step on the partner's side.
-- **C4 — Calendar month.** The transaction-date boundary rule is defined once and applied
-  identically by both people.
-- **C5 — Local-first.** Full transaction histories stay on each person's device.
-
----
-
-## 5. Requirements
-
-### Shipped
+## Shipped in v1.0
 
 | ID | Requirement |
 |---|---|
-| M1 | Import a calendar month per card from a bank paste (tab-separated) or CSV |
-| M2 | Parse to normalised rows: date, merchant, amount, card, bank |
-| M3 | Exclude non-purchases: card payments, transfers, interest, fees |
-| M4 | Refunds handled as negative amounts and paired to their original charge |
-| M5 | Deduplicate on re-import |
-| M6 | Five split presets — all mine, 70/30, 50/50, 30/70, all theirs — plus any custom percentage |
-| M7 | Persistent merchant rules; a merchant tagged once is pre-filled thereafter |
-| M8 | Materiality threshold auto-defaults small unmatched items (ships at 0 — see §7) |
-| M9 | Day-clustered review, so surrounding purchases supply the missing context |
-| M10 | Keyboard-driven tagging, no mouse required |
-| M11 | Redacted shared-items export |
-| M12 | Import partner's file, compute net settlement, one number and a direction |
-| M13 | Reject a partner file whose owner matches your own |
-| M14 | Pre-settlement checks: coverage, bank-total reconciliation, undecided items, duplicates, instalments, pending, unmatched refunds, large auto-assigned items |
-| M15 | Coverage assertion from the bank's own printed date ranges |
-| M16 | Close month, writing a frozen archive file |
-| M17 | Built-in self-test over synthetic fixtures |
+| M1–M3 | Import TD, BMO, or generic tabular data; normalize rows; exclude payments, transfers, interest, and fees |
+| M4 | Keep full/partial refunds as negative audit rows; inherit only a confident purchase split; exclude other credits from expenditure |
+| M5 | Deduplicate repeated imports |
+| M6 | Mine, 70/30, 50/50, 30/70, theirs, and custom payer-share decisions |
+| M7–M8 | Deliberate remembered-merchant rules and an optional small-unknown threshold that defaults to zero |
+| M9–M10 | Day/merchant review, focus, and keyboard-driven decisions |
+| M11–M13 | Privacy-redacted shared export, partner-file settlement, and self-import protection |
+| M14–M15 | Pre-settlement checks and statement-date coverage evidence |
+| M16–M17 | Append-only month close/archive and synthetic self-test |
+| M18 | Allowlisted support diagnostic with no ledger, identity, amount, or retailer-detail values |
+| S6 | Optional local Amazon Your Orders parsing and deterministic match evidence with verbatim products, explicit ambiguity, private restoration, and no financial mutation |
 
-### Next
+Refunds may match only after their purchase, within 120 days, and never beyond the
+remaining refundable cents. A unique same-merchant candidate may support a partial refund;
+ambiguous, cross-name, unmatched, cashback, reward, and statement credits remain visible
+for reconciliation but stay out of settlement and public files. Full refunds net their
+purchase to zero without deleting either row.
 
-| ID | Requirement |
+Amazon context is evidence, never an ownership recommendation. Unique exact totals,
+ambiguous equal totals, constrained split-order sums, possible monthly payments, and
+unmatched charges remain visibly distinct. Full product titles stay verbatim. Raw Amazon
+text, shipping identity, products, order references, matches, and decisions cannot enter
+shared exports or archives.
+
+## Next candidates
+
+| ID | Candidate |
 |---|---|
-| S1 | Analytics tool — **separate file**, reads archive files, shared spend by category, vendor, and month |
-| S2 | Rules table sync between the two installs |
-| S3 | Running cumulative balance so settlement can slip a month |
-| S4 | Ingest a shared note capturing the handful of asymmetric splits agreed verbally |
-| S5 | Multi-currency and foreign-exchange fee handling |
-| S6 | Optional Amazon order-context paste: match order totals and full product names to imported Amazon charges, show the evidence in Review, and keep every split decision human |
+| S1 | Separate archive-reading analytics tool |
+| S2 | Rules-table sync between installations |
+| S3 | Running balance when settlement slips a month |
+| S4 | Shared note for verbally agreed asymmetric splits |
+| S5 | Multi-currency and foreign-exchange fees |
 
-### Explicitly out of scope
+These are directions, not authorized work. Smaller unresolved items and speculative ideas
+live in `docs/BACKLOG.md`.
 
-- Live bank connections or aggregators
-- Budgeting, forecasting, charts inside the settlement tool
-- A mobile app
-- Executing payments
-- Any AI deciding splits autonomously
-- Automatic retailer connections, browser scraping, or account access
+## Explicitly out of scope
 
----
+- Live bank or retailer connections, scraping, email imports, and account access
+- A backend, user accounts, uploads, telemetry, or background synchronization
+- Budgeting, forecasting, charts, or analytics inside the settlement application
+- Mobile-app development or executing payments
+- AI choosing splits, confirming matches, or participating in arithmetic
 
-## 6. Success metrics
+## Decisions not to re-litigate casually
 
-| Metric | Target |
-|---|---|
-| Time to reconcile a month, steady state (month 3+) | ≤ 15 minutes combined |
-| Month 1, with an empty rules table | ≤ 45 minutes |
-| Accuracy vs a fully manual reconciliation | within ±$20 |
-| Transactions needing an explicit decision, month 3+ | ≤ 30 of ~130 |
-| **Adherence** | **3 consecutive months completed without either person being chased** |
+**Threshold starts at zero.** Small spending is repetitive, so month-one human decisions
+can become safe rules. A non-zero default before that would create systematic bias.
 
-Adherence is the only metric that matters. The previous solution failed on adherence,
-not accuracy. A tool that is precise and unused has failed completely.
+**Families are narrower than brands.** Descriptor variants may collapse, but services
+that split differently (for example rides, food delivery, and subscriptions) stay apart.
 
----
+**Remembering is deliberate.** Automatic rule creation would encode the context-dependent
+merchants that most need human judgment.
 
-## 7. Decisions worth not re-litigating
+**The settler is operationally authoritative.** Independent cross-checking is possible,
+but a single settler keeps the partner workflow stateless.
 
-**Threshold ships at 0.** Roughly half of transactions fall under $25 but they're only
-about a sixth of the money — so auto-defaulting them halves the review load. But
-assigning them all one direction is *systematically* biased, not randomly, so the errors
-don't cancel. What makes it safe is that small spending is **repetitive**: after one
-fully tagged month those merchants are all rules, and the threshold only ever sees
-genuinely new small merchants. Hence month one at 0, raised afterwards.
+**Analytics stays separate.** Exploratory reporting must not be able to change monthly
+parsing or settlement behavior.
 
-**Merchant families, not merchant strings.** A rideshare company appears under many
-distinct descriptors. Collapsing them to one merchant would be wrong — food delivery and
-rides split differently. Families group name variants; things that split differently stay
-apart.
+**The application remains vanilla and single-file.** The accepted v0 visual language was
+adapted into the working ES5-compatible app instead of retaining the prototype's React
+runtime and mocked controllers.
 
-**Remembering a merchant is a deliberate action.** Auto-remembering every tag would
-create rules for exactly the merchants that must stay manual — the context-dependent
-ones. Plain keypress assigns; shift assigns *and* remembers.
+## Known weaknesses
 
-**The settler is the single source of truth.** Both sides *could* compute the settlement
-independently from the same two files, and a mismatch would be a useful signal. In
-practice only the settler does. That's an accepted trade: it makes the partner stateless,
-at the cost of losing the cross-check.
-
-**Analytics lives in a separate tool.** Settlement runs monthly and must be exactly
-right. Analytics is exploratory and will change constantly. Separate files make it
-structurally impossible for an analytics experiment to break parsing or settlement.
-
-**No agent decides splits.** The information required — was this dinner shared, was this
-ride a favour — exists only in the users' heads and is not recoverable from bank data.
-An agent would guess at the one thing only they know, add nondeterminism to arithmetic
-that must be exact, and still need every guess reviewed.
-
-**Amazon context is evidence, not a decision.** A manually pasted Amazon order page may
-help identify what produced a vague bank charge. Matching stays local and deterministic,
-ambiguous results stay visible, full product names are shown verbatim, and no match ever
-assigns a split. Product and order details remain private session context and never enter
-the shared export or month archive. See `docs/AMAZON-CONTEXT-PLAN.md`.
-
----
-
-## 8. Known weaknesses
-
-- **Nothing forces adherence.** No reminder, no shared visibility of whose turn it is.
-  The tool can be excellent and still go unused. This is the original problem and it
-  remains unsolved.
-- **Recall for context-dependent purchases** is mitigated by day grouping, not solved.
-  The planned Amazon context helper addresses one high-friction merchant only; other
-  context-dependent merchants remain manual.
-- **Instalment purchases** (buy-now-pay-later) are flagged but not modelled — the charge
-  isn't the purchase, so a split item can span several months.
-- **The partner's bank pages are untested.** They're assumed to render identically.
+- Nothing enforces adherence or reminds the slower participant.
+- Day grouping and Amazon context reduce recall work but cannot recover private intent.
+- Instalment charges are flagged, not modeled across months.
+- The other person's live bank pages and long-term browser-storage durability have not
+  been independently observed.
+- Optional Amazon file-inspection acceptance and a large-ledger stress run remain in the
+  backlog; neither blocks v1.

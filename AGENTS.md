@@ -1,50 +1,42 @@
 # AGENTS.md
 
-Instructions for Codex when working in this repository.
+Codex-specific entry point for this repository. Read `CLAUDE.md` in full before changing
+the project; it is the shared product and engineering instruction source.
 
-Read and follow `CLAUDE.md` in full before changing the project. It is the shared source
-for the product constraints, architecture, testing protocol, and code conventions. The
-rules below make the collaboration agreement explicit for Codex.
+## Working with the owner
 
-## Working agreement
+The owner is a product manager and a beginner with coding, GitHub, and coding agents.
+Explain tools, risks, and results in plain language. Use lightweight product framing only
+when it helps a decision, and keep advice separate from permission to implement it.
 
-The project owner is a beginner in coding, GitHub, and AI coding agents. Be patient and
-explain tools, platform behaviour, risks, and results in plain language. Do not assume
-prior knowledge.
-They are a product manager, so when exploring features or product evolution, use
-lightweight PM methods where they clarify the decision: jobs to be done, assumptions,
-MVP boundaries, success measures, and acceptance criteria. Avoid framework ceremony
-when a simpler explanation is enough, and translate implementation details plainly.
+## Routine document routing
 
-When adding an entry to `docs/BACKLOG.md`, follow that file's stable id and date
-convention. Never renumber or reuse an existing backlog id.
+- Start from the working tree, current `VERSION`, `CHANGELOG.md`, and `docs/BACKLOG.md`.
+  Do not rely on a prose "current handoff."
+- Active canonical documents override archived implementation history.
+- Do not read `resources/`, `design-reference/`, or `docs/archive/` unless the task
+  specifically requires one of them. Archived plans are for owner-requested history or
+  a relevant regression investigation, not routine context.
+- Use the next unused stable id and the required date format when adding backlog items.
+  Never renumber or reuse an id.
 
-Before any work on Amazon order context (PRODUCT S6), read
-`docs/AMAZON-CONTEXT-PLAN.md`, answer its four pre-batch checks, and follow its current
-phase scope. After each approved batch, update its execution tracker and implementation
-log with the verified result.
+## Approval gate
 
-Never edit a file without first completing this approval gate for **each batch of
-edits**:
+Never edit a file without completing this gate for each coherent batch:
 
-1. Inspect and reason read-only as needed.
-2. Present a file-by-file plan. For every file, explain the proposed change and its
-   tradeoff: why it might not be worth doing, what could go wrong, and what it costs.
-3. Keep advice separate from implementation. Agreement with a recommendation is not
-   permission to edit. If the recommendation is to do nothing, do nothing by default
-   and offer each optional change separately.
-4. Wait for an explicit green light covering that exact batch. If the scope changes,
-   present the revised batch and wait again.
+1. Inspect and reason read-only.
+2. Present a file-by-file plan, including each change's cost, risk, and tradeoff.
+3. Keep recommendations separate from implementation permission.
+4. Wait for explicit approval covering that exact batch. Revised scope needs new approval.
 
 ## Change safety
 
-- Run `node test/run-tests.js` immediately before and after every approved edit batch,
-  and quote both assertion counts to the project owner.
-- Make one coherent change at a time. If the post-change test is red, revert the batch
-  rather than patching forward.
+- Run `node test/run-tests.js` immediately before and after every approved edit batch and
+  report both assertion counts.
+- If the post-change suite is red, revert the batch rather than patching forward.
+- Preserve unrelated and uncommitted owner work.
 - Treat the `==ENGINE-START==` / `==ENGINE-END==` block in `index.html` as frozen and
   DOM-free.
 - Keep application JavaScript ES5-compatible and runnable directly from `file://`.
-- Do not add a password gate to the hosted static page. The URL contains no user data,
-  and a client-side password check cannot protect the files shipped with the page.
-- Preserve unrelated and uncommitted user work.
+- Do not add a password gate to the hosted static page; it cannot protect files delivered
+  with the page, and the URL contains no user data.

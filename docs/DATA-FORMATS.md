@@ -1,60 +1,43 @@
-# Data formats
+# Data formats and privacy contracts
 
-Three JSON contracts. Two are frozen because other things depend on them; one is
-internal and may evolve.
+All formats evolve additively. Never rename or repurpose a field. Change a `format` suffix
+only for a breaking contract and keep readers for supported older versions.
 
-**Rules for all three:** additive changes only. Never rename or repurpose a field.
-Bump the version suffix in `format` only for a genuinely breaking change, and keep the
-reader able to load the old version.
+## Shared export — `split-ledger/v1` (frozen)
 
----
-
-## 1. Shared export — `split-ledger/v1`  *(frozen)*
-
-Produced by each person, sent to the settler. **Contains only shared items.** Anything
-split entirely to its card owner is absent — that absence is the privacy guarantee, so
-never add a field that would reveal private spending (a total including private items, a
-transaction count, a date range covering everything).
+Produced by each person and sent directly to the settler. It contains only items whose
+payer share is below 1; private transactions, private totals/counts, and Amazon context are
+structurally absent.
 
 Filename: `split-<period>-<owner>.json`
 
 ```json
 {
   "format": "split-ledger/v1",
-  "toolVersion": "0.3.0",
+  "toolVersion": "1.0.0",
   "period": "2026-07",
   "owner": "Person A",
   "generated": "2026-08-01T18:22:00.000Z",
   "items": [
-    {
-      "date": "2026-07-16",
-      "merchant": "Sample Restaurant",
-      "category": "Restaurants",
-      "amount": 146.67,
-      "share": 0.5
-    }
+    {"date":"2026-07-16","merchant":"Sample Restaurant","category":"Restaurants","amount":146.67,"share":0.5}
   ],
-  "totals": { "sharedPaidByOwner": 146.67 }
+  "totals": {"sharedPaidByOwner":146.67}
 }
 ```
 
-| Field | Meaning |
-|---|---|
-| `owner` | Who paid. Checked on import: a file whose owner matches the importer's own name is **rejected**, because loading it would double-count every item and produce a plausible wrong figure |
-| `amount` | Positive is spend, negative is a refund |
-| `share` | Fraction the **owner** bears. `0.5` even, `0` partner owes all. Never `1` — those aren't exported |
-| `category` | Present so the analytics tool can group without re-deriving. Only ever describes shared spending |
-| `edited` | Optional, `true` only when the payer corrected a mis-parsed amount by hand. Additive in 0.4.0; older readers ignore it. Absent means the amount is exactly as the bank produced it |
+- `owner` identifies the payer. Loading one's own export as the partner file is rejected.
+- `amount` is positive spend or a negative matched refund.
+- `share` is the payer's fraction. A value of 1 is never exported.
+- `category` supports future archive analytics without re-derivation.
+- optional `edited: true` marks a payer-corrected import amount.
 
-Settlement: for each item the non-payer owes `amount × (1 − share)`. Net the two
-directions.
+For each item, the non-payer owes `amount × (1 − share)`; settlement nets both directions.
 
----
+## Month archive — `split-ledger-archive/v1` (frozen)
 
-## 2. Month archive — `split-ledger-archive/v1`  *(frozen)*
-
-Written once when a month is closed. The permanent record, and the **only** input to the
-future analytics tool. Append-only: never rewritten after the fact.
+Written at close as the append-only permanent record and the only planned analytics input.
+It merges both sides' shared items, sorts them by date, and excludes all private and Amazon
+context fields.
 
 Filename: `split-<period>-archive.json`
 
@@ -63,89 +46,82 @@ Filename: `split-<period>-archive.json`
   "format": "split-ledger-archive/v1",
   "period": "2026-07",
   "closed": "2026-08-02T14:12:00.000Z",
-  "toolVersion": "0.3.0",
-  "people": { "a": "Person A", "b": "Person B" },
-  "settlement": {
-    "aPaidShared": 812.40,
-    "bPaidShared": 604.15,
-    "aClaim": 406.20,
-    "bClaim": 254.65,
-    "net": 151.55,
-    "direction": "b_owes_a"
-  },
+  "toolVersion": "1.0.0",
+  "people": {"a":"Person A","b":"Person B"},
+  "settlement": {"aPaidShared":812.40,"bPaidShared":604.15,"aClaim":406.20,"bClaim":254.65,"net":151.55,"direction":"b_owes_a"},
   "items": [
-    {
-      "date": "2026-07-16",
-      "merchant": "Sample Restaurant",
-      "category": "Restaurants",
-      "amount": 146.67,
-      "payer": "b",
-      "shareOfPayer": 0.5,
-      "owedToPayer": 73.34
-    }
+    {"date":"2026-07-16","merchant":"Sample Restaurant","category":"Restaurants","amount":146.67,"payer":"b","shareOfPayer":0.5,"owedToPayer":73.34}
   ]
 }
 ```
 
-| Field | Meaning |
-|---|---|
-| `people` | Maps `a` and `b` to display names *as they were at close time*, so renaming later doesn't corrupt old archives |
-| `payer` | `"a"` (the settler) or `"b"` (the partner) |
-| `direction` | `b_owes_a`, `a_owes_b`, or `square` |
-| `items` | One flat list, both sides merged, sorted by date — easier to concatenate across months than two arrays |
+`people` freezes display names at close. `payer` is `a` (settler) or `b` (partner).
+`direction` is `b_owes_a`, `a_owes_b`, or `square`. Future readers must ignore unknown
+additive fields and must not assume names stay constant across archives.
 
-Only shared items appear. This is why joint analytics is safe: the archive can't leak
-private spending because private spending never entered it.
+## Private session — `split-ledger-session/v3`
 
-**Design note for the analytics tool:** it should accept N archive files, concatenate
-`items`, and group by `category`, `merchant`, and `period`. It must not assume every
-archive has the same `people` values, and it must ignore fields it doesn't recognise.
+The browser autosave and downloadable backup contain the full working state: identities,
+cards, settings, rules, all local transactions, source ranges/totals, partner file,
+acknowledgements, view state, closed-period summaries, and optional normalized Amazon
+context. Keep this file only on the owner's device or private storage.
 
----
-
-## 3. Session — `split-ledger-session/v3`  *(internal, may evolve)*
-
-The settler's full working state, including **private** transactions. Written to browser
-storage automatically and downloadable as a manual backup.
-
-**This file must never go in a folder shared with the partner.** It contains everything.
+Relevant shape:
 
 ```json
 {
   "format": "split-ledger-session/v3",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "period": "2026-07",
   "names": ["Person A", "Person B"],
   "meIndex": 0,
-  "cards": ["Bank1 Card", "Bank2 Card"],
+  "cards": ["TD Visa", "BMO Mastercard"],
   "threshold": 0,
   "defaultUnknown": 1,
-  "rules": [{ "type": "family", "pattern": "some-family", "share": 0.5, "label": "Display Name" }],
-  "excludePatterns": ["..."],
+  "rules": [],
+  "excludePatterns": [],
   "txns": [],
   "ranges": [],
   "blocks": [],
-  "closedPeriods": { "2026-07": { "closedAt": "...", "net": 151.55, "direction": "...", "items": 42 } },
-
+  "closedPeriods": {},
   "partner": null,
   "confirmedTotals": false,
-  "view": { "groupBy": "day", "onlyUndecided": false, "cursor": 0 }
+  "view": {"groupBy":"day","onlyUndecided":false,"cursor":0},
+  "amazonContext": {
+    "orders": [{"orderId":"000-0000000-0000000","orderDate":"2026-07-10","total":42.50,"products":["Example product"],"monthlyPayments":false,"subscription":false}],
+    "decisions": {},
+    "advertisedOrderCount": 1,
+    "duplicateBlocks": 0,
+    "invalidBlocks": 0
+  }
 }
 ```
 
-`partner`, `confirmedTotals` and `view` were added in 0.4.0 **without bumping the version**,
-because they are additive: an older build reads the same `v3` file and ignores them. Each is
-read only when present, so an older session file cannot wipe a partner file just loaded.
+The reader accepts session v1, v2, and v3. Older name fields migrate into `names`.
+`partner`, `confirmedTotals`, `view`, and `amazonContext` were added within v3 and must
+remain optional so older files load safely.
 
-`applySession()` reads `v1`, `v2`, and `v3`. Older sessions stored only `meName` and
-`youName`; those migrate into `names` on load. **Keep this backward compatibility** —
-dropping it silently orphans saved state with no error message.
+Amazon restoration accepts only validated normalized fields and valid transaction
+decisions. Raw Amazon paste and derived matches are never persisted; matches recalculate
+from orders and current transactions. Loading an older session without `amazonContext`
+clears unrelated in-memory Amazon state. Malformed entries are discarded.
 
----
+## Safe diagnostic — `split-ledger-diagnostic/v1`
+
+Built from an allowlist for deliberate support sharing. It may contain:
+
+- application version, browser string, `file:`/`http:`/`https:`/`other` source class,
+  and whether browser storage is available;
+- counts of transactions, rules, cards, normalized Amazon orders/decisions/match states;
+- grouping and undecided-filter settings;
+- synthetic self-test totals and failures.
+
+It must not contain identities, card labels, periods, transaction IDs/dates, merchants,
+descriptions, amounts, product titles, order IDs, raw paste, filenames, local paths, URLs,
+or session/partner contents. Browser details and counts are still metadata, so users must
+share the report deliberately rather than publish it.
 
 ## Internal transaction shape
-
-Not persisted as a contract, but stable enough that changing it ripples widely.
 
 ```js
 {
@@ -156,15 +132,10 @@ Not persisted as a contract, but stable enough that changing it ripples widely.
 }
 ```
 
-- `id` is `date|key|amount|card` — the deduplication key. **This is why the card label is
-  a dropdown rather than free text**: `TD Visa` and `TD visa` produce different ids and
-  let the same transaction import twice.
-- `raw` is the verbatim bank description and is never overwritten. It's the audit trail
-  when canonicalisation gets something wrong.
-- `auto: true` means a rule or the threshold decided it; a manual decision sets it false
-  and is never overwritten by `applyRules()`.
-- `originalAmount` is absent until someone corrects the amount by hand, and then holds the
-  figure as imported. `id` keeps the **imported** amount even after a correction — rules,
-  refund pairings and closed archives all reference it, so it must not move.
-- `bnpl: true` (a Klarna charge) means the row takes no merchant rule: the same key covers
-  both a normal purchase at that merchant and whatever the instalment plan financed.
+- `id` is derived from imported date, canonical key, imported amount, and controlled card
+  label. It remains stable after an amount correction.
+- `raw` preserves the bank description for audit; canonicalization never overwrites it.
+- `originalAmount` appears after correction and retains the bank-parsed value.
+- `auto` distinguishes rule/threshold decisions from manual choices; manual choices are
+  not overwritten by reapplying rules.
+- `bnpl` rows may be split but cannot inherit or create merchant rules.

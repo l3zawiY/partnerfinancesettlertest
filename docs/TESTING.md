@@ -1,148 +1,107 @@
 # Testing
 
-Two layers. The automated layer runs in a second and protects the parsing and settlement
-logic. The manual layer covers what a headless test can't see.
+Use fictional data and an isolated browser origin/profile. Never overwrite a real saved
+session merely to test a change.
 
----
-
-## Automated
+## Automated gate
 
 ```bash
 node test/run-tests.js
 ```
 
-Exits `0` on all-green, `1` on any failure, naming the assertion and printing actual vs
-expected. The same assertions run in-browser from step 04 → **Run self-test**.
+The command and Rules & Files → Run self-test execute the same assertions. Both must be
+green immediately before and after every edit batch. A red post-change run means revert
+the batch, not patch forward. Run `git diff --check` before handoff.
 
-### Fixtures are synthetic — deliberately
+Fixtures intentionally reproduce statement balance columns, empty credit columns, printed
+block totals and date ranges, pending sections, signed BMO amounts, noisy merchants,
+refunds, exclusions, duplicates, and noisy Amazon pages without using real financial data.
 
-They reproduce every structural quirk of the real bank pastes:
-
-- A running-balance column that must never be read as an amount
-- Double tabs where a credit column is empty
-- Two statement blocks in one paste, each with its own printed total
-- A `Minimum payment and due date: $10.00 by ...` line that has both a date and a dollar
-  amount and therefore looks exactly like a purchase
-- A `Pending` section that must be parsed but excluded from settlement
-- Signed amounts (`-$` spend, `+$` credit) in the second bank's format
-- City and province suffixes appended to merchant names
-- A refund that returns under a *different* merchant string than the charge
-- A same-day duplicate that should be flagged
-- A small merchant repeating every few days that should **not** be flagged
-- Noisy Amazon order-page text with repeated blocks and titles, multiple products,
-  subscription and monthly-payment flags, personal shipping details, page navigation,
-  an advertised order count, and a malformed order
-
-They are synthetic because this repo is hostable publicly and real statements have no
-business in one.
-
-### Assertions
-
-| ID | Behaviour |
+| IDs | Contract protected |
 |---|---|
-| T1–T3 | Bank-1 row count, net, and credit-row count for the period |
-| T4 | Zero amounts equal to a balance value — the guard against the worst parsing bug |
-| T5–T7 | Bank-2 row count, net, pending row flagged |
-| T8 | Combined period totals |
-| T9 | Parsed sums reconcile against each block's printed total |
-| T10–T11 | Coverage asserted from printed date ranges; gap detected when a block is missing |
-| T12, T12b, T12c | Merchant-name variants collapse to the right families; families that split differently stay separate |
-| T13 | A repeated merchant collapses to one key |
-| T14a–T14e | Canonicalisation: processor prefix stripped, city captured, store number stripped, order id stripped, instalment provider flagged |
-| T15a–T15b | Duplicate detection fires on a same-day repeat and stays quiet on small innocent repeats |
-| T16a–T16c | Refund pairing: certain, likely-cross-merchant, unmatched |
-| T17a–T17c | Card payments, internal transfers, and the minimum-payment line all excluded |
-| T18 | Re-importing the same paste adds nothing |
+| T1–T11 | TD/BMO counts and totals, balance guard, pending flag, printed-total reconciliation, coverage |
+| T12–T14e | Merchant families, repetition, and canonicalization |
+| T15a–T18 | Duplicate policy, credit/refund evidence, exclusions, idempotent import |
 | T19 | Settlement arithmetic |
-| T20 | No network calls anywhere in the source |
-| T21 | An instalment charge never inherits a merchant rule |
-| T22 | Hand-correcting an amount is gated at $1,000, and a corrected row stays editable |
-| T23 | A corrected row reports itself as edited; an untouched one does not |
-| T24a–T24f | Amazon order parsing: block and title deduplication, core fields, verbatim products, subscription/instalment flags, privacy filtering, malformed-block reporting |
-| T25a–T25h | Amazon matching: unique exact evidence, equal-total ambiguity, constrained split-order sums, monthly-payment and date guards, combination limit, merchant scope, no input mutation |
-| T26 | Amazon Import summary counts every matcher state |
-| T27a–T27d | Amazon Review state: exact and ambiguous order resolution, single-order confirmation, and rejection without leaked context |
-| T28a–T28f | Amazon corrective trust: navigation filtering, paste completeness metadata, ordinary-order consumption with split-order exception, explicit occurrence labels, and concrete ambiguity evidence |
+| T20 | No runtime network calls in source |
+| T21–T23 | Instalment rule protection and gated amount correction/audit state |
+| T23a–T23b | January/December selected-month arithmetic |
+| T24a–T28f | Amazon parsing, privacy filtering, match states, UI evidence, decisions, and trust corrections |
+| T29a–T29f | Diagnostic usefulness/redaction, header drift guard, and `file:`/`http:`/`https:` classification |
+| T30a–T30g | Amazon private restoration, validation, old sessions, recalculation, and public-output allowlists |
 
-### Adding assertions
+Add assertions with stable `T` identifiers and behavior-focused labels. Recompute affected
+totals when changing fixtures. Never loosen an expectation merely to make a run green.
 
-Give it a `T`-prefixed id and label the *behaviour*, not the implementation. Several
-assertions share the same fixture, so new fixture rows mean recomputing the affected
-totals. **Never loosen an assertion to make it pass** — if behaviour changed on purpose,
-change the expectation and record why in `CHANGELOG.md`.
+## Release smoke test
 
----
+### Import and month boundaries
 
-## Manual checklist
+- Run the selected-month TD and BMO samples. Confirm 14 + 9 rows, net $1,917.49, two
+  out-of-period rows per main paste, and TD printed totals $1,522.04 and $252.54.
+- Import the BMO posted update after deciding its pending row. It must update one row,
+  retain the decision, and leave the net unchanged.
+- Repeat samples with January and December selected; only the selected calendar month
+  enters the ledger while the generated ±1-month data crosses the year correctly.
+- Re-import the same card, try malformed non-tabular text, and review coverage evidence.
+  Nothing may silently duplicate, import, or claim stronger coverage than the source.
 
-Run the rows relevant to what you touched.
+### Review and arithmetic
 
-| Area | Test | Pass condition |
-|---|---|---|
-| Self-test | Click Run self-test | all green |
-| Hosting | Open the URL in a fresh browser | loads, version matches, browser storage works |
-| Import | Paste a real statement, compare count and net to the bank's own display | match |
-| Import | Paste without tab characters (retyped or reformatted) | refused with a clear message, nothing added |
-| Import | Same card imported twice | second import adds 0 rows |
-| Amazon context | Before an Amazon bank row exists | optional paste controls are disabled with a clear explanation |
-| Amazon context | Add an Amazon bank row, paste a valid noisy Your Orders page | controls enable; summary reports parsed orders and every match state |
-| Amazon context | Paste one copied page from a view that advertises more orders | usable orders match; advisory warns that missing pages can prevent matches |
-| Amazon context | Paste the same order page twice | summary reports unique orders and repeated blocks ignored; no duplicate orders appear |
-| Amazon context | Paste blank or unusable text | clear error; bank transactions and previous valid Amazon context stay unchanged |
-| Amazon context | Clear Amazon context | parsed orders and summary disappear; bank transactions remain |
-| Amazon context | Reload after matching in 0.4.3 | context disappears and the preview limitation was disclosed beforehand |
-| Amazon Review | Open Review after matching | every exact suggestion shows all source product titles on additional lines plus its evidence |
-| Amazon Review | Confirm, reject, then reconsider an exact suggestion | each state is clear; the transaction amount and split remain unchanged |
-| Amazon Review | Inspect an ambiguous equal-total charge | every candidate and its full products are visible; choosing one confirms only that order |
-| Amazon Review | Resolve the first of two equal-total charges | its ordinary order becomes unavailable on the second charge; changing the first decision releases it |
-| Amazon Review | Inspect a possible split-order charge | order-level products appear with an explicit warning that items are not allocated to the charge |
-| Amazon Review | Confirm both charges in one detected split order | the shared order remains available to both explicitly linked charges |
-| Amazon Review | Inspect monthly-payment and unmatched charges | each remains clearly manual without invented product allocation |
-| Amazon Review | Compare an Amazon candidate with its bank row | bank charge date and Amazon order date are visible together; Amazon chip says the number of bank charges |
-| Amazon Review | Use J/K and 1–5 around tall enriched rows | keyboard navigation and split assignment still work normally |
-| Amazon Review | Review a very long product title at a narrow window width | full text wraps; transaction amount and split controls remain usable |
-| Identity | Switch "I am" and export | filename and `owner` change accordingly |
-| **Identity** | **Load your own export as the partner file** | **rejected with an explanation** |
-| Identity | Load a file from an unrecognised name | asks for confirmation first |
-| Export | Open the export in a text editor | every item has a category; **no private items present** |
-| Review | Tag with 1–5 and J/K only | no mouse needed |
-| Review | Shift+number on a merchant | rule created, visible in the rules list |
-| Review | Cmd+C / Ctrl+C, Cmd+1, Cmd+K with a row highlighted | copies / does nothing — no dialog, no split reassigned |
-| Review | Click an amount under $1,000 | nothing happens; no dashed underline on it |
-| Review | Click an amount of $1,000+, correct it | chip reads edited, sub-line shows the bank figure, checks list it, the count-and-net tick clears |
-| Review | Correct an amount, then correct it back | still editable below the gate; edited chip and check row disappear |
-| Review | Pin a Klarna instalment row | refused with an explanation; the merchant rule is not created |
-| Review | Set a rule on a merchant that also appears as a Klarna charge | the ordinary rows auto-split, the instalment stays undecided |
-| Review | Group by merchant, use a bulk button | all rows for that merchant change together |
-| State | Tag, quit the browser completely, reopen tomorrow | work intact, banner states where you are |
-| State | Load a partner file, tick count-and-net, group by merchant, reload | all three come back; toggle labels match what is on screen |
-| State | Load a session file saved by 0.3.x | loads; a partner file already open is not wiped |
-| Settle | Close month, open the archive in a text editor | valid, matches the on-screen figure to the cent |
-| Settle | Close the same month twice | warns; the first archive file is untouched |
+- Exercise all five presets, a custom share, grouping, undecided-only, merchant rules,
+  J/K, 1–5, Shift+number, and guarded OS shortcuts.
+- Verify a full refund nets its purchase to zero and a 75% partial refund reduces only
+  the returned cents. Cashback, rewards, ambiguous/unmatched credits, and pending rows
+  remain visible but excluded from ordinary completion and settlement.
+- Verify a large corrected amount retains the imported value, clears the totals
+  acknowledgement, and is marked in checks and shared output. Instalments must not inherit
+  or create merchant rules.
 
----
+### Amazon context
 
-## Regression protocol
+- Import the fictional Amazon sample after both banks. Expect five valid orders and seven
+  charges: one exact, two ambiguous, two split-order, one possible monthly-payment, and one
+  unmatched; the incomplete order block is reported.
+- Inspect every Review state. Confirm/reject/reconsider candidates and make ownership
+  decisions independently; amounts and settlement must not move because of context.
+- Reload and load an older or malformed fictional session. Normalized valid context and
+  decisions restore, suggestions recalculate, and unrelated/malformed context clears.
+- File-inspection and clear-then-reload acceptance remaining after v1 is OBS-003.
 
-1. Run the tests **before** touching anything. Record the baseline.
-2. One coherent change. No bundling.
-3. Run again. **Red means revert, not patch forward.**
-4. Bump `VERSION` and add a `CHANGELOG.md` entry.
-5. Run the manual rows for the area you touched.
+### Settlement, persistence, and privacy
 
-Rollback is always: open the previous version of the file. The version stamp in the
-header tells you which one is running, so a confused report from the other user is
-diagnosable at a glance.
+- Reconcile count and net, inspect all checks and shared preview, then load a fictional
+  partner file where practical. Self-owned files are rejected and unknown owners require
+  confirmation.
+- Close a fictional month. Its archive result must equal the on-screen settlement; closing
+  again must not overwrite the first saved file. Start next month and confirm the active
+  ledger/context is empty while names, cards, rules, preferences, and closed history stay.
+- Quit/reload after decisions and after partner-file/check/view changes. State must return.
+  Load a session from v1, v2, or older v3 and verify additive compatibility.
+- Inspect generated JSON against `docs/DATA-FORMATS.md`: private items never enter shared
+  files; Amazon-private fields enter neither shared files nor archives.
 
----
+### Delivery and layout
 
-## Not covered, knowingly
+- Open `index.html` directly with the network unavailable. Inter must render locally, all
+  tabs/actions must work, self-test must pass, and the diagnostic must report `file:`.
+- Repeat at 1100×800 and 1920×1080. Check header access, wrapping, amount/ownership columns,
+  long Amazon text, keyboard focus, disclosures, scrolling, sticky rails, and reduced
+  motion. The optional heavy-volume run is OBS-004.
 
-- **The other person's bank pages.** Assumed to render identically. Untested.
-- **A paste arriving as spaces rather than tabs.** There's a sign-anchored fallback for
-  the three-column format; it has never seen real output.
-- **Unusual months:** a card with zero transactions, a period spanning a year boundary,
-  a refund larger than its original charge, a month with no shared items at all.
-- **Browser storage durability across days.** The single most load-bearing untested
-  assumption in the design — if it doesn't hold, the whole storage approach changes.
-  Test it by tagging a few transactions, quitting the browser, and reopening tomorrow.
+## v1.0.0 evidence — 2026-09-06
+
+- Node and in-browser suites: 78/78 before release correction; 81/81 after.
+- Owner had already accepted the comprehensive TD, BMO, posted-update, Amazon, and overall
+  UI workflow at v0.9.6.
+- Release audit repeated the full fictional workflow, financial edge cases, automatic
+  restoration, privacy preview, one-sided close, clean next month, and both desktop sizes.
+- Browser automation could not navigate a `file://` URL due its security policy. Direct-
+  file use remains owner-accepted and was checked structurally through embedded assets,
+  the no-network assertion, and explicit `file:` diagnostics.
+
+## Known evidence gaps
+
+- The other person's live bank pages are assumed to have equivalent copy structure.
+- Browser storage has been tested across reloads, not a long real-world multi-day gap.
+- OBS-003 and OBS-004 are optional post-v1 acceptance depth, not known correctness defects.

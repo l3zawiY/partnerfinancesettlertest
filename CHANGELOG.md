@@ -1,211 +1,63 @@
 # Changelog
 
-The version here matches `VERSION` in `index.html`, which is stamped into every export
-and archive. Bump both together.
+`VERSION` in `index.html` is authoritative and is stamped into exported files. Release
+changes must update both places. Detailed implementation evidence through v1 is preserved
+in `docs/archive/V1-IMPLEMENTATION-HISTORY.md`.
 
----
+## 1.0.0 — 2026-09-06
 
-## 0.4.5
+Split Ledger's owner-accepted Import, Review, Settle, Rules & Files, Amazon context, and
+responsive desktop workflow are released locally as v1.0.0.
 
-**Added**
+### Release changes
 
-- Amazon Import now reports unique orders, repeated order blocks, monthly-payment orders
-  found, and possible monthly-payment charge matches as separate concepts. When Amazon's
-  advertised order count exceeds the pasted unique orders, an advisory explains that
-  missing pages can prevent matches without rejecting the usable context.
-- Amazon Review shows the bank charge date beside each Amazon order date. Equal-total
-  ambiguity now states the competing order and bank-charge counts, and Amazon occurrence
-  chips use an explicit label such as `16 bank charges`.
+- Embedded the Inter 4.1 variable font and its SIL Open Font License notice in
+  `index.html`, completing direct-file and offline single-file packaging.
+- Corrected the safe diagnostic to classify `file:`, `http:`, and `https:` distinctly;
+  removed completed OBS-001 and added three regression assertions.
+- Consolidated active documentation around current product, engineering, testing, format,
+  backlog, and release responsibilities; moved detailed v1 plans to one historical record.
+- Preserved the no-backend, no-account, no-upload, no-telemetry, and no-network boundary,
+  plus all parser, arithmetic, ownership, privacy, persistence, and saved-file contracts.
 
-**Fixed**
+### Release evidence
 
-- Amazon page-navigation labels such as `Next` no longer leak into product names.
-- Confirming an ordinary Amazon order consumes it for other charges, preventing the same
-  order from being assigned twice. Detected split orders remain deliberately available to
-  each of their linked charges.
-- Assertions T28a–T28f cover parser noise, paste completeness metadata, confirmation
-  consumption, the split-order exception, occurrence wording, and concrete ambiguity.
+- Automated and in-browser suites: 78/78 before release edits; 81/81 after.
+- Fictional selected-month workflow: TD 14 rows / $1,568.05, BMO 9 rows / $349.44,
+  combined 23 rows / $1,917.49; printed TD block totals $1,522.04 and $252.54 reconciled.
+- Verified adjacent-month filtering, pending-to-posted replacement with ownership retained,
+  full and 75% partial refunds, cashback/reward exclusion, ambiguous/unmatched credits,
+  ownership presets, remembered rules, keyboard review, settlement checks, one-sided close,
+  archive redaction, automatic restoration, closed history, and clean next month.
+- Amazon sample produced all seven charge states: one exact, two ambiguous, two split-order,
+  one possible monthly-payment, and one unmatched; match decisions did not change money.
+- Verified 1100×800 laptop and 1920×1080 desktop layouts. Direct `file://` UI automation
+  was blocked by browser tooling; direct-file behavior remains owner-accepted and is
+  protected by source, offline, and protocol assertions.
 
-## 0.4.4
+## Earlier milestones
 
-**Added**
+| Version | Shipped outcome |
+|---|---|
+| 0.9.6 | Month-relative TD/BMO/Amazon samples and January/December boundary assertions; 78/78 |
+| 0.9.5 | Confident full/partial-refund policy and exclusion of other credits; 76/76 |
+| 0.9.4 | Reliable month switching, next-month flow, qualified coverage, early Amazon paste, pending-row continuity |
+| 0.9.3 | Accepted v0-style Import, Review, and Settle composition without logic changes |
+| 0.9.2 | Inter typography and intentional monospace scope corrected |
+| 0.9.1 | Four-column Review workspace, progress, allocation evidence, details, and sticky rail |
+| 0.9.0 | v1 visual tokens, shared shell, focus, reduced motion, and local Inter checkpoint |
+| 0.4.8 | Amazon release-candidate documentation and focused owner scenario |
+| 0.4.7 | Private Amazon session persistence and public-output privacy assertions; 69/69 |
+| 0.4.6 | Allowlisted safe diagnostic and maintenance-header correction; 62/62 |
+| 0.4.5 | Amazon completeness, navigation filtering, dates, counts, and order-consumption corrections; 59/59 |
+| 0.4.4 | Amazon Review evidence and explicit confirm/reject/ambiguity states; 53/53 |
+| 0.4.3 | Optional local Amazon Import flow and match-state summary; 49/49 |
+| 0.4.2 | Pure deterministic Amazon matcher; 48/48 |
+| 0.4.1 | Privacy-filtered Amazon order parser with verbatim products; 40/40 |
+| 0.4.0 | Gated amount correction, fuller reload persistence, shortcut and instalment-rule fixes; 34/34 |
+| 0.3.0 | Synthetic self-test, controlled identity/cards, shared categories, status, close/archive, safer refunds |
+| 0.2.0 | Per-bank parsers, balance guard, coverage/totals, canonicalization, checks, and pending handling |
+| 0.1.0 | Initial local import, review, rules, redacted export, settlement, and session workflow |
 
-- **Amazon evidence in Review.** Amazon rows now show every matched product title
-  verbatim on additional lines while retaining the original bank description, amount,
-  and split controls. Exact suggestions can be confirmed or rejected; ambiguous rows
-  show every candidate for explicit selection; split-order, monthly-payment, and
-  unmatched states explain their limits instead of guessing.
-- Confirmed and rejected suggestions can be reconsidered. These actions change only
-  local context state and never touch transaction amounts, split decisions, or
-  settlement arithmetic.
-- Assertions T27a–T27d covering Review order resolution, ambiguity, confirmation, and
-  rejection, plus manual checks for multiline content and keyboard behavior.
-
-**Known limitation**
-
-- Amazon orders, matches, and confirmations still live in memory only and disappear on
-  reload. Phase 5 will add private-session persistence and output privacy assertions.
-
-## 0.4.3
-
-**Added**
-
-- **Optional Amazon context paste in Import.** Section 3 enables after a posted Amazon
-  charge enters the ledger, accepts copied Your Orders text, runs the tested parser and
-  matcher locally, and summarizes exact, ambiguous, possible split-order,
-  monthly-payment, and unmatched results. Empty or unusable input leaves existing data
-  unchanged, and clearing Amazon context never clears bank transactions.
-- Assertion T26 for complete match-state summary counts, plus manual checks for enablement,
-  valid and invalid paste, clearing, and the temporary reload limitation.
-
-**Known limitation**
-
-- Version 0.4.3 keeps Amazon orders and matches in memory only. Reloading clears them,
-  and Review rows are not enriched yet; both facts are stated in the preview UI.
-
-## 0.4.2
-
-**Added**
-
-- **Pure Amazon order matcher**, the second internal phase of PRODUCT S6. It produces
-  explained results for unique exact totals, repeated-total ambiguity, constrained
-  two- or three-charge order sums, monthly-payment orders, and unmatched charges. It
-  matches only posted Amazon spending, uses integer cents and an explicit date window,
-  and never mutates transactions, amounts, split decisions, or orders. There is still
-  no user-facing Amazon interface.
-- Assertions T25a–T25h covering each match state, the three-charge search limit,
-  non-Amazon exclusion, and input immutability.
-
-## 0.4.1
-
-**Added**
-
-- **Pure Amazon Your Orders parser**, the first internal phase of PRODUCT S6. It extracts
-  order date, total, order number, verbatim product titles, subscription status, and
-  monthly-payment status from noisy copied page text. It deduplicates repeated order
-  blocks and adjacent short/full title variants, discards shipping identity and page
-  controls, and reports incomplete blocks rather than guessing. There is no user-facing
-  import or matching UI yet.
-- Synthetic Amazon fixture and assertions T24a–T24f covering fields, deduplication,
-  verbatim titles, flags, privacy filtering, and malformed input.
-
-**Fixed**
-
-- The architecture map now includes the existing Policy section and the new Amazon
-  Context section, and fixed assertion totals were removed from evergreen docs.
-- The stale hardcoded header version was removed; startup fills it from `VERSION`.
-
-## 0.4.0
-
-**Added**
-
-- **Correct a mis-parsed amount by hand**, gated at $1,000 (`EDIT_MIN`). Click the amount
-  on a review row. The imported figure is kept in `originalAmount`, the row wears an
-  `edited` chip showing what the bank line said, a new check lists every corrected row,
-  the "I checked the count and net" tick is cleared, and the shared export carries
-  `edited: true`. Gated high because the rows that get mis-parsed are the big ones — a
-  running balance read as an amount — and a low gate turns the ledger into a spreadsheet.
-  A row already corrected stays editable so a bad correction can be undone.
-- **Session storage now keeps the loaded partner file, the count-and-net tick, and the
-  view toggles** (grouping, undecided-only, cursor). Previously all four reset on reload.
-  Additive to `split-ledger-session/v3` — the version is deliberately *not* bumped, so an
-  older build still reads the file and ignores the new fields. Reading is guarded: a
-  session file written before these existed no longer wipes a partner file just loaded.
-- Assertions T21, T22, T23 covering instalment rule-eligibility, the edit gate and the
-  edited flag. 31 -> 34.
-
-**Fixed**
-
-- **Cmd+C in step 02 opened the custom-share dialog.** The keyboard handler matched bare
-  letters and digits without checking for a modifier, so every OS shortcut in the review
-  view was also a split command — Cmd+C prompted for a percentage, Cmd+1..5 reassigned the
-  highlighted row, Cmd+K moved the cursor. Meta, Ctrl and Alt now bail out; Shift stays
-  live because the shifted digits are the remember-as-rule shortcuts.
-- **Klarna instalments inherited the financed merchant's rule.** `KLARNA*Walmart` cleans
-  down to the same key as an ordinary Walmart run, so a "Walmart 50/50" rule silently
-  auto-split whatever the plan was financing. Instalment rows no longer take merchant
-  rules (`ruleEligible()`) and can no longer have one pinned from them. They are otherwise
-  ordinary rows — counted, splittable, exported — and the amount threshold still applies,
-  so small instalments are not new work.
-
-**Changed**
-
-- The two review toggles render their labels from one place (`hydrateView()`), so restored
-  state and button text cannot disagree.
-
----
-
-## 0.3.0
-
-**Added**
-
-- **Self-test** — 31 assertions over synthetic fixtures, runnable in-browser (step 04)
-  or headless via `node test/run-tests.js`
-- **Version stamp** in the header, written into every export and archive
-- **"I am" toggle** replacing free-text names; names configured once in setup
-- **Card dropdown** replacing the free-text card label — the label is part of the
-  deduplication key, so a typo let the same transaction import twice
-- **Self-import guard** — a partner file whose owner matches your own is rejected, with
-  a confirmation prompt for an unrecognised owner
-- `category` added to the shared export, so the future analytics tool doesn't have to
-  re-derive it
-- **Status banner** stating where the current month stands: nothing imported, in
-  progress, your side done and waiting, ready to settle, or closed
-- **Close month** — writes a frozen `split-ledger-archive/v1` file and records the month
-  in a Closed months list
-
-**Fixed**
-
-- **Refund pairing matched on merchant alone, ignoring amount.** It would attach a
-  refund to an unrelated charge at the same merchant. Precedence is now: same merchant
-  and same amount (certain) → different merchant, same amount within 3 days (likely,
-  flagged for confirmation) → same merchant, different amount (partial refund). Caught
-  by the fixtures on their first run.
-
-**Changed**
-
-- Session format `v3`; still reads `v1` and `v2`, migrating older name fields
-
----
-
-## 0.2.0
-
-**Added**
-
-- Per-bank **column parsers** replacing heuristic amount detection
-- **Balance guard** — an import is refused outright if any parsed amount equals that
-  row's running balance
-- **Coverage assertion** from the bank's own printed date ranges, so a gap in the month
-  is detected rather than assumed away
-- **Bank-total reconciliation** against each block's printed total
-- Merchant **canonicalisation**: processor prefixes stripped, store numbers and order
-  ids removed, city captured, name variants grouped into families
-- Per-transaction detail: category, processor, city, occurrence count, flags for
-  instalment, pending, refund, and large amounts
-- **Pending section** parsed but excluded from settlement
-- **Dropped-lines panel** — every line the parser discarded, with a reason
-- Group-by-merchant view with bulk apply for recurring merchants
-- Pre-settlement checks: coverage, totals, undecided, pending, instalments, unmatched
-  refunds, duplicates, large auto-assigned items
-
-**Fixed**
-
-- **The parser read the running balance as the transaction amount** on the five-column
-  format, producing plausible but wildly wrong rows
-- Exclusion patterns missed the real wording used by both banks for card payments and
-  internal transfers
-- A minimum-payment line has both a date and a dollar amount and was importing as a
-  purchase
-- Duplicate detection flagged small legitimate repeats at the same merchant; the 3-day
-  window now applies only to amounts of $50 or more
-
-**Changed**
-
-- Default threshold lowered to **0** — see the reasoning in `PRODUCT.md` §7
-
----
-
-## 0.1.0
-
-Initial version. Heuristic paste parsing, day-clustered review, keyboard tagging,
-merchant rules, redacted export, settlement, session save/load.
+All changes through v1 used additive compatibility where possible. Shared export v1 and
+archive v1 remain frozen; session readers still accept v1–v3.

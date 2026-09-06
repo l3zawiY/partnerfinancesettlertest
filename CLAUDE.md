@@ -1,201 +1,122 @@
 # CLAUDE.md
 
-Operating instructions for anyone — human or agent — changing this project.
-Read this before touching `index.html`.
+Shared product and engineering instructions for anyone changing Split Ledger. Read this
+before touching `index.html`.
 
----
+## Working agreement and approval
 
-## Working agreement
+The owner is a product manager and a beginner with coding, GitHub, and coding agents.
+Explain platform behaviour, risks, and results in plain language. Use lightweight product
+methods when they clarify a decision; avoid ceremony and unexplained jargon.
 
-The project owner is a beginner in coding, GitHub, and AI coding agents. Explain tools,
-platform behaviour, risks, and results in plain language; don't assume prior knowledge.
-They are a product manager, so when exploring features or product evolution, use
-lightweight PM methods where they clarify the decision: jobs to be done, assumptions,
-MVP boundaries, success measures, and acceptance criteria. Avoid framework ceremony
-when a simpler explanation is enough, and translate implementation details plainly.
+Before editing any file, for each coherent batch:
 
-When adding an entry to `docs/BACKLOG.md`, follow that file's stable id and date
-convention. Never renumber or reuse an existing backlog id.
+1. Inspect and reason read-only.
+2. Present a file-by-file plan with the benefit, cost, risk, and tradeoff.
+3. Keep advice separate from permission to edit.
+4. Wait for explicit approval of that exact scope. Revised scope requires new approval.
+5. Run `node test/run-tests.js` immediately before and after the batch and report both
+   assertion counts. A red post-change run means revert the batch, not patch forward.
 
-Before any work on Amazon order context (PRODUCT S6), read
-`docs/AMAZON-CONTEXT-PLAN.md`, answer its four pre-batch checks, and follow its current
-phase scope. After each approved batch, update its execution tracker and implementation
-log with the verified result.
+Preserve unrelated and uncommitted owner work. Do not commit, tag, push, publish, or deploy
+unless the owner explicitly requests that separate action.
 
-Before editing any file, follow this approval gate for **each batch of edits**:
+## Document routing
 
-1. Inspect and reason read-only as needed.
-2. Present a file-by-file plan. For every file, explain the proposed change and its
-   tradeoff: why it might not be worth doing, what could go wrong, and what it costs.
-3. Keep advice separate from implementation. Agreement with a recommendation is not
-   permission to edit. If the recommendation is to do nothing, do nothing by default
-   and offer each optional change separately.
-4. Wait for an explicit green light covering that exact batch. If the scope changes,
-   present the revised batch and wait again.
+| Need | Canonical source |
+|---|---|
+| Use and repository orientation | `README.md` |
+| Product purpose, scope, and settled decisions | `PRODUCT.md` |
+| Shipped release history | `CHANGELOG.md` |
+| Unresolved work and ideas | `docs/BACKLOG.md` |
+| Current verification contract | `docs/TESTING.md` |
+| Persisted and diagnostic contracts | `docs/DATA-FORMATS.md` |
 
-After approval, follow the regression protocol below. Run `node test/run-tests.js`
-immediately before and after every approved batch and quote both assertion counts to
-the project owner. Make one coherent change at a time. If the post-change test is red,
-revert the batch rather than patching forward.
+Start a session from the working tree, current application version, changelog, and
+backlog. Active canonical documents take precedence over archived implementation history.
+Do not read `resources/`, `design-reference/`, or `docs/archive/` during routine work.
+Consult them only when the task specifically requires an asset/reference, the owner asks
+for the history, or a relevant regression investigation needs its evidence.
 
-One settled decision: do not add password protection to the hosted page. A static-page
-password check is delivered to the visitor with the content it claims to protect, and
-the URL contains no user data. See `PRODUCT.md` section 7 for the underlying product
-decisions.
+Backlog entries use stable Jira-style ids and dates. Always use the next unused id; never
+renumber or reuse one.
 
----
+## Product and architecture
 
-## What this is
+Split Ledger is a local-first tool for two people who keep separate cards. Each person
+imports their transactions, chooses ownership, and exports only shared items. One person
+loads both shared files and computes settlement. See `PRODUCT.md` for the full product
+definition and deliberate non-features.
 
-A single-file, offline, no-account web tool that reconciles shared expenses between
-two people who keep separate bank cards. Each person imports their own card
-transactions, decides how each purchase splits, and exports a **redacted** file
-containing only shared items. One of them loads both files and gets a settlement figure.
+The application is one offline HTML file with no runtime dependencies or build step.
+`index.html` is ordered as follows:
 
-See `PRODUCT.md` for the problem being solved. See `docs/DATA-FORMATS.md` for the
-JSON contracts.
+| Section | Responsibility |
+|---|---|
+| Styles and markup | Four production views and their presentation |
+| Engine markers | Frozen pure parsing and canonicalisation functions; no DOM access |
+| Policy | Pure financial and application rules exposed to tests |
+| Amazon context markers | Pure parsing and matching evidence; no DOM access |
+| Fixtures and self-test | Synthetic behavioural assertions |
+| App | State, rendering, persistence, files, and events |
 
----
+The headless harness evaluates the DOM-free sections directly. DOM access inside the
+engine markers breaks `test/run-tests.js`; place presentation behaviour in the App section.
+
+Key terms:
+
+- `share` is the fraction borne by the card owner: `1` is private, `0.5` is even, and
+  `0` means the partner owes all.
+- Positive `amount` is spending and negative `amount` is money returned.
+- `key` is the canonical merchant rule identifier; `family` groups safe name variants.
 
 ## Hard invariants
 
-These are not preferences. Breaking any of them is a defect, not a design change.
+Breaking any of these is a defect:
 
-1. **No network calls, ever.** No `fetch`, no `XMLHttpRequest`, no CDN links, no
-   analytics, no fonts loaded from a URL. The tool works with the network cable
-   unplugged. Test T20 enforces this.
-2. **No dependencies, no build step.** One HTML file, opened directly. No npm at
-   runtime, no bundler, no framework, no TypeScript compile. Node is used only to run
-   the test harness.
-3. **Private purchases never leave the device.** An item split 100% to its card owner
-   must be *absent* from the shared export — not hidden, not zeroed, absent. This is
-   the whole reason the two people trust the tool.
-4. **The LLM is not in the money path.** No model call computes, checks, or adjusts a
-   settlement. Arithmetic is deterministic JavaScript.
-5. **No real bank data in this repo.** Test fixtures are synthetic. No real merchant
-   strings, no real amounts, no names. `.gitignore` covers the runtime files; don't
-   defeat it.
-6. **The running balance is never an amount.** TD's paste has a balance column. Reading
-   it as the transaction amount produces plausible, entirely wrong rows. There is a
-   guard that refuses such an import; don't remove it.
-7. **Archives are append-only.** Once a month is closed, its archive is never rewritten.
-   Losing a month is annoying; silently rewriting one corrupts every comparison built
-   on it.
+1. No runtime network calls: no `fetch`, `XMLHttpRequest`, CDN, analytics, telemetry, or
+   remotely loaded font or asset. The app must work offline from `file://`; T20 enforces
+   the source-level network boundary.
+2. No backend, accounts, uploads, runtime package, framework, transpilation, or build step.
+3. A transaction borne entirely by its card owner is absent from shared exports and
+   archives. It is not hidden or zeroed.
+4. All arithmetic is deterministic JavaScript. Amazon matching and any future assistant
+   may supply evidence only; neither may choose a split or enter the money path.
+5. No real financial or retailer data in the repository. Fixtures must be fictional and
+   date-stable unless intentionally month-relative.
+6. TD's running balance is never a transaction amount. Preserve the refusal guard.
+7. Closed archives are append-only; never silently rewrite an earlier archive.
+8. Preserve `split-ledger/v1`, `split-ledger-archive/v1`, and readable session v1-v3
+   contracts. Format changes are additive unless explicitly approved as breaking.
+9. Normalized Amazon context is private session data. Raw Amazon paste and derived matches
+   are not stored; Amazon fields never enter shared exports or archives.
 
----
+## Implementation rules
 
-## Architecture map
+- Keep application JavaScript ES5-compatible: use `var` and functions; no classes, arrow
+  functions, template literals, optional chaining, or required transpilation.
+- Escape every user-derived string with `esc()` before it reaches `innerHTML`.
+- Keep comments explaining non-obvious financial or parsing decisions.
+- Family patterns are ordered from specific to general and match the original description.
+- Instalment transactions do not inherit ordinary merchant rules.
+- Public output builders are allowlists. Never create them by redacting a private session.
+- When changing a data format, read `docs/DATA-FORMATS.md`; never rename or repurpose an
+  existing field, and keep older sessions readable.
+- Do not add client-side password protection. It cannot protect a static file delivered to
+  the same visitor, and the hosted URL contains no user data.
 
-`index.html` is one file in seven sections, in this order:
+## Verification
 
-| Section | Marker | Contents | Change frequency |
-|---|---|---|---|
-| Styles | `<style>` | CSS variables and layout | Occasional |
-| Markup | `<body>` | Four step panels: Import, Review, Settle, Rules & files | Occasional |
-| **Engine** | `==ENGINE-START==` / `==ENGINE-END==` | Pure functions: parsers, canonicalisation, coverage, date/money helpers. **No DOM access.** | **Rare — treat as frozen** |
-| Policy | `POLICY` comment block | Pure app rules kept outside the frozen engine and reachable by the headless harness | Occasional |
-| Amazon context | `==AMAZON-CONTEXT-START==` / `==AMAZON-CONTEXT-END==` | Pure Amazon order parsing and, later, matching. **No DOM access.** | During S6 |
-| Fixtures & self-test | `SELF-TEST` comment block | Synthetic pastes and behavioural assertions | When behaviour changes |
-| App | after fixtures | State, rules, rendering, persistence, events | Most changes land here |
-
-**The engine is deliberately DOM-free** so the test harness can load and exercise it in
-Node without a browser. Any DOM access added inside the engine markers breaks
-`test/run-tests.js`. Put it in the app section instead.
-
-### Key concepts
-
-- **`share`** — the fraction of a transaction the *card owner* bears. `1` = entirely
-  theirs, never exported. `0.5` = even split. `0` = the partner owes all of it.
-- **`amount`** — positive is money spent, negative is money returned. Both bank formats
-  normalise into this convention on import.
-- **`key`** — the canonical merchant identifier that rules match against. Derived from
-  merchant family where one exists, otherwise the cleaned display name.
-- **`family`** — a group of merchant name variants that mean the same thing
-  (`uber-eats`, `uber-ride`, `amazon`). Families that split differently must stay
-  separate: Uber Eats is not Uber rides.
-
----
-
-## How to test
-
-**In the browser:** open `index.html`, go to step 04, click **Run self-test**. Expect
-every assertion to be green.
-
-**Headless, for agents and CI:**
+Run the complete automated suite with:
 
 ```bash
 node test/run-tests.js
 ```
 
-Exits `0` on all-green, `1` on any failure, and prints which assertion failed with
-actual vs expected.
+The same assertions run in Rules & Files through **Run self-test**. New assertions use a
+`T`-prefixed id and describe behaviour, not implementation. Never loosen an assertion to
+make a change pass; update an expectation only for an explicitly approved behaviour change
+and record that reason in `CHANGELOG.md`.
 
----
-
-## Change protocol
-
-Follow this in order. It exists because a wrong settlement figure is worse than a
-missing feature — it looks correct.
-
-1. Run `node test/run-tests.js` **before** changing anything. Record the baseline.
-2. Make one coherent change. Don't bundle unrelated work.
-3. Run the tests again. **Any red means revert, not patch forward.**
-4. If you changed behaviour deliberately, update the assertion *and* say so in
-   `CHANGELOG.md`. Never loosen an assertion to make it pass.
-5. Bump `VERSION` in `index.html` and add a `CHANGELOG.md` entry.
-6. Run the manual checklist in `docs/TESTING.md` for the area you touched.
-
-### When adding a test
-
-Add it to `runSelfTest()` with a `T`-prefixed id and a one-line label describing the
-*behaviour*, not the implementation. If a test needs new fixture data, recompute the
-affected totals — several assertions share the same fixture.
-
----
-
-## Code conventions
-
-- ES5-compatible syntax: `var`, `function`, no arrow functions, no template literals,
-  no optional chaining. The file must run from `file://` in any browser without
-  transpilation.
-- No classes. Plain functions and one `state` object.
-- `esc()` every user-derived string before it reaches `innerHTML`. Merchant names come
-  from pasted text and are untrusted input.
-- Comments explain *why*, especially where the code looks wrong but isn't. The
-  refund-pairing precedence and the explicit city list both have non-obvious reasons.
-
----
-
-## Common tasks
-
-**Adding a merchant family** — add to `FAMILIES` in the engine. Order matters: more
-specific patterns first (`UBEREATS` must precede the bare `UBER CANADA` pattern).
-Families are matched against the *original* description, before processor prefixes are
-stripped.
-
-**Adding a payment processor** — add to `PROCESSORS`. The prefix is stripped from the
-display name but retained as a detail (`via Square`).
-
-**Adding a bank** — write a new `parseXYZ(text, opts)` in the engine returning
-`{rows, dropped, blocks, ranges, tabs}`, add it to `parsePaste()`, add an option to the
-bank `<select>`, and add a synthetic fixture plus assertions.
-
-**Changing a data format** — read `docs/DATA-FORMATS.md` first. Additive changes only.
-Never rename or repurpose an existing field. `applySession()` must keep reading older
-versions.
-
----
-
-## Deliberately not here
-
-Don't add these without a conversation; each was considered and rejected for a reason
-recorded in `PRODUCT.md`.
-
-- A backend, accounts, or any server-side storage
-- Live bank connections or transaction aggregators
-- An AI agent that decides splits — the intent behind a purchase exists only in the
-  users' heads
-- Budgeting, forecasting, or category charts (analytics belongs in a **separate** tool
-  reading archive files, so it can never break settlement)
-- A browser extension or scraper for bank pages
-- Payment execution
+Use `docs/TESTING.md` for manual checks relevant to the changed area. Versioned behaviour
+changes update `VERSION` in `index.html` and `CHANGELOG.md` together.

@@ -42,9 +42,12 @@ npm run check
 ```
 
 It type-checks the browser and Worker boundaries, runs unit tests without contacting Clerk,
-and creates a production build. The existing `node test/run-tests.js` gate remains required
-before and after every repository edit batch. Real credentials and financial data are never
-required for automated verification.
+and creates a production build. The unit tests include a telemetry boundary check: one
+assertion deliberately builds a Clerk collector left at its default, proving telemetry
+would otherwise be on, and the others assert that the Worker and browser settings turn it
+off. The existing `node test/run-tests.js` gate remains required before and after every
+repository edit batch. Real credentials and financial data are never required for
+automated verification.
 
 ## Release smoke test
 

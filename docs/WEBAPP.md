@@ -14,13 +14,22 @@ it current instead of creating session handoffs or a separate plan for every bat
 - The owner added Clerk development keys to ignored `webapp/.env.local` and manually
   verified the complete signed-in path: Clerk created a session, the frontend sent its
   token, and the Worker accepted it. Do not record the displayed Clerk user ID.
-- Automated evidence: legacy suite passed 81/81 before and after the implementation;
-  web-app type checking, 3 backend tests, and a production build passed. A signed-out
-  request to `/api/me` returned `401` with `Cache-Control: no-store`.
-- Remaining Batch 1 work: make Clerk enrollment invite-only, investigate and disable the
-  Clerk development SDK telemetry reported by its local warning, manually verify logout
-  and signed-out behavior, rerun all checks, review the diff, then request separate owner
-  permission to commit and push.
+- Clerk and Wrangler telemetry are now disabled in code and configuration, and the
+  boundary is asserted by automated tests. The local collection warning no longer appears
+  in development output, including after real `/api/me` requests.
+- Automated evidence: legacy suite passed 81/81 before and after the telemetry batch;
+  web-app type checking, 6 backend tests, and a production build passed. Signed-out
+  requests to `/api/me` returned `401` with `Cache-Control: no-store`, an unknown API
+  route returned `404`, and a `POST` to `/api/me` returned `405`.
+- The owner manually verified browser sign-out: the protected result and the Clerk user
+  ID disappear and the signed-out state returns. Batch 1 is functionally complete.
+- Deferred by owner decision: closing Clerk enrollment to invite-only. The Development
+  instance stays open for now because it holds no real data and open enrollment keeps
+  local experimentation and future test accounts frictionless. This is a required
+  pre-production task, not a dropped one. See Batch 6 and the open-risks list.
+- Remaining Batch 1 work: none. The batch is committed on this branch as two commits, one
+  for the foundation and one for the telemetry boundary. Pushing was not requested and has
+  not been done.
 - `resources/` (about 92 MB) and `design-reference/` (about 1.7 MB) remain local-only and
   ignored. They were deliberately not included in the safety commit and have no new
   backup from this work.
@@ -119,6 +128,7 @@ deployments, and extra operational concepts.
 | Cloudflare D1 for shared records | Browser-only files; another hosted database | D1 integrates with the Worker and has a useful free tier. A database is justified only for shared coordination, not private source data. |
 | Plain CSS initially | Tailwind or a component framework | Keeps one learning layer visible and reuses the settled visual language. Add a styling framework only if repetition becomes a demonstrated problem. |
 | Existing export formats remain portable | Cloud-only state | Exports support audit, recovery, parity checking, and a return to v1. |
+| Telemetry disabled in code rather than by environment variable | Clerk's documented `CLERK_TELEMETRY_DISABLED`; leaving SDK defaults | Neither a Worker nor a browser has `process.env`, so the documented variable silently does nothing here. Explicit code options are the only controls that take effect, and unlike an environment variable they can be asserted by a test. |
 | No analytics | Product analytics from the start | Financial privacy and simplicity matter more during a tiny invite-only pilot. Use direct feedback and privacy-safe operational errors. |
 
 ## Batch roadmap
@@ -143,20 +153,26 @@ Delivered:
 
 Finish in this order:
 
-1. In the Clerk Development instance, change enrollment to invite-only now that the
-   owner's first account exists. This changes external account access and therefore needs
-   explicit owner authorization or owner action.
-2. Verify Clerk's current official telemetry controls and opt the development SDK out.
-   The local server emitted an explicit collection warning; do not use real financial
-   data until the no-telemetry boundary is actually enforced and tested.
-3. In the running app, sign out and confirm the protected result is no longer displayed;
-   confirm `/api/me` rejects a request without a valid session.
-4. Run `npm run check`, `node test/run-tests.js`, and `git diff --check`; inspect all
-   tracked changes and ensure no secret is staged.
-5. Report results and request explicit permission for one Batch 1 commit and push.
-   Suggested message: `Build authenticated React-to-Worker foundation`.
+1. Deferred to pre-production by owner decision on 2026-09-07. Clerk enrollment stays
+   open on the Development instance, which contains no real data. Invite-only enrollment
+   must be configured on the Production instance before any real pilot, and is tracked in
+   Batch 6 and the open-risks list.
+2. Done. Clerk's controls were verified against both the installed packages and Clerk's
+   published telemetry documentation. The documented `CLERK_TELEMETRY_DISABLED` variable
+   is read from `process.env`, which exists in neither a Worker nor the browser, so
+   `shared/telemetry.ts` supplies explicit code options to both layers instead. Wrangler's
+   own metrics are disabled with `WRANGLER_SEND_METRICS=false` in the `dev` and `build`
+   scripts; its error reporting already defaults to off. `worker/telemetry.test.ts`
+   asserts the boundary.
+3. Done. `/api/me` rejects a request with no token and one with an invalid token, and the
+   owner confirmed in the browser that signing out removes the protected result.
+4. Done. `npm run check`, `node test/run-tests.js`, and `git diff --check` all passed, and
+   no secret is tracked. Only `.env.example` is committed.
+5. Done. Committed as two commits by owner request: `Build authenticated React-to-Worker
+   foundation`, then `Disable Clerk and Wrangler telemetry`. Push was not requested.
 
-Do not add D1, organizations, or financial fields while finishing this batch.
+Batch 1 is closed. Do not add D1, organizations, or financial fields to it retroactively;
+that work belongs to Batch 2.
 
 ### Batch 2 — Household membership and an empty local database
 
@@ -255,7 +271,7 @@ Proposed scope:
 webapp/
   src/                 React frontend
   worker/              Cloudflare backend and authentication boundary
-  shared/              API types safe for both layers
+  shared/              API types and telemetry settings safe for both layers
   package.json         scripts and dependencies
   package-lock.json    exact dependency resolution
   vite.config.ts       React + Cloudflare build/dev integration
@@ -338,8 +354,17 @@ surface area.
 - The ignored local reference folders are not backed up by this branch.
 - Clerk and Cloudflare free-tier limits, production-domain requirements, and SDK behavior
   may change; verify from official documentation before deployment.
-- Clerk's development SDK emitted a telemetry-collection warning during Batch 1. Confirm
-  and test the official opt-out before any real transaction data is entered.
+- Telemetry is off and asserted, but the two assertions differ in strength. The Worker
+  test constructs a real Clerk collector and checks it is disabled; the browser test only
+  checks the shared setting, because rendering `ClerkProvider` in a test would add a DOM
+  testing dependency. Deleting the prop from `main.tsx` would therefore not fail the
+  suite. Revisit if the frontend grows a DOM test setup for other reasons.
+- `WRANGLER_SEND_METRICS=false` is set in the repository's npm scripts, so a bare
+  `npx wrangler` command run outside those scripts is not covered by it.
+- Clerk enrollment is deliberately still open on the Development instance. Anyone who
+  learns the development sign-up URL could create an account there. This is acceptable
+  only while the instance holds no real data, and must be closed before a production
+  pilot. Do not reuse the Development instance for real financial data.
 - Organization-as-household is promising but unproven until the two-person Batch 2 flow.
 - Browser-only private processing becomes harder as the React migration grows; parity and
   network-boundary tests are mandatory.

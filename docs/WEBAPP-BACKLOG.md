@@ -26,6 +26,31 @@ for other reasons, rather than adding one for this alone.
 
 *Noticed: 2026-09-07.*
 
+### WEB-004 — Run Worker tests inside workerd against real D1
+
+Household tests currently execute against Node's SQLite engine through a small adapter.
+That proves the schema, the queries and the household filter, but not D1's own behaviour.
+`@cloudflare/vitest-pool-workers` would run the same tests inside workerd against a real
+local D1, which is stronger. It requires Vitest 4 and this project is on Vitest 5, so
+adopting it today would mean downgrading the test runner. Revisit when it supports
+Vitest 5, rather than downgrading for it.
+
+*Noticed: 2026-09-07.*
+
+### WEB-005 — An invited partner is prompted to create their own household
+
+With `hidePersonal` set, Clerk requires an active organization, so a second account signing
+in with no invitation is shown "Setup your organization" and creates a household of its own.
+That is correct for the first owner and wrong for a partner, who should join the existing
+household instead. Two accounts each creating a household is the failure this tool exists to
+avoid: they would never see each other's items.
+
+The Worker needs no change; this is onboarding. Decide in Batch 5, alongside partner
+workflow, whether an invitation is required before first sign-in, whether an uninvited
+account is refused, and what the join screen says.
+
+*Noticed: 2026-09-07.*
+
 ## Ideas
 
 ### WEB-002 — Decide retention and household deletion before real shared data

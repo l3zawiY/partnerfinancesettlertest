@@ -45,7 +45,10 @@ It type-checks the browser and Worker boundaries, runs unit tests without contac
 and creates a production build. The unit tests include a telemetry boundary check: one
 assertion deliberately builds a Clerk collector left at its default, proving telemetry
 would otherwise be on, and the others assert that the Worker and browser settings turn it
-off. The existing `node test/run-tests.js` gate remains required before and after every
+off. Household authorization is tested against a real in-memory SQLite database running the
+real migration, so a cross-household read is genuinely refused by SQL rather than by a fake.
+Apply the local database schema once with `npm run db:migrate:local` before using
+`npm run dev`. The existing `node test/run-tests.js` gate remains required before and after every
 repository edit batch. Real credentials and financial data are never required for
 automated verification.
 

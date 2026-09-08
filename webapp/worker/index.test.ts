@@ -8,6 +8,12 @@ function environment(): WorkerEnvironment {
     ASSETS: {
       fetch: async () => new Response('fixture asset'),
     },
+    // /api/me never touches storage; this binding is present only to satisfy the shape.
+    DB: {
+      prepare: () => {
+        throw new Error('The identity route must not use the database.')
+      },
+    },
   }
 }
 
@@ -24,7 +30,10 @@ describe('Worker API boundary', () => {
   })
 
   it('returns only a safe identifier for a verified identity', async () => {
-    const worker = createWorker(async () => ({ userId: 'user_fixture' }))
+    const worker = createWorker(async () => ({
+      userId: 'user_fixture',
+      householdId: null,
+    }))
     const response = await worker.fetch(
       new Request('https://split-ledger.example/api/me'),
       environment(),
@@ -39,7 +48,10 @@ describe('Worker API boundary', () => {
   })
 
   it('does not turn an unknown API route into the React application', async () => {
-    const worker = createWorker(async () => ({ userId: 'user_fixture' }))
+    const worker = createWorker(async () => ({
+      userId: 'user_fixture',
+      householdId: null,
+    }))
     const response = await worker.fetch(
       new Request('https://split-ledger.example/api/missing'),
       environment(),

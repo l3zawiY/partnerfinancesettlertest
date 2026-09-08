@@ -5,6 +5,9 @@ it current instead of creating session handoffs or a separate plan for every bat
 
 ## Current status — 2026-09-07
 
+Batch 2 is implemented and uncommitted, pending owner review. Batch 1 is committed and
+pushed. The bullets below cover Batch 1; Batch 2 evidence is in its roadmap entry.
+
 - Active branch: `experiment/web-service`.
 - Stable v1.0.0 remains the single-file `index.html` application on `main`, at commit
   `8beb443`. It is the behavioral reference and has not been replaced.
@@ -129,6 +132,8 @@ deployments, and extra operational concepts.
 | Clerk authentication | Build passwords; Cloudflare Access; Supabase/Firebase/Auth0 auth | Building authentication is security-sensitive. Clerk offers the least custom credential code and usable invitation/organization concepts. Access protects a site but is a poorer product login; broader platforms add overlapping services. |
 | Passwordless, invite-only enrollment | Open public sign-up; custom allow-list | Fits a private partner tool and limits unwanted accounts. The first owner account had to be created before closing enrollment. |
 | One Clerk Organization represents one household | Home-grown membership first | Clerk can establish who belongs together; the Worker still enforces which records that organization can access. Validate this model in Batch 2 before depending on it widely. |
+| Real SQLite in tests, not a hand-written fake database | `@cloudflare/vitest-pool-workers`; a fake D1 object | D1 is SQLite and Node ships a SQLite engine, so tests execute the real migration and the real `WHERE` clause. A fake would implement whatever filtering we told it to, making a cross-household test prove nothing. The pool plugin runs tests inside workerd, which is stronger still, but it requires Vitest 4 and this project is on Vitest 5. Revisit when it supports Vitest 5. |
+| Separate TypeScript project for tests | One config covering runtime and test code | The Worker config deliberately excludes Node types, so nobody can write `process.env` in Worker code and have it compile — the exact mistake the telemetry work uncovered. Tests need Node APIs, so they get their own config rather than weakening that guard. |
 | Cloudflare D1 for shared records | Browser-only files; another hosted database | D1 integrates with the Worker and has a useful free tier. A database is justified only for shared coordination, not private source data. |
 | Reuse the v1 interface, never redesign it | Design a new web interface; restyle during the port | `index.html` carries an owner-accepted UX and visual language that already works monthly. Batch 4 ports that interface; it does not redesign it. `design-reference/` is inspiration only if a genuine gap appears, and is not a licence to restyle. Changing behaviour and appearance at the same time also makes parity failures impossible to diagnose. |
 | Plain CSS initially | Tailwind or a component framework | Keeps one learning layer visible and reuses the settled visual language. Add a styling framework only if repetition becomes a demonstrated problem. |
@@ -179,12 +184,46 @@ Finish in this order:
 Batch 1 is closed. Do not add D1, organizations, or financial fields to it retroactively;
 that work belongs to Batch 2.
 
-### Batch 2 — Household membership and an empty local database
+### Batch 2 — Household membership and an empty local database (implemented, unreviewed)
 
 Learning objective: distinguish authentication (who are you?) from authorization (which
 household may you access?) and persistence (what survives a reload?).
 
-Proposed scope:
+Delivered:
+
+- `migrations/0001_households.sql`: a `households` table keyed by Clerk organization id and
+  a fictional `household_notes` table, with an index matching the only access pattern.
+- `worker/db.ts`: a typed access layer whose every function takes the household id as an
+  explicit argument. It depends on a narrow `SqlDatabase` interface rather than on D1.
+- `GET /api/household`: verifies the session, refuses `403` when there is no active
+  organization, then reads only that household's rows. The route creates the household row
+  on first read and is safe to repeat.
+- `worker/testing/sqliteDatabase.ts`: an in-memory SQLite database that applies the real
+  migration, with foreign keys enabled to match D1.
+- `worker/household.test.ts`: seven assertions covering no session, no household, repeat
+  safety, scoped reads, cross-household denial, method refusal, and `no-store`.
+- Frontend: an `OrganizationSwitcher` and a household panel that reloads when the active
+  organization changes.
+- `tsconfig.test.json` so tests may use Node APIs while Worker code still may not.
+
+Evidence: legacy suite 81/81 before and after; web-app type checking across three projects,
+13 tests (up from 6), and a production build passed. The migration applied to a real local
+D1 and both tables plus the index exist there. Against the running Worker with the real D1
+binding, `/api/household` returned `401` signed out and `405` for `POST`. Deleting the
+`WHERE household_id = ?` filter was verified to fail two tests, so they are not vacuous.
+
+Owner verification on 2026-09-07: Organizations enabled in the Development instance. Two
+separate accounts each signed in, each created its own organization, and each saw only its
+own household with a distinct organization id and an empty record list. This proves the
+per-session household boundary against real Clerk sessions and a real local D1.
+
+Still unproven: the actual partner case, where two accounts are members of the *same*
+organization and must both see the same household. That needs an invitation rather than a
+second organization, and is the last Batch 2 verification. Cross-household denial in a real
+browser also remains proven only by the automated tests, because a second organization
+cannot currently be reached from a session that does not belong to it.
+
+Original scope, for reference:
 
 - Enable and configure Clerk Organizations; create/invite a two-person test household.
 - Add a local D1 database, versioned SQL migration, and typed access layer.
@@ -375,7 +414,11 @@ surface area.
   learns the development sign-up URL could create an account there. This is acceptable
   only while the instance holds no real data, and must be closed before a production
   pilot. Do not reuse the Development instance for real financial data.
-- Organization-as-household is promising but unproven until the two-person Batch 2 flow.
+- Organization-as-household is implemented but still unproven until two real accounts sign
+  in to the same organization. The server-side boundary is tested; the Clerk membership and
+  invitation flow is not yet exercised.
+- The household tests run against SQLite, not D1 itself. They prove our schema, queries and
+  scoping, not D1 behaviour under replication or its API edge cases. See WEB-004.
 - Browser-only private processing becomes harder as the React migration grows; parity and
   network-boundary tests are mandatory.
 - Dependencies add supply-chain and upgrade work that the single HTML version avoids.

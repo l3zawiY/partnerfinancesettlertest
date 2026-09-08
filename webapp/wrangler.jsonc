@@ -3,6 +3,16 @@
   "name": "split-ledger-webapp",
   "main": "./worker/index.ts",
   "compatibility_date": "2026-09-07",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "split-ledger-db",
+      // Local development only. A real database id is created in Batch 6, when there is
+      // a production environment to create it in.
+      "database_id": "local-development-placeholder",
+      "migrations_dir": "migrations"
+    }
+  ],
   "assets": {
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",

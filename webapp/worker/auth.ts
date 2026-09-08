@@ -8,6 +8,11 @@ export interface ClerkEnvironment {
 
 export interface VerifiedIdentity {
   userId: string
+  /**
+   * The Clerk organization acting as the household, or null when the user has no active
+   * organization. Read from the verified token, never from a request body or query.
+   */
+  householdId: string | null
 }
 
 export type IdentityVerifier = (
@@ -40,5 +45,7 @@ export const verifyClerkIdentity: IdentityVerifier = async (request, environment
   if (!requestState.isAuthenticated) return null
 
   const auth = requestState.toAuth()
-  return auth.userId ? { userId: auth.userId } : null
+  if (!auth.userId) return null
+
+  return { userId: auth.userId, householdId: auth.orgId ?? null }
 }

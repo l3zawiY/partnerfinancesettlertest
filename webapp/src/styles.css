@@ -145,6 +145,12 @@ h1 {
   font-size: 11px;
 }
 
+.household-meta {
+  margin-top: 6px;
+  color: #4a5e4f;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 560px) {
   .page-shell {
     padding: 18px;

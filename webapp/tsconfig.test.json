@@ -11,8 +11,7 @@
     "noEmit": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "types": ["@cloudflare/workers-types"]
+    "types": ["@cloudflare/workers-types", "node"]
   },
-  "include": ["worker", "shared"],
-  "exclude": ["worker/**/*.test.ts", "worker/testing"]
+  "include": ["worker", "shared", "vite.config.ts", "vitest.config.ts"]
 }

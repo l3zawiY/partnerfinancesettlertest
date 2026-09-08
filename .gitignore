@@ -8,5 +8,12 @@ split-*-archive.json
 /resources/
 /design-reference/
 
+# Experimental web application dependencies, builds, local state, and credentials.
+/webapp/node_modules/
+/webapp/dist/
+/webapp/.wrangler/
+/webapp/.env*
+!/webapp/.env.example
+
 # OS / editor cruft
 .DS_Store

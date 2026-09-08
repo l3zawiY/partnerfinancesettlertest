@@ -31,6 +31,7 @@ unless the owner explicitly requests that separate action.
 | Unresolved work and ideas | `docs/BACKLOG.md` |
 | Current verification contract | `docs/TESTING.md` |
 | Persisted and diagnostic contracts | `docs/DATA-FORMATS.md` |
+| Experimental web-service architecture and status | `docs/WEBAPP.md` |
 
 Start a session from the working tree, current application version, changelog, and
 backlog. Active canonical documents take precedence over archived implementation history.
@@ -62,6 +63,19 @@ The application is one offline HTML file with no runtime dependencies or build s
 
 The headless harness evaluates the DOM-free sections directly. DOM access inside the
 engine markers breaks `test/run-tests.js`; place presentation behaviour in the App section.
+
+### Experimental web application scope
+
+The `webapp/` directory on `experiment/web-service` is an authorized learning experiment,
+not the released product. It may use React, TypeScript, a build step, Clerk authentication,
+and an allowlisted Cloudflare API. These exceptions do not weaken the offline, dependency-
+free, and no-network rules for `index.html`.
+
+Keep complete bank histories, private transactions, Amazon context, merchant rules, and
+draft decisions in the browser. The service may eventually receive allowlisted shared
+items only. Never commit credentials or real financial data. Authentication proves an
+identity; every API route must separately enforce application authorization. Financial
+arithmetic remains deterministic and testable outside the UI and network layers.
 
 Key terms:
 

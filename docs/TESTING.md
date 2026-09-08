@@ -33,6 +33,19 @@ refunds, exclusions, duplicates, and noisy Amazon pages without using real finan
 Add assertions with stable `T` identifiers and behavior-focused labels. Recompute affected
 totals when changing fixtures. Never loosen an expectation merely to make a run green.
 
+## Experimental web application gate
+
+The experimental `webapp/` has a separate additive gate. From that directory run:
+
+```bash
+npm run check
+```
+
+It type-checks the browser and Worker boundaries, runs unit tests without contacting Clerk,
+and creates a production build. The existing `node test/run-tests.js` gate remains required
+before and after every repository edit batch. Real credentials and financial data are never
+required for automated verification.
+
 ## Release smoke test
 
 ### Import and month boundaries

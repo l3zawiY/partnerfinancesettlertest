@@ -55,9 +55,15 @@ are fictional because the repository may be public.
 | `docs/DATA-FORMATS.md` | Persisted JSON and privacy contracts |
 | `docs/BACKLOG.md` | Unresolved observations and uncommitted ideas |
 | `CHANGELOG.md` | Release history |
+| `docs/WEBAPP.md` | Experimental web service: architecture, roadmap, and status |
+| `docs/WEBAPP-BACKLOG.md` | Unresolved web-service work and ideas |
 
 `docs/archive/` is historical evidence, not routine context. Active documents and the
 verified implementation take precedence.
+
+The last two rows cover the `webapp/` experiment on the `experiment/web-service` branch and
+do not describe this application. Everything else in this README describes `index.html`,
+which remains the product.
 
 ## Hosting
 

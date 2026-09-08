@@ -1,8 +1,10 @@
 # Backlog
 
-Only unresolved work belongs here. An observation is a verified follow-up; an idea needs a
-product decision before implementation. Completed items are removed and recorded in
-`CHANGELOG.md`.
+Only unresolved work belongs here, for the released single-file `index.html` application.
+Work on the `webapp/` experiment belongs in `docs/WEBAPP-BACKLOG.md` instead.
+
+An observation is a verified follow-up; an idea needs a product decision before
+implementation. Completed items are removed and recorded in `CHANGELOG.md`.
 
 IDs are permanent even after removal. Use the next unused `OBS-###` or `IDEA-###`, keep
 gaps, never renumber or reuse, and end entries with `*Noticed: YYYY-MM-DD.*` or

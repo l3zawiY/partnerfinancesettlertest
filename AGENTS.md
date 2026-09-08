@@ -18,7 +18,8 @@ when it helps a decision, and keep advice separate from permission to implement 
   specifically requires one of them. Archived plans are for owner-requested history or
   a relevant regression investigation, not routine context.
 - Use the next unused stable id and the required date format when adding backlog items.
-  Never renumber or reuse an id.
+  Never renumber or reuse an id. `webapp/` items use `WEB-###` in `docs/WEBAPP-BACKLOG.md`;
+  `index.html` items use `OBS-###` or `IDEA-###` in `docs/BACKLOG.md`.
 
 ## Approval gate
 

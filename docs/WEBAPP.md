@@ -30,6 +30,10 @@ it current instead of creating session handoffs or a separate plan for every bat
 - Remaining Batch 1 work: none. The batch is committed on this branch as two commits, one
   for the foundation and one for the telemetry boundary. Pushing was not requested and has
   not been done.
+- Batch 1 explainer for the owner, published outside the repository:
+  https://claude.ai/code/artifact/21d6c4df-322c-44a5-8174-56d9462314c9 — the architecture,
+  request path, and privacy boundary in plain language. The repository documents remain
+  canonical; the explainer teaches.
 - `resources/` (about 92 MB) and `design-reference/` (about 1.7 MB) remain local-only and
   ignored. They were deliberately not included in the safety commit and have no new
   backup from this work.
@@ -126,6 +130,7 @@ deployments, and extra operational concepts.
 | Passwordless, invite-only enrollment | Open public sign-up; custom allow-list | Fits a private partner tool and limits unwanted accounts. The first owner account had to be created before closing enrollment. |
 | One Clerk Organization represents one household | Home-grown membership first | Clerk can establish who belongs together; the Worker still enforces which records that organization can access. Validate this model in Batch 2 before depending on it widely. |
 | Cloudflare D1 for shared records | Browser-only files; another hosted database | D1 integrates with the Worker and has a useful free tier. A database is justified only for shared coordination, not private source data. |
+| Reuse the v1 interface, never redesign it | Design a new web interface; restyle during the port | `index.html` carries an owner-accepted UX and visual language that already works monthly. Batch 4 ports that interface; it does not redesign it. `design-reference/` is inspiration only if a genuine gap appears, and is not a licence to restyle. Changing behaviour and appearance at the same time also makes parity failures impossible to diagnose. |
 | Plain CSS initially | Tailwind or a component framework | Keeps one learning layer visible and reuses the settled visual language. Add a styling framework only if repetition becomes a demonstrated problem. |
 | Existing export formats remain portable | Cloud-only state | Exports support audit, recovery, parity checking, and a return to v1. |
 | Telemetry disabled in code rather than by environment variable | Clerk's documented `CLERK_TELEMETRY_DISABLED`; leaving SDK defaults | Neither a Worker nor a browser has `process.env`, so the documented variable silently does nothing here. Explicit code options are the only controls that take effect, and unlike an environment variable they can be asserted by a test. |
@@ -339,6 +344,11 @@ surface area.
 
 - Keep this one living document for architecture, roadmap, status, decisions, operational
   setup, and the next-session continuation point.
+- Unresolved web work that is not already scheduled in a batch goes to
+  `docs/WEBAPP-BACKLOG.md` under `WEB-###` ids. Keep `docs/BACKLOG.md` for `index.html`.
+- The shared v1 documents stay dedicated to `index.html`. `README.md` and `docs/BACKLOG.md`
+  carry only a pointer to the web documents; nothing was removed from them, because
+  `PRODUCT.md` and the v1 backlog remain the parity specification for Batch 4.
 - Update `CLAUDE.md` only for durable instructions that every agent must follow.
 - Update `docs/TESTING.md` only when commands or test expectations change.
 - Update `PRODUCT.md`, `README.md`, `CHANGELOG.md`, `VERSION`, and `docs/BACKLOG.md` only

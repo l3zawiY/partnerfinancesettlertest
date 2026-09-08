@@ -32,6 +32,7 @@ unless the owner explicitly requests that separate action.
 | Current verification contract | `docs/TESTING.md` |
 | Persisted and diagnostic contracts | `docs/DATA-FORMATS.md` |
 | Experimental web-service architecture and status | `docs/WEBAPP.md` |
+| Unresolved web-service work and ideas | `docs/WEBAPP-BACKLOG.md` |
 
 Start a session from the working tree, current application version, changelog, and
 backlog. Active canonical documents take precedence over archived implementation history.
@@ -40,7 +41,9 @@ Consult them only when the task specifically requires an asset/reference, the ow
 for the history, or a relevant regression investigation needs its evidence.
 
 Backlog entries use stable Jira-style ids and dates. Always use the next unused id; never
-renumber or reuse one.
+renumber or reuse one. The two backlogs are separate: `webapp/` work uses `WEB-###` in
+`docs/WEBAPP-BACKLOG.md`, and `index.html` work uses `OBS-###` or `IDEA-###` in
+`docs/BACKLOG.md`.
 
 ## Product and architecture
 

@@ -7,7 +7,10 @@ the project; it is the shared product and engineering instruction source.
 
 The owner is a product manager and a beginner with coding, GitHub, and coding agents.
 Explain tools, risks, and results in plain language. Use lightweight product framing only
-when it helps a decision, and keep advice separate from permission to implement it.
+when it helps a decision, and keep advice separate from permission to implement it. Explain
+what each piece *is* and where it physically lives, define brand names in ordinary words,
+label fictional data as fictional, and give manual checks as exact steps with expected
+results. See the working agreement in `CLAUDE.md` for the full wording.
 
 ## Routine document routing
 

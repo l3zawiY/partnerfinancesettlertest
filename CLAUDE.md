@@ -9,6 +9,14 @@ The owner is a product manager and a beginner with coding, GitHub, and coding ag
 Explain platform behaviour, risks, and results in plain language. Use lightweight product
 methods when they clarify a decision; avoid ceremony and unexplained jargon.
 
+Explain what a thing *is* and where it physically lives, not only what changed: which parts
+run on the owner's machine, which are on the internet, and which do not exist yet. Define a
+vendor's brand name in ordinary words the first time it appears. Say explicitly when data is
+fictional and carries no product meaning, so demo rows are never mistaken for features. Give
+manual verification steps as exact click paths with the expected result and what a failure
+would look like, and always state when a local server is running, its URL, and how to
+restart it.
+
 Before editing any file, for each coherent batch:
 
 1. Inspect and reason read-only.

@@ -3,51 +3,50 @@
 This is the canonical plan and continuation guide for the web-service experiment. Keep
 it current instead of creating session handoffs or a separate plan for every batch.
 
-## Current status — 2026-09-07
+## Current status — 2026-09-08
 
-Batch 2 is implemented and uncommitted, pending owner review. Batch 1 is committed and
-pushed. The bullets below cover Batch 1; Batch 2 evidence is in its roadmap entry.
+Batches 1 and 2 are complete, committed, and pushed on `experiment/web-service`. Batch 3 is
+next and has not been started.
 
-- Active branch: `experiment/web-service`.
-- Stable v1.0.0 remains the single-file `index.html` application on `main`, at commit
-  `8beb443`. It is the behavioral reference and has not been replaced.
-- Safety commit `8781ff4` is already pushed on the experiment branch.
-- Batch 1 is implemented but not yet committed. It adds a React frontend, Clerk sign-in,
-  a Cloudflare Worker, and protected `GET /api/me` endpoint.
-- The owner added Clerk development keys to ignored `webapp/.env.local` and manually
-  verified the complete signed-in path: Clerk created a session, the frontend sent its
-  token, and the Worker accepted it. Do not record the displayed Clerk user ID.
-- Clerk and Wrangler telemetry are now disabled in code and configuration, and the
-  boundary is asserted by automated tests. The local collection warning no longer appears
-  in development output, including after real `/api/me` requests.
-- Automated evidence: legacy suite passed 81/81 before and after the telemetry batch;
-  web-app type checking, 6 backend tests, and a production build passed. Signed-out
-  requests to `/api/me` returned `401` with `Cache-Control: no-store`, an unknown API
-  route returned `404`, and a `POST` to `/api/me` returned `405`.
-- The owner manually verified browser sign-out: the protected result and the Clerk user
-  ID disappear and the signed-out state returns. Batch 1 is functionally complete.
+- Stable v1.0.0 remains the single-file `index.html` application on `main` at commit
+  `8beb443`. It is the behavioral reference, is untouched by this branch, and passes 81/81.
+- Commits on this branch, oldest first: `8781ff4` safety commit, `74b3ce5` authenticated
+  foundation, `3eb56bb` telemetry boundary, `8e8336b` documentation split, `7dcda00`
+  household authorization and local database. All pushed.
+- Web-app gate at this point: three TypeScript projects type-check, 13 tests pass, and the
+  production build succeeds. Run `npm run check` in `webapp/`.
+- The owner holds Clerk development keys in ignored `webapp/.env.local`. Confirm the file
+  exists without reading it. Do not record Clerk user or organization IDs in the repository.
+- Verified by the owner in a browser: sign-in, sign-out, and two accounts in two separate
+  organizations each seeing only their own household records.
+- Not yet verified: two accounts in the *same* organization both seeing that household. It
+  needs a member added to an existing organization in the Clerk Dashboard.
 - Deferred by owner decision: closing Clerk enrollment to invite-only. The Development
-  instance stays open for now because it holds no real data and open enrollment keeps
-  local experimentation and future test accounts frictionless. This is a required
-  pre-production task, not a dropped one. See Batch 6 and the open-risks list.
-- Remaining Batch 1 work: none. The batch is committed on this branch as two commits, one
-  for the foundation and one for the telemetry boundary. Pushing was not requested and has
-  not been done.
-- Batch 1 explainer for the owner, published outside the repository:
-  https://claude.ai/code/artifact/21d6c4df-322c-44a5-8174-56d9462314c9 — the architecture,
-  request path, and privacy boundary in plain language. The repository documents remain
-  canonical; the explainer teaches.
+  instance holds no real data and stays open for now. Required before production; tracked in
+  Batch 6 and the open-risks list. Do not put real financial data in that instance.
+- Local development database: one SQLite file under ignored `webapp/.wrangler/`. It is not
+  in any cloud. `npm run db:migrate:local` applies the schema; deleting the file loses only
+  fictional rows.
+- Owner explainers, published outside the repository. The repository documents stay
+  canonical; these teach.
+  - Batch 1: https://claude.ai/code/artifact/21d6c4df-322c-44a5-8174-56d9462314c9
+  - Batch 2: https://claude.ai/code/artifact/c97caed7-8246-4b79-817a-af2196b543f9
 - `resources/` (about 92 MB) and `design-reference/` (about 1.7 MB) remain local-only and
-  ignored. They were deliberately not included in the safety commit and have no new
-  backup from this work.
+  ignored, with no backup from this branch.
 
 ## How to continue in a new coding-agent session
 
 1. Read `AGENTS.md`, then `CLAUDE.md`, in full.
-2. Inspect the working tree, current branch, `VERSION`, `CHANGELOG.md`,
-   `docs/BACKLOG.md`, and this document. Preserve all uncommitted owner work.
-3. Do not routinely read `resources/`, `design-reference/`, or `docs/archive/`. Use one
-   only when the requested task specifically requires it.
+2. Read this document and `docs/WEBAPP-BACKLOG.md`. Inspect the working tree and current
+   branch. Preserve all uncommitted owner work.
+3. Read nothing else by default; context spent on the wrong documents is context lost. Add
+   a document only when the task needs it:
+   - `docs/DATA-FORMATS.md` — before defining any shared payload, from Batch 3 onward.
+   - `PRODUCT.md` and `docs/BACKLOG.md` — for Batch 4 parity work, or any `index.html` task.
+   - `docs/TESTING.md` — when changing commands or test expectations.
+   - `README.md`, `CHANGELOG.md`, `VERSION` — only for a real v1 release change.
+   - `resources/`, `design-reference/`, `docs/archive/` — only on owner request, or when a
+     specific asset or regression investigation requires the evidence.
 4. Confirm that `webapp/.env.local` exists without reading, displaying, copying, or
    committing its contents. Only `.env.example` is a public template.
 5. Before editing, run `node test/run-tests.js`, inspect and reason read-only, present an

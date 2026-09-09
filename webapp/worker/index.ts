@@ -2,13 +2,24 @@ import type {
   ApiErrorResponse,
   AuthenticatedIdentityResponse,
   HouseholdResponse,
+  SharedEntriesListResponse,
+  SharedEntryResponse,
 } from '../shared/api'
+import { isValidSharedEntrySubmission } from '../shared/api'
+import { computeSettlement } from '../shared/settlement'
 import {
   type ClerkEnvironment,
   type IdentityVerifier,
   verifyClerkIdentity,
 } from './auth'
-import { ensureHousehold, listHouseholdNotes, type SqlDatabase } from './db'
+import {
+  ensureHousehold,
+  listHouseholdNotes,
+  listSharedEntries,
+  upsertSharedEntry,
+  type SharedEntryRecord,
+  type SqlDatabase,
+} from './db'
 
 interface AssetBinding {
   fetch(request: Request): Promise<Response>
@@ -23,13 +34,57 @@ export interface WorkerEnvironment extends ClerkEnvironment {
   DB: SqlDatabase
 }
 
-type ApiBody = AuthenticatedIdentityResponse | HouseholdResponse | ApiErrorResponse
+type ApiBody =
+  | AuthenticatedIdentityResponse
+  | HouseholdResponse
+  | SharedEntryResponse
+  | SharedEntriesListResponse
+  | ApiErrorResponse
 
 function json(body: ApiBody, status = 200) {
   return Response.json(body, {
     status,
     headers: { 'Cache-Control': 'no-store' },
   })
+}
+
+function toSharedEntryResponse(
+  record: SharedEntryRecord,
+): SharedEntryResponse {
+  return {
+    id: record.id,
+    householdId: record.householdId,
+    submittedBy: record.submittedBy,
+    date: record.date,
+    merchant: record.merchant,
+    category: record.category,
+    amountCents: record.amountCents,
+    share: record.share,
+    version: record.version,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  }
+}
+
+async function buildEntriesListResponse(
+  database: SqlDatabase,
+  householdId: string,
+): Promise<SharedEntriesListResponse> {
+  const records = await listSharedEntries(database, householdId)
+  const settlement = computeSettlement(
+    records.map(function (record) {
+      return {
+        submittedBy: record.submittedBy,
+        amountCents: record.amountCents,
+        share: record.share,
+      }
+    }),
+  )
+
+  return {
+    entries: records.map(toSharedEntryResponse),
+    settlement,
+  }
 }
 
 export function createWorker(verifyIdentity: IdentityVerifier) {
@@ -85,6 +140,69 @@ export function createWorker(verifyIdentity: IdentityVerifier) {
           })
         } catch {
           return json({ error: 'Household storage unavailable.' }, 503)
+        }
+      }
+
+      if (url.pathname === '/api/shared-entries') {
+        if (request.method !== 'GET' && request.method !== 'POST') {
+          return json({ error: 'Method not allowed.' }, 405)
+        }
+
+        let identity
+        try {
+          identity = await verifyIdentity(request, environment)
+        } catch {
+          return json({ error: 'Authentication service unavailable.' }, 503)
+        }
+
+        if (!identity) return json({ error: 'Authentication required.' }, 401)
+        if (!identity.householdId) {
+          return json({ error: 'No active household for this session.' }, 403)
+        }
+
+        if (request.method === 'GET') {
+          try {
+            return json(await buildEntriesListResponse(environment.DB, identity.householdId))
+          } catch {
+            return json({ error: 'Shared entry storage unavailable.' }, 503)
+          }
+        }
+
+        let submission: unknown
+        try {
+          submission = await request.json()
+        } catch {
+          return json({ error: 'Request body must be JSON.' }, 400)
+        }
+
+        // Re-validated here even though the browser is expected to check first: a browser
+        // can always be modified, so this is the check that actually protects the database
+        // from a non-integer amount or an out-of-range share.
+        if (!isValidSharedEntrySubmission(submission)) {
+          return json({ error: 'Shared entry submission is invalid.' }, 400)
+        }
+
+        try {
+          const now = new Date().toISOString()
+          // shared_entries.household_id is a foreign key into households, and a session's
+          // first write can arrive before its first /api/household read ever created that
+          // row. ensureHousehold is the same safe-to-repeat call that route uses.
+          await ensureHousehold(environment.DB, identity.householdId, now)
+          const record = await upsertSharedEntry(
+            environment.DB,
+            identity.householdId,
+            identity.userId,
+            submission,
+            now,
+          )
+          return json(toSharedEntryResponse(record))
+        } catch (error) {
+          // upsertSharedEntry refuses to hand back a row scoped to a different household,
+          // which surfaces here as this specific error rather than a generic storage fault.
+          if (error instanceof Error && error.message.includes('different household')) {
+            return json({ error: 'Shared entry id belongs to a different household.' }, 403)
+          }
+          return json({ error: 'Shared entry storage unavailable.' }, 503)
         }
       }
 

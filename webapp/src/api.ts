@@ -1,8 +1,11 @@
 import {
   isAuthenticatedIdentityResponse,
   isHouseholdResponse,
+  isSharedEntriesListResponse,
   type AuthenticatedIdentityResponse,
   type HouseholdResponse,
+  type SharedEntriesListResponse,
+  type SharedEntrySubmission,
 } from '../shared/api'
 
 type GetToken = () => Promise<string | null>
@@ -57,4 +60,57 @@ export async function getHousehold(getToken: GetToken): Promise<HouseholdRespons
   }
 
   return body
+}
+
+export async function listSharedEntries(
+  getToken: GetToken,
+): Promise<SharedEntriesListResponse> {
+  const token = await getToken()
+  if (!token) throw new Error('Clerk did not provide a session token.')
+
+  const response = await fetch('/api/shared-entries', {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+
+  if (response.status === 403) throw new NoActiveHouseholdError()
+
+  const body: unknown = await response.json()
+  if (!response.ok) throw new Error('The backend did not accept this session.')
+  if (!isSharedEntriesListResponse(body)) {
+    throw new Error('The backend returned an unexpected response.')
+  }
+
+  return body
+}
+
+export async function submitSharedEntry(
+  getToken: GetToken,
+  submission: SharedEntrySubmission,
+): Promise<SharedEntriesListResponse> {
+  const token = await getToken()
+  if (!token) throw new Error('Clerk did not provide a session token.')
+
+  const response = await fetch('/api/shared-entries', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(submission),
+  })
+
+  if (response.status === 403) throw new NoActiveHouseholdError()
+  if (!response.ok) {
+    const errorBody: unknown = await response.json().catch(() => null)
+    const message =
+      errorBody && typeof errorBody === 'object' && 'error' in errorBody
+        ? String((errorBody as { error: unknown }).error)
+        : 'The backend rejected this submission.'
+    throw new Error(message)
+  }
+
+  // Re-fetches the list rather than reconstructing the settlement client-side: the server
+  // is the only place that computation needs to happen, and this keeps the UI honest about
+  // what is actually stored.
+  return listSharedEntries(getToken)
 }

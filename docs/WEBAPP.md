@@ -5,16 +5,31 @@ it current instead of creating session handoffs or a separate plan for every bat
 
 ## Current status — 2026-09-08
 
-Batches 1 and 2 are complete, committed, and pushed on `experiment/web-service`. Batch 3 is
-next and has not been started.
+Batches 1 through 4b are complete and locally verified — by automated tests and, for the
+web app, by the owner in a browser. Batches 1 and 2 are committed and pushed; **Batches 3,
+4a, and 4b are implemented, verified, and about to be committed** in this session. Batch 4
+turned out large enough that, per the roadmap's own note that it "may be split into
+Import and Review after inspection," it is now split three ways: 4a (the parsing engine)
+and 4b (dedup, rules, refund pairing, review UI) are done; 4c (Amazon matching, local
+draft persistence, export formats, amount correction) is proposed scope, not started.
 
 - Stable v1.0.0 remains the single-file `index.html` application on `main` at commit
   `8beb443`. It is the behavioral reference, is untouched by this branch, and passes 81/81.
-- Commits on this branch, oldest first: `8781ff4` safety commit, `74b3ce5` authenticated
-  foundation, `3eb56bb` telemetry boundary, `8e8336b` documentation split, `7dcda00`
-  household authorization and local database. All pushed.
-- Web-app gate at this point: three TypeScript projects type-check, 13 tests pass, and the
-  production build succeeds. Run `npm run check` in `webapp/`.
+  Batches 4a and 4b do not modify `index.html` at all — they read it (to prove parity) but
+  never write to it.
+- Commits on this branch before this session, oldest first: `8781ff4` safety commit,
+  `74b3ce5` authenticated foundation, `3eb56bb` telemetry boundary, `8e8336b`
+  documentation split, `7dcda00` household authorization and local database. All pushed.
+- Web-app gate at this point: three TypeScript projects type-check, 50 tests pass (up from
+  13 at the start of Batch 3), and the production build succeeds. Run `npm run check` in
+  `webapp/`.
+- Verified by the owner in a browser on 2026-09-08: submitted two fictional shared entries
+  (Batch 3) and saw them persist and list correctly; pasted a fictional BMO statement (1
+  row, "Sample Restaurant", $146.67) and a fictional TD statement (2 rows, "Farm Boy"
+  $84.26 and "Annual Cash Back" -$20.00) into the "Parse locally" panel (Batch 4a) and got
+  exactly the expected merchant names, categories, and amounts; then exercised dedup,
+  rules, refund pairing, and the no-persistence limitation in the Batch 4b review screen —
+  catching and leading to a fix for a credit-row display bug (see the Batch 4b section).
 - The owner holds Clerk development keys in ignored `webapp/.env.local`. Confirm the file
   exists without reading it. Do not record Clerk user or organization IDs in the repository.
 - Verified by the owner in a browser: sign-in, sign-out, and two accounts in two separate
@@ -26,7 +41,7 @@ next and has not been started.
   Batch 6 and the open-risks list. Do not put real financial data in that instance.
 - Local development database: one SQLite file under ignored `webapp/.wrangler/`. It is not
   in any cloud. `npm run db:migrate:local` applies the schema; deleting the file loses only
-  fictional rows.
+  fictional rows. Batch 3 added a second migration to that same local file.
 - Owner explainers, published outside the repository. The repository documents stay
   canonical; these teach.
   - Batch 1: https://claude.ai/code/artifact/21d6c4df-322c-44a5-8174-56d9462314c9
@@ -238,40 +253,187 @@ Main risk: confusing identity with data access. Every database query must be sco
 the verified organization on the server; a household ID sent by the browser is never
 sufficient authorization.
 
-### Batch 3 — Fictional shared-submission vertical slice
+### Batch 3 — Fictional shared-submission vertical slice (implemented, uncommitted)
 
 Learning objective: build one complete feature through UI, API, business logic, and D1.
 
-Proposed scope:
+Delivered:
 
-- Define small runtime-validated API contracts shared by frontend and backend.
-- Create/read fictional shared entries for one household.
-- Store money as integer cents, never floating-point currency.
-- Make submissions safely retryable (idempotent) and define edit/version behavior.
-- Extract or adapt settlement calculation as a shared, deterministic module.
-- Add API, database, authorization, and settlement integration tests.
+- `migrations/0002_shared_entries.sql`: a `shared_entries` table (fictional data only,
+  same spirit as `household_notes`) with `amount_cents` as an integer — money is never a
+  float anywhere in this path — a `version` counter, and an index matching the only read
+  pattern, mirroring `0001_households.sql`'s conventions.
+- `shared/settlement.ts`: a pure, deterministic `computeSettlement()` function with no DOM
+  and no database access, adapted from the `aClaim`/`bClaim`/`net`/`direction` logic in
+  `index.html`'s `buildArchive()`. It works entirely in integer cents and groups by
+  submitter id rather than a hardcoded two-name shape, since this module has no way to
+  know who a household's members are.
+- `shared/api.ts`: runtime-validated request/response contracts for the new endpoint
+  (`SharedEntrySubmission`, `SharedEntryResponse`, `SharedEntriesListResponse`), following
+  the existing hand-written-guard convention (`isHouseholdResponse` and siblings).
+- `worker/db.ts`: `upsertSharedEntry` (an idempotent create-or-edit: the client-generated
+  `id` is the idempotency key, and re-submitting it with the same household is a safe
+  retry that never lets one household overwrite another's row even on an `id` collision)
+  and `listSharedEntries`, both household-scoped like Batch 2's functions.
+- `worker/index.ts`: `GET /api/shared-entries` (list plus the computed settlement) and
+  `POST /api/shared-entries` (validate, then upsert), using the same authenticate-then-
+  authorize order and `no-store` response as `/api/household`.
+- `worker/shared-entries.test.ts` (16 assertions) and `shared/settlement.test.ts` (9
+  assertions): no session, no household, wrong method, invalid body (non-integer cents,
+  out-of-range share), create, idempotent retry, edit, cross-household write denial,
+  settlement math for two submitters and the undetermined edge cases (0, 1, 3+
+  submitters), and a floating-point-drift regression case for the settlement module.
+- `worker/testing/sqliteDatabase.ts`: applies both migrations in order and adds
+  `seedSharedEntry`, matching `seedNote`'s role.
+- Frontend: a minimal, functional (not restyled) panel to submit one fictional shared
+  entry and see the household's entries and settlement — enough to exercise the slice in
+  a browser, not a port of the v1 interface (that is Batch 4).
 
-This proves the architecture before private import logic is moved. If the slice feels
-more complex than v1 for no user benefit, stop and reassess rather than accelerating the
-migration.
+Evidence: legacy suite 81/81 before and after; web-app type checking across three
+projects, 33 tests (up from 13, all passing), and a production build passed. The migration
+applied cleanly to the real local D1. Against the running local Worker with the real D1
+binding, `GET /api/shared-entries`, `GET /api/me`, and `POST /api/shared-entries` each
+returned `401` signed out, matching the automated no-session assertions.
 
-### Batch 4 — Private Import and Review parity
+Verified by the owner in a browser on 2026-09-08: signed in, submitted two fictional
+shared entries with different merchants, and saw both persist and list correctly. Not yet
+committed, pending an explicit go-ahead.
+
+A design note for the next session: `upsertSharedEntry` bumps `version` on every write,
+including a retry with byte-identical fields — it cannot tell "identical retry" from "real
+edit" apart, because no version history is retained. That distinction, plus
+replace/withdraw/lock semantics, is explicitly deferred to Batch 5.
+
+### Batch 4a — Import parsing engine, ported and proven against v1 (implemented, uncommitted)
 
 Learning objective: migrate mature browser behavior without weakening privacy or silently
-changing results.
+changing results — starting with the highest-value, lowest-risk slice: the parser itself.
 
-Proposed scope:
+Delivered:
 
-- Port the private import/review workflow into browser-side TypeScript components.
-- Preserve parsing, bank handling, deduplication, refund treatment, rules, Amazon context,
-  local draft behavior, and established export formats.
-- Keep raw input and private line items client-side; API calls must contain only an
-  explicit shared projection.
-- Build parity fixtures against v1 before changing algorithms or UX.
+- `shared/engine.ts`: a typed, line-by-line port of the pure, DOM-free code between the
+  `==ENGINE-START==`/`==ENGINE-END==` markers in `index.html` — `canonicalise`, `parseTD`,
+  `parseBMO`, `parseGeneric`, `parsePaste`, `balanceViolations`, `mergeRanges`,
+  `coverageGap`, and their constants (`PROCESSORS`, `FAMILIES`, `CATEGORIES`,
+  `EXCLUDE_DEFAULT`, etc.). Every regex and bank-specific comment is unchanged; this is a
+  translation, not a rewrite. `index.html` itself was not modified.
+- `shared/engine.parity.test.ts` (6 assertions): rather than hand-typing expected outputs
+  (which could bake in the same porting mistake on both sides), this test reads
+  `index.html`'s actual source at test time, runs the real `==ENGINE-START==`/`==ENGINE-END==`
+  block in a Node `vm` sandbox, and asserts it produces byte-identical results to
+  `shared/engine.ts` on the same fixture statements (a TD block, a BMO block, the generic
+  fallback, several merchant-canonicalisation cases, a contrived balance-violation row, and
+  a coverage-gap case). If a future edit to either side breaks agreement, this fails — the
+  "parity fixtures against v1" the roadmap calls for, enforced by a test rather than a
+  one-time comparison.
+- `src/Import.tsx`: a minimal panel — bank selector, card-label field, paste box, "Parse
+  locally" button — that calls the ported engine directly in the browser and lists the
+  resulting rows, dropped-line count, and any balance-violation refusal. It has no submit
+  action and makes no network request; parsing is entirely on-device, matching the private
+  data boundary from day one of this batch rather than as an afterthought.
 
-This is likely the highest-risk batch and may be split into `Import` and `Review` after
-inspection. Splitting for risk is useful; splitting merely to create more sessions is not.
-The frozen engine markers in `index.html` remain untouched.
+Evidence: legacy suite 81/81 before and after; web-app type checking across three
+projects, 39 tests (up from 33 after Batch 3), and a production build passed.
+
+Verified by the owner in a browser on 2026-09-08: pasted a fictional BMO statement (1 row,
+"Sample Restaurant", $146.67) and a fictional TD statement (2 rows, "Farm Boy" $84.26 and
+"Annual Cash Back" -$20.00) and got exactly the expected merchant names, categories, and
+amounts. A side-by-side paste of a real statement into `index.html` itself is still worth
+doing at some point, but the vm-based parity test already proves agreement against v1's
+actual code, so this is a nice-to-have rather than a gap. Not yet committed, pending an
+explicit go-ahead.
+
+### Batch 4b — Dedup, rules, refund pairing, and a review screen (implemented, uncommitted)
+
+Learning objective: the roadmap flagged Batch 4 as "likely the highest-risk batch" that
+"may be split... after inspection." Having now read the full 3,400-line file, that
+judgment held even for the remaining piece — rules, refund pairing, Amazon order
+matching, the review UI, and local autosave/session persistence are each substantial and
+mostly independent of one another. This batch takes dedup, rules, refund pairing, and a
+working (if unsaved) review screen; Amazon matching, local persistence, export formats,
+and manual amount correction move to Batch 4c.
+
+Delivered:
+
+- `shared/importMerge.ts`: a pure port of the dedup/period-filter core of `doImport()`.
+  Unlike the engine or the rules below, `doImport()` is itself entangled with the DOM
+  (reads `#pasteBox`, writes result HTML, calls `renderAll()`), so there is no way to load
+  the real function into a sandbox and run it standalone the way `engine.parity.test.ts`
+  does. This module is the computation lifted out by hand, covered instead by
+  `importMerge.test.ts` (7 assertions) reasoning through each case directly: fresh add,
+  exact duplicate, paste-internal duplicate, pending-to-posted upgrade, an already-posted
+  duplicate (no upgrade), and out-of-period rows set aside rather than dropped.
+- `shared/rules.ts`: a parameterized port of `ruleFor`, `rememberRule`, `hasRule`,
+  `applyRules`, and the `ruleEligible` gate. v1 reads and mutates a global `state`
+  directly; this takes plain arrays and returns new ones, matching how React expects
+  state to be treated as immutable — the matching logic itself (family match first, then
+  longest-pattern key match, instalments never eligible) is unchanged.
+- `shared/refunds.ts`: a parameterized port of `pairFor`, `pairRefunds`,
+  `creditDaysAfter`, `isNonSpendingCredit`, and `REFUND_WINDOW_DAYS` — same
+  immutable-array treatment. Also defines `LedgerRow`, the type for a row once refund
+  fields exist, and `toLedgerRow()` to promote a freshly parsed row into one.
+- `shared/ledger.parity.test.ts` (4 assertions): loads index.html's actual rules/refunds
+  code into a sandbox, seeds a `state` object exactly as the real app would, runs the
+  real `applyRules()`/`pairRefunds()`, and compares to `rules.ts`/`refunds.ts` on the
+  same fixture rows — same proof-by-real-code technique as `engine.parity.test.ts`.
+- `src/Import.tsx` (rewritten): the Batch 4a paste-and-parse demo now merges parsed rows
+  into an in-memory ledger (deduped, rule-decided, refund-paired), and each charge row
+  gets "50/50" / "Private" / a custom-share input, each with an optional "remember"
+  checkbox that writes a merchant rule. No submit button, no network call, and no
+  persistence — the ledger lives in React state only and is lost on reload. That gap is
+  called out in the panel's own copy, not hidden.
+
+A bug the owner's browser testing caught before this was committed: the first version of
+`Import.tsx` offered decide buttons on every row, including credits (refunds and
+cashback). v1 never lets a credit be manually decided — `pairRefunds()` always resolves
+it, either by inheriting the matched charge's split or by excluding it entirely
+(`share: null` for cashback/rewards, per `index.html:2280` and the credit-treatment text
+at `index.html:2360-2363`). The UI's share-label logic also didn't handle `share === null`
+and computed a nonsense "Shared 100%" from JavaScript's `1 - null` coercion. Fixed by
+hiding the decide controls on any row with a negative amount and showing the same
+excluded/refund-offset explanation text v1 uses instead. This particular class of bug —
+correct data, wrong presentation — sits below the pure-function test suite (`Import.tsx`
+has no automated coverage; see WEB-001 for the same DOM-test-dependency tradeoff from
+Batch 1), so the manual click-through in "Manual verification" below is what actually
+caught it, not `npm run check`.
+
+Evidence: legacy suite 81/81 before and after; web-app type checking across three
+projects, 50 tests (up from 39 after Batch 4a), and a production build passed.
+
+Verified by the owner in a browser on 2026-09-08: pasted a TD statement, decided a share,
+re-pasted the same statement (0 added, 2 already on the ledger — dedup held), pasted a
+second statement containing a matching charge/refund pair (the refund correctly showed
+"refund of 2026-07-10 Sample Alpha Store" and inherited the charge's share), and
+confirmed reloading the page empties the ledger, matching the documented no-persistence
+limitation. This pass is what surfaced the credit-row bug described above.
+
+A design note for the next session: deciding a share client-side re-runs `applyRules`
+over the whole ledger so refund pairing stays consistent (a refund's share follows its
+matched charge's share). That is the same order v1 uses, just invoked more often — from a
+UI event instead of only after an import — which is fine because both functions are
+already pure and cheap at the row counts this tool handles.
+
+### Batch 4c — Amazon matching, local persistence, export formats, and amount correction (proposed, not started)
+
+Proposed scope, in roughly this order:
+
+- Port Amazon order-paste parsing and matching (`parseAmazonOrders`, `matchAmazonOrders`,
+  and neighbors) as a pure module, parity-tested the same way. Normalized Amazon context
+  and raw paste must stay browser-only per invariant 9 — this module produces evidence
+  only and must not choose a split, per invariant 4.
+- Port `canEditAmount`/`amountEdited` and the manual amount-correction flow.
+- Decide and implement local draft persistence (session autosave/load, matching
+  `split-ledger-session/v3` where practical) — this is also where WEB-003 (the offline
+  story) needs a real decision, not a deferral. Right now closing the tab loses the
+  in-progress ledger entirely, which is a real regression from v1 that this batch must
+  close before the web app could replace it for actual use.
+- Preserve the established export formats (`split-ledger/v1`, `split-ledger-archive/v1`)
+  so a portable route back to v1 stays real, not aspirational.
+- Keep raw input and private line items client-side; any future API call must carry only
+  an explicit shared projection, never a full imported statement.
+
+The frozen engine markers in `index.html` remain untouched throughout Batches 4a-4c — all
+three port from them, never edit them.
 
 ### Batch 5 — Partner workflow, close, portability, and recovery
 

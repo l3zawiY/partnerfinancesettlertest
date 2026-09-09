@@ -151,6 +151,105 @@ h1 {
   font-variant-numeric: tabular-nums;
 }
 
+.entries-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #e1e7df;
+}
+
+.entry-form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.entry-form input,
+.entry-form select,
+.entry-form textarea {
+  padding: 10px 12px;
+  border: 1px solid #dfe6dc;
+  border-radius: 10px;
+  font-family: inherit;
+}
+
+.entry-form textarea {
+  resize: vertical;
+}
+
+.import-result {
+  margin-top: 8px;
+}
+
+.entry-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.entry-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f0f2ed;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.ledger-row-main {
+  display: flex;
+  justify-content: space-between;
+}
+
+.ledger-row-decision {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.ledger-row-decision button {
+  padding: 4px 10px;
+  border: 1px solid #c9d3c5;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+}
+
+.ledger-row-decision input[type='number'] {
+  width: 64px;
+  padding: 4px 6px;
+  border: 1px solid #c9d3c5;
+  border-radius: 8px;
+}
+
+.ledger-row-decision label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #5f6d63;
+}
+
+.ledger-row-credit {
+  margin: 0;
+  font-size: 13px;
+}
+
+.settlement-summary {
+  margin: 0;
+  color: #315b2d;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 560px) {
   .page-shell {
     padding: 18px;

@@ -18,9 +18,10 @@ import type { SqlDatabase, SqlStatement } from '../db'
  * This file is test-only support and never ships in the Worker bundle.
  */
 
-const MIGRATION = fileURLToPath(
-  new URL('../../migrations/0001_households.sql', import.meta.url),
-)
+const MIGRATIONS = [
+  fileURLToPath(new URL('../../migrations/0001_households.sql', import.meta.url)),
+  fileURLToPath(new URL('../../migrations/0002_shared_entries.sql', import.meta.url)),
+]
 
 class SqliteStatement implements SqlStatement {
   constructor(
@@ -51,6 +52,20 @@ class SqliteStatement implements SqlStatement {
 export interface TestDatabase extends SqlDatabase {
   /** Insert a fictional note directly, bypassing the API, to set up a scenario. */
   seedNote(householdId: string, id: string, label: string, createdAt: string): void
+  /** Insert a fictional shared entry directly, bypassing the API, to set up a scenario. */
+  seedSharedEntry(entry: {
+    id: string
+    householdId: string
+    submittedBy: string
+    date: string
+    merchant: string
+    category: string
+    amountCents: number
+    share: number
+    version?: number
+    createdAt: string
+    updatedAt?: string
+  }): void
   close(): void
 }
 
@@ -58,9 +73,11 @@ export function createTestDatabase(): TestDatabase {
   const database = new DatabaseSync(':memory:')
 
   // D1 enforces foreign keys; plain SQLite does not unless asked. Matching D1 here keeps
-  // the test honest about the constraint in the migration.
+  // the test honest about the constraint in the migrations.
   database.exec('PRAGMA foreign_keys = ON')
-  database.exec(readFileSync(MIGRATION, 'utf8'))
+  for (const migration of MIGRATIONS) {
+    database.exec(readFileSync(migration, 'utf8'))
+  }
 
   return {
     prepare(query: string) {
@@ -76,6 +93,30 @@ export function createTestDatabase(): TestDatabase {
             'VALUES (?, ?, ?, ?)',
         )
         .run(id, householdId, label, createdAt)
+    },
+    seedSharedEntry(entry) {
+      database
+        .prepare('INSERT OR IGNORE INTO households (household_id, created_at) VALUES (?, ?)')
+        .run(entry.householdId, entry.createdAt)
+      database
+        .prepare(
+          'INSERT INTO shared_entries ' +
+            '(id, household_id, submitted_by, date, merchant, category, amount_cents, ' +
+            'share, version, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        )
+        .run(
+          entry.id,
+          entry.householdId,
+          entry.submittedBy,
+          entry.date,
+          entry.merchant,
+          entry.category,
+          entry.amountCents,
+          entry.share,
+          entry.version ?? 1,
+          entry.createdAt,
+          entry.updatedAt ?? entry.createdAt,
+        )
     },
     close() {
       database.close()

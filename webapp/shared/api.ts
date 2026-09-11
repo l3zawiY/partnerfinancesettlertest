@@ -3,6 +3,16 @@ export interface AuthenticatedIdentityResponse {
   userId: string
 }
 
+export interface WorkflowCapabilitiesResponse {
+  canAdministerSharedHistory: boolean
+}
+
+export function isWorkflowCapabilitiesResponse(value: unknown): value is WorkflowCapabilitiesResponse {
+  return !!value && typeof value === 'object' &&
+    Object.keys(value as Record<string, unknown>).every(function (key) { return key === 'canAdministerSharedHistory' }) &&
+    typeof (value as Record<string, unknown>).canAdministerSharedHistory === 'boolean'
+}
+
 export interface ApiErrorResponse {
   error: string
 }
@@ -181,3 +191,96 @@ export function isAuthenticatedIdentityResponse(
   const candidate = value as Record<string, unknown>
   return candidate.authenticated === true && typeof candidate.userId === 'string'
 }
+
+export interface WorkflowSubmissionRequest {
+  projection: import('./formats').SharedExport
+  expectedVersion: number | null
+  requestId: string
+}
+
+export interface WorkflowMutationRequest {
+  expectedVersion: number
+  requestId: string
+}
+
+export interface WorkflowResponse { workflow: PeriodWorkflow }
+
+export interface WorkflowExportResponse {
+  bundle: HouseholdArchiveBundle
+  deletionToken: string
+  openPeriods: string[]
+}
+
+export interface WorkflowRestoreRequest { bundle: HouseholdArchiveBundle; requestId: string }
+export interface WorkflowRestoreResponse { restoredPeriods: number }
+export interface WorkflowDeleteRequest { deletionToken: string; confirmation: string; requestId: string }
+export interface WorkflowDeleteResponse { deletedPeriods: number }
+export interface WorkflowCancelRequest { period: string; confirmation: string; requestId: string }
+export interface WorkflowCancelResponse { cancelledPeriod: string }
+
+function onlyKeys(value: Record<string, unknown>, keys: string[]): boolean {
+  return Object.keys(value).every(function (key) { return keys.includes(key) })
+}
+
+export function isRequestId(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{8,100}$/.test(value)
+}
+
+export function isWorkflowSubmissionRequest(value: unknown): value is WorkflowSubmissionRequest {
+  if (!value || typeof value !== 'object') return false
+  const request = value as Record<string, unknown>
+  return onlyKeys(request, ['projection', 'expectedVersion', 'requestId']) && isRequestId(request.requestId) &&
+    (request.expectedVersion === null || Number.isInteger(request.expectedVersion)) &&
+    isStrictSharedProjection(request.projection)
+}
+
+export function isWorkflowMutationRequest(value: unknown): value is WorkflowMutationRequest {
+  if (!value || typeof value !== 'object') return false
+  const request = value as Record<string, unknown>
+  return onlyKeys(request, ['expectedVersion', 'requestId']) && isRequestId(request.requestId) && Number.isInteger(request.expectedVersion) && Number(request.expectedVersion) >= 0
+}
+
+export function isWorkflowResponse(value: unknown): value is WorkflowResponse {
+  return !!value && typeof value === 'object' && isPeriodWorkflow((value as Record<string, unknown>).workflow)
+}
+
+export function isWorkflowExportResponse(value: unknown): value is WorkflowExportResponse {
+  if (!value || typeof value !== 'object') return false
+  const response = value as Record<string, unknown>
+  return isHouseholdArchiveBundle(response.bundle) && isRequestId(response.deletionToken) &&
+    Array.isArray(response.openPeriods) && response.openPeriods.every(function (period) { return typeof period === 'string' && /^\d{4}-\d{2}$/.test(period) })
+}
+
+export function isWorkflowRestoreRequest(value: unknown): value is WorkflowRestoreRequest {
+  if (!value || typeof value !== 'object') return false
+  const request = value as Record<string, unknown>
+  return onlyKeys(request, ['bundle', 'requestId']) && isRequestId(request.requestId) && isHouseholdArchiveBundle(request.bundle)
+}
+
+export function isWorkflowRestoreResponse(value: unknown): value is WorkflowRestoreResponse {
+  return !!value && typeof value === 'object' && Number.isInteger((value as Record<string, unknown>).restoredPeriods)
+}
+
+export function isWorkflowDeleteRequest(value: unknown): value is WorkflowDeleteRequest {
+  if (!value || typeof value !== 'object') return false
+  const request = value as Record<string, unknown>
+  return onlyKeys(request, ['deletionToken', 'confirmation', 'requestId']) && isRequestId(request.requestId) && isRequestId(request.deletionToken) && request.confirmation === 'DELETE SHARED HISTORY'
+}
+
+export function isWorkflowDeleteResponse(value: unknown): value is WorkflowDeleteResponse {
+  return !!value && typeof value === 'object' && Number.isInteger((value as Record<string, unknown>).deletedPeriods)
+}
+
+export function isWorkflowCancelRequest(value: unknown): value is WorkflowCancelRequest {
+  if (!value || typeof value !== 'object') return false
+  const request = value as Record<string, unknown>
+  return onlyKeys(request, ['period', 'confirmation', 'requestId']) &&
+    typeof request.period === 'string' && /^\d{4}-\d{2}$/.test(request.period) &&
+    request.confirmation === 'CANCEL ABANDONED PERIOD' && isRequestId(request.requestId)
+}
+
+export function isWorkflowCancelResponse(value: unknown): value is WorkflowCancelResponse {
+  return !!value && typeof value === 'object' && /^\d{4}-\d{2}$/.test(String((value as Record<string, unknown>).cancelledPeriod))
+}
+import { isHouseholdArchiveBundle, type HouseholdArchiveBundle } from './formats'
+import { isPeriodWorkflow, isStrictSharedProjection, type PeriodWorkflow } from './workflow'

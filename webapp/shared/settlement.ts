@@ -44,7 +44,8 @@ export interface SettlementResult {
 }
 
 function claimCentsFor(entry: SettlementEntry): number {
-  return Math.round(entry.amountCents * (1 - entry.share))
+  const value = entry.amountCents * (1 - entry.share)
+  return value < 0 ? -Math.floor(Math.abs(value) + 0.5 + Number.EPSILON) : Math.floor(value + 0.5 + Number.EPSILON)
 }
 
 export function computeSettlement(entries: SettlementEntry[]): SettlementResult {

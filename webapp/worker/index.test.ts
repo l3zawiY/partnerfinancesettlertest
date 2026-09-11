@@ -13,6 +13,9 @@ function environment(): WorkerEnvironment {
       prepare: () => {
         throw new Error('The identity route must not use the database.')
       },
+      batch: async () => {
+        throw new Error('The identity route must not use the database.')
+      },
     },
   }
 }
@@ -27,6 +30,9 @@ describe('Worker API boundary', () => {
 
     expect(response.status).toBe(401)
     expect(await response.json()).toEqual({ error: 'Authentication required.' })
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+    expect(response.headers.get('Referrer-Policy')).toBe('no-referrer')
   })
 
   it('returns only a safe identifier for a verified identity', async () => {

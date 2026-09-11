@@ -10,6 +10,22 @@ import {
 
 type GetToken = () => Promise<string | null>
 
+export async function authenticatedApiRequest(
+  getToken: GetToken,
+  path: string,
+  init: RequestInit = {},
+): Promise<{ response: Response; body: unknown }> {
+  const token = await getToken()
+  if (!token) throw new Error('Clerk did not provide a session token.')
+  const headers = new Headers(init.headers)
+  headers.set('Authorization', `Bearer ${token}`)
+  if (init.body !== undefined) headers.set('Content-Type', 'application/json')
+  const response = await fetch(path, { ...init, headers })
+  const body: unknown = await response.json().catch(function () { return null })
+  if (response.status === 403 && body && typeof body === 'object' && 'error' in body && String((body as { error: unknown }).error).includes('active household')) throw new NoActiveHouseholdError()
+  return { response, body }
+}
+
 export async function getAuthenticatedIdentity(
   getToken: GetToken,
 ): Promise<AuthenticatedIdentityResponse> {

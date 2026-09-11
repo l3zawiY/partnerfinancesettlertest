@@ -7,8 +7,8 @@
     {
       "binding": "DB",
       "database_name": "split-ledger-db",
-      // Local development only. A real database id is created in Batch 6, when there is
-      // a production environment to create it in.
+      // Local development only. Keep this non-deployable placeholder until the owner
+      // separately authorizes named staging and production resources in Batch 7.
       "database_id": "local-development-placeholder",
       "migrations_dir": "migrations"
     }

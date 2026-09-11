@@ -3,6 +3,12 @@
 Use fictional data and an isolated browser origin/profile. Never overwrite a real saved
 session merely to test a change.
 
+Deferred web-app owner acceptance has its own executable guide:
+`docs/WEBAPP-HUMAN-TESTING.md`. It supplies copyable fictional TD, BMO, generic, refund,
+correction, and Amazon data; exact click paths; expected results; failure symptoms; and
+traceability to WEB-010, WEB-012, WEB-013, and the same-household invitation evidence.
+Automated evidence does not close those human items.
+
 ## Automated gate
 
 ```bash
@@ -41,15 +47,49 @@ The experimental `webapp/` has a separate additive gate. From that directory run
 npm run check
 ```
 
-It type-checks the browser and Worker boundaries, runs unit tests without contacting Clerk,
-and creates a production build. The unit tests include a telemetry boundary check: one
-assertion deliberately builds a Clerk collector left at its default, proving telemetry
-would otherwise be on, and the others assert that the Worker and browser settings turn it
-off. Household authorization is tested against a real in-memory SQLite database running the
-real migration, so a cross-household read is genuinely refused by SQL rather than by a fake.
+It type-checks the browser, browser-test, pure-module, and Worker boundaries; runs tests
+without contacting Clerk; and creates a production build. Pure and Worker/SQLite tests
+run in Node. Rendered React behavior runs separately in jsdom, a lightweight browser-shaped
+environment, through React Testing Library and `user-event`. Keeping those commands
+separate prevents DOM globals from leaking into financial or backend tests.
+
+The tests include a telemetry boundary check: one assertion deliberately builds a Clerk
+collector left at its default, proving telemetry
+would otherwise be on; the Worker assertion checks the real collector; and the rendered
+browser assertion fails if the telemetry-off option is removed from `ClerkProvider`.
+Household authorization is tested against a real in-memory SQLite database running the real
+migration, so a cross-household read is genuinely refused by SQL rather than by a fake.
+Batch 5 component coverage exercises the complete fictional journey, credit-row behavior,
+undecided labels, five presets and custom share, rule removal, the privacy projection,
+workflow transitions and recovery, close prerequisites, archive intent, ordinary keyboard
+activation, and account/organization-scoped persistence. Keyword shortcuts from v1 are
+intentionally out of web-app scope by owner decision; normal keyboard accessibility remains.
+
+Batch 6 adds a second level of workflow proof. Worker/SQLite tests act as two verified
+members of one household and assert viewer-oriented submissions, a two-participant limit,
+own-submission-only mutation, cross-household denial, stale versions, request replay,
+server-created close archives, immutable closed periods, admin-only deletion, and
+closed-archive restore. API-adapter tests assert bearer-token transport and fail if a
+household id, private row, raw description, card label, rule, or Amazon-only field enters a
+workflow request. A small visual-contract test protects the accepted menu/footer placement,
+header/logo dimensions, and v1 greens; it supplements rather than replaces browser review.
+
+The signed-in development application uses the real API adapter and the ignored local D1.
+The fictional local adapter is retained only as a deterministic component-test fixture.
+Apply migration `0003_period_workflows.sql` with `npm run db:migrate:local`. Never add
+`--remote` during ordinary development verification.
+Apply `0004_workflow_hardening.sql` the same way; it adds the concurrency uniqueness guard
+and period-scoped replay-receipt index used by atomic writes. Migration files are ordered
+and must not be edited after remote application.
+
+Production-hardening coverage includes exact half-cent/refund rounding, strict rejection
+of unknown private fields, scoped private-browser deletion, server-derived recovery roles,
+unresolved-replacement blocking, current-draft close checks, and narrow-layout/focus/
+reduced-motion contracts. Failure injection interrupts every statement boundary of first
+submit, withdrawal, and close batches and proves their related records roll back together.
 Apply the local database schema once with `npm run db:migrate:local` before using
-`npm run dev`. The existing `node test/run-tests.js` gate remains required before and after every
-repository edit batch. Real credentials and financial data are never required for
+`npm run dev`. The existing `node test/run-tests.js` gate remains required before and after
+every repository edit batch. Real credentials and financial data are never required for
 automated verification.
 
 ## Release smoke test

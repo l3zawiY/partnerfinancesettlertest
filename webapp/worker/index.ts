@@ -2,11 +2,14 @@ import type {
   ApiErrorResponse,
   AuthenticatedIdentityResponse,
   HouseholdResponse,
-  SharedEntriesListResponse,
-  SharedEntryResponse,
+  WorkflowDeleteResponse,
+  WorkflowCancelResponse,
+  WorkflowCapabilitiesResponse,
+  WorkflowExportResponse,
+  WorkflowRestoreResponse,
+  WorkflowResponse,
 } from '../shared/api'
-import { isValidSharedEntrySubmission } from '../shared/api'
-import { computeSettlement } from '../shared/settlement'
+import { isWorkflowCancelRequest, isWorkflowDeleteRequest, isWorkflowMutationRequest, isWorkflowRestoreRequest, isWorkflowSubmissionRequest } from '../shared/api'
 import {
   type ClerkEnvironment,
   type IdentityVerifier,
@@ -15,11 +18,20 @@ import {
 import {
   ensureHousehold,
   listHouseholdNotes,
-  listSharedEntries,
-  upsertSharedEntry,
-  type SharedEntryRecord,
   type SqlDatabase,
 } from './db'
+import {
+  closeWorkflow,
+  cancelAbandonedWorkflow,
+  deleteWorkflowHistory,
+  exportClosedWorkflows,
+  readWorkflow,
+  restoreWorkflowHistory,
+  submitWorkflow,
+  withdrawWorkflow,
+  WorkflowConflictError,
+  WorkflowForbiddenError,
+} from './workflow'
 
 interface AssetBinding {
   fetch(request: Request): Promise<Response>
@@ -37,57 +49,40 @@ export interface WorkerEnvironment extends ClerkEnvironment {
 type ApiBody =
   | AuthenticatedIdentityResponse
   | HouseholdResponse
-  | SharedEntryResponse
-  | SharedEntriesListResponse
+  | WorkflowResponse
+  | WorkflowExportResponse
+  | WorkflowRestoreResponse
+  | WorkflowDeleteResponse
+  | WorkflowCancelResponse
+  | WorkflowCapabilitiesResponse
   | ApiErrorResponse
 
 function json(body: ApiBody, status = 200) {
   return Response.json(body, {
     status,
-    headers: { 'Cache-Control': 'no-store' },
+    headers: {
+      'Cache-Control': 'no-store',
+      'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
+      'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+      'Referrer-Policy': 'no-referrer',
+      'X-Content-Type-Options': 'nosniff',
+    },
   })
 }
 
-function toSharedEntryResponse(
-  record: SharedEntryRecord,
-): SharedEntryResponse {
-  return {
-    id: record.id,
-    householdId: record.householdId,
-    submittedBy: record.submittedBy,
-    date: record.date,
-    merchant: record.merchant,
-    category: record.category,
-    amountCents: record.amountCents,
-    share: record.share,
-    version: record.version,
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt,
-  }
+async function readJson(request: Request): Promise<unknown> {
+  const announced = Number(request.headers.get('Content-Length') || 0)
+  if (announced > 2_000_000) throw new Error('Request body is too large.')
+  const text = await request.text()
+  if (text.length > 2_000_000) throw new Error('Request body is too large.')
+  return JSON.parse(text)
 }
 
-async function buildEntriesListResponse(
-  database: SqlDatabase,
-  householdId: string,
-): Promise<SharedEntriesListResponse> {
-  const records = await listSharedEntries(database, householdId)
-  const settlement = computeSettlement(
-    records.map(function (record) {
-      return {
-        submittedBy: record.submittedBy,
-        amountCents: record.amountCents,
-        share: record.share,
-      }
-    }),
-  )
-
-  return {
-    entries: records.map(toSharedEntryResponse),
-    settlement,
-  }
-}
-
-export function createWorker(verifyIdentity: IdentityVerifier) {
+export function createWorker(
+  verifyIdentity: IdentityVerifier,
+  now = function () { return new Date().toISOString() },
+  randomId: () => string = function () { return crypto.randomUUID() },
+) {
   return {
     async fetch(request: Request, environment: WorkerEnvironment): Promise<Response> {
       const url = new URL(request.url)
@@ -144,65 +139,92 @@ export function createWorker(verifyIdentity: IdentityVerifier) {
       }
 
       if (url.pathname === '/api/shared-entries') {
-        if (request.method !== 'GET' && request.method !== 'POST') {
-          return json({ error: 'Method not allowed.' }, 405)
-        }
+        return json({ error: 'The Batch 3 shared-entry diagnostic has been retired. Use the period workflow API.' }, 410)
+      }
 
+      const workflowPeriod = url.pathname.match(/^\/api\/workflows\/(\d{4}-\d{2})$/)
+      const workflowAction = url.pathname.match(/^\/api\/workflows\/(\d{4}-\d{2})\/(submission|close)$/)
+      const workflowAdministration = ['/api/workflows/capabilities', '/api/workflows/export', '/api/workflows/restore', '/api/workflows/cancel-abandoned', '/api/workflows'].includes(url.pathname)
+      if (workflowPeriod || workflowAction || workflowAdministration) {
         let identity
-        try {
-          identity = await verifyIdentity(request, environment)
-        } catch {
-          return json({ error: 'Authentication service unavailable.' }, 503)
-        }
-
+        try { identity = await verifyIdentity(request, environment) }
+        catch { return json({ error: 'Authentication service unavailable.' }, 503) }
         if (!identity) return json({ error: 'Authentication required.' }, 401)
-        if (!identity.householdId) {
-          return json({ error: 'No active household for this session.' }, 403)
-        }
+        if (!identity.householdId) return json({ error: 'No active household for this session.' }, 403)
 
-        if (request.method === 'GET') {
-          try {
-            return json(await buildEntriesListResponse(environment.DB, identity.householdId))
-          } catch {
-            return json({ error: 'Shared entry storage unavailable.' }, 503)
+        try {
+          await ensureHousehold(environment.DB, identity.householdId, now())
+          if (workflowPeriod) {
+            if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405)
+            return json({ workflow: await readWorkflow(environment.DB, identity.householdId, identity.userId, workflowPeriod[1]!) })
           }
-        }
 
-        let submission: unknown
-        try {
-          submission = await request.json()
-        } catch {
-          return json({ error: 'Request body must be JSON.' }, 400)
-        }
+          if (workflowAction) {
+            const period = workflowAction[1]!
+            const action = workflowAction[2]!
+            let body: unknown
+            try { body = await readJson(request) }
+            catch (error) { return json({ error: error instanceof Error ? error.message : 'Request body must be JSON.' }, 400) }
+            if (action === 'submission' && request.method === 'POST') {
+              if (!isWorkflowSubmissionRequest(body) || body.projection.period !== period || body.expectedVersion !== null) return json({ error: 'Workflow submission is invalid.' }, 400)
+              return json({ workflow: await submitWorkflow({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, projection: body.projection, expectedVersion: body.expectedVersion, requestId: body.requestId, replace: false, now: now(), eventId: randomId() }) })
+            }
+            if (action === 'submission' && request.method === 'PUT') {
+              if (!isWorkflowSubmissionRequest(body) || body.projection.period !== period || body.expectedVersion === null) return json({ error: 'Workflow replacement is invalid.' }, 400)
+              return json({ workflow: await submitWorkflow({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, projection: body.projection, expectedVersion: body.expectedVersion, requestId: body.requestId, replace: true, now: now(), eventId: randomId() }) })
+            }
+            if (action === 'submission' && request.method === 'DELETE') {
+              if (!isWorkflowMutationRequest(body)) return json({ error: 'Workflow withdrawal is invalid.' }, 400)
+              return json({ workflow: await withdrawWorkflow({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, period, expectedVersion: body.expectedVersion, requestId: body.requestId, now: now(), eventId: randomId() }) })
+            }
+            if (action === 'close' && request.method === 'POST') {
+              if (!isWorkflowMutationRequest(body)) return json({ error: 'Workflow close is invalid.' }, 400)
+              return json({ workflow: await closeWorkflow({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, period, expectedVersion: body.expectedVersion, requestId: body.requestId, now: now(), eventId: randomId() }) })
+            }
+            return json({ error: 'Method not allowed.' }, 405)
+          }
 
-        // Re-validated here even though the browser is expected to check first: a browser
-        // can always be modified, so this is the check that actually protects the database
-        // from a non-integer amount or an out-of-range share.
-        if (!isValidSharedEntrySubmission(submission)) {
-          return json({ error: 'Shared entry submission is invalid.' }, 400)
-        }
-
-        try {
-          const now = new Date().toISOString()
-          // shared_entries.household_id is a foreign key into households, and a session's
-          // first write can arrive before its first /api/household read ever created that
-          // row. ensureHousehold is the same safe-to-repeat call that route uses.
-          await ensureHousehold(environment.DB, identity.householdId, now)
-          const record = await upsertSharedEntry(
-            environment.DB,
-            identity.householdId,
-            identity.userId,
-            submission,
-            now,
-          )
-          return json(toSharedEntryResponse(record))
+          if (url.pathname === '/api/workflows/export') {
+            if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
+            return json(await exportClosedWorkflows(environment.DB, identity.householdId, now(), 'delete_' + randomId()))
+          }
+          if (url.pathname === '/api/workflows/capabilities') {
+            if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405)
+            return json({ canAdministerSharedHistory: identity.organizationRole === 'org:admin' })
+          }
+          if (url.pathname === '/api/workflows/restore') {
+            if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
+            if (identity.organizationRole !== 'org:admin') return json({ error: 'Household administrator access required.' }, 403)
+            let body: unknown
+            try { body = await readJson(request) } catch { return json({ error: 'Request body must be valid JSON.' }, 400) }
+            if (!isWorkflowRestoreRequest(body)) return json({ error: 'Shared archive bundle is invalid.' }, 400)
+            const restoredPeriods = await restoreWorkflowHistory(environment.DB, identity.householdId, identity.userId, body.bundle, now(), randomId)
+            return json({ restoredPeriods })
+          }
+          if (url.pathname === '/api/workflows') {
+            if (request.method !== 'DELETE') return json({ error: 'Method not allowed.' }, 405)
+            if (identity.organizationRole !== 'org:admin') return json({ error: 'Household administrator access required.' }, 403)
+            let body: unknown
+            try { body = await readJson(request) } catch { return json({ error: 'Request body must be valid JSON.' }, 400) }
+            if (!isWorkflowDeleteRequest(body)) return json({ error: 'Shared-history deletion confirmation is invalid.' }, 400)
+            return json({ deletedPeriods: await deleteWorkflowHistory(environment.DB, identity.householdId, body.deletionToken, now()) })
+          }
+          if (url.pathname === '/api/workflows/cancel-abandoned') {
+            if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
+            if (identity.organizationRole !== 'org:admin') return json({ error: 'Household administrator access required.' }, 403)
+            let body: unknown
+            try { body = await readJson(request) } catch { return json({ error: 'Request body must be valid JSON.' }, 400) }
+            if (!isWorkflowCancelRequest(body)) return json({ error: 'Abandoned-period cancellation confirmation is invalid.' }, 400)
+            await cancelAbandonedWorkflow(environment.DB, identity.householdId, body.period)
+            return json({ cancelledPeriod: body.period })
+          }
         } catch (error) {
-          // upsertSharedEntry refuses to hand back a row scoped to a different household,
-          // which surfaces here as this specific error rather than a generic storage fault.
-          if (error instanceof Error && error.message.includes('different household')) {
-            return json({ error: 'Shared entry id belongs to a different household.' }, 403)
+          if (error instanceof WorkflowConflictError) {
+            if (error.workflow) return json({ workflow: { ...error.workflow, status: 'stale', staleReason: error.message } }, 409)
+            return json({ error: error.message }, 409)
           }
-          return json({ error: 'Shared entry storage unavailable.' }, 503)
+          if (error instanceof WorkflowForbiddenError) return json({ error: error.message }, 403)
+          return json({ error: 'Workflow storage unavailable.' }, 503)
         }
       }
 

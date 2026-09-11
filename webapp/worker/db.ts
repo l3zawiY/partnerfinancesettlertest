@@ -10,11 +10,15 @@ export interface SqlStatement {
   bind(...values: unknown[]): SqlStatement
   first<T = Record<string, unknown>>(): Promise<T | null>
   all<T = Record<string, unknown>>(): Promise<{ results: T[] }>
-  run(): Promise<unknown>
+  run(): Promise<SqlRunResult>
 }
+
+export interface SqlRunResult { changes?: number; meta?: { changes?: number } }
 
 export interface SqlDatabase {
   prepare(query: string): SqlStatement
+  /** D1 batch is a transaction: one failed statement rolls the complete list back. */
+  batch(statements: SqlStatement[]): Promise<SqlRunResult[]>
 }
 
 export interface HouseholdRecord {

@@ -33,6 +33,15 @@ Filename: `split-<period>-<owner>.json`
 
 For each item, the non-payer owes `amount × (1 − share)`; settlement nets both directions.
 
+### Monetary rounding policy
+
+External v1 files retain decimal-dollar fields for compatibility, but the web application
+converts each amount to integer cents before financial arithmetic. Decimal amounts exactly
+halfway between cents round away from zero (`1.005` becomes `1.01`; `-1.005` becomes
+`-1.01`). Each row's `amount × (1 − payer share)` claim is rounded once using the same
+rule; integer claims are then summed and netted. Half of `$179.07` is therefore `$89.54`,
+and half of a `-$1.01` refund is `-$0.51`.
+
 ## Month archive — `split-ledger-archive/v1` (frozen)
 
 Written at close as the append-only permanent record and the only planned analytics input.
@@ -58,6 +67,49 @@ Filename: `split-<period>-archive.json`
 `people` freezes display names at close. `payer` is `a` (settler) or `b` (partner).
 `direction` is `b_owes_a`, `a_owes_b`, or `square`. Future readers must ignore unknown
 additive fields and must not assume names stay constant across archives.
+
+In the web service, the Worker creates this archive from the two stored, validated shared
+projections. The browser may preview the same deterministic arithmetic, but it cannot send
+an archive for the Worker to trust. Closing locks both stored projections; later downloads
+therefore reproduce the same archive.
+
+## Household closed-archive bundle — `split-ledger-household-archive/v1`
+
+Portable recovery for shared web-service history. It contains closed month archives only,
+ordered by period. Open projections are deliberately excluded: each person can resubmit
+their allowlisted projection after recovery without putting account identifiers or mutable
+workflow state in the portable file.
+
+Filename: `split-ledger-household-archives.json`
+
+```json
+{
+  "format": "split-ledger-household-archive/v1",
+  "generated": "2026-09-10T18:00:00.000Z",
+  "archives": [
+    {
+      "format": "split-ledger-archive/v1",
+      "period": "2026-07",
+      "closed": "2026-08-02T14:12:00.000Z",
+      "toolVersion": "1.0.0",
+      "people": {"a":"Person A","b":"Person B"},
+      "settlement": {"aPaidShared":812.40,"bPaidShared":604.15,"aClaim":406.20,"bClaim":254.65,"net":151.55,"direction":"b_owes_a"},
+      "items": []
+    }
+  ]
+}
+```
+
+It contains no household ID, Clerk user ID, private row, raw description, card label,
+rule, unfinished decision, Amazon product/order/decision, or browser session. Any verified
+household member may export it. Restore is limited to a verified organization administrator
+and recreates immutable closed records only. Existing conflicting periods are never
+overwritten.
+
+Unknown fields are rejected throughout shared projection and archive-bundle input. Private
+rows, raw descriptions, card labels, rules, original imported amounts, products, order ids,
+Amazon context/matches/decisions, Clerk ids, and household ids make a request invalid rather
+than being silently stripped.
 
 ## Private session — `split-ledger-session/v3`
 

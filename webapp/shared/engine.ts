@@ -41,6 +41,8 @@ export interface EngineRow {
   city: string | null
   category: string
   amount: number
+  /** Bank-parsed value retained after a deliberate manual correction. */
+  originalAmount?: number
   bank: string
   card: string
   balance: number | null
@@ -344,7 +346,7 @@ const MONTHS: Record<string, number> = {
   dec: 12,
 }
 
-export function parseDate(t: unknown, fallbackYear: number): string | null {
+export function parseDate(t: unknown, fallbackYear?: number): string | null {
   const s = String(t || '').trim()
   let m = s.match(/^(20\d{2})-(\d{2})-(\d{2})$/)
   if (m) return m[1] + '-' + m[2] + '-' + m[3]
@@ -355,7 +357,7 @@ export function parseDate(t: unknown, fallbackYear: number): string | null {
   }
   return null
 }
-function pad(y: number): string {
+function pad(y: number | undefined): string {
   return String(y)
 }
 function pad2(n: number): string {

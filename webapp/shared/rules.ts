@@ -63,6 +63,15 @@ export function hasRule(rules: MerchantRule[], t: { family: string | null; key: 
   })
 }
 
+export function removeRule(
+  rules: MerchantRule[],
+  target: Pick<MerchantRule, 'type' | 'pattern'>,
+): MerchantRule[] {
+  return rules.filter(function (rule) {
+    return !(rule.type === target.type && rule.pattern === target.pattern)
+  })
+}
+
 /**
  * Applies merchant rules and the below-threshold default, then re-runs refund pairing —
  * same order as v1's `applyRules()`, which always calls `pairRefunds()` last so a refund

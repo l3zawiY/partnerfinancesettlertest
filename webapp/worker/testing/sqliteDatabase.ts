@@ -21,6 +21,8 @@ import type { SqlDatabase, SqlStatement } from '../db'
 const MIGRATIONS = [
   fileURLToPath(new URL('../../migrations/0001_households.sql', import.meta.url)),
   fileURLToPath(new URL('../../migrations/0002_shared_entries.sql', import.meta.url)),
+  fileURLToPath(new URL('../../migrations/0003_period_workflows.sql', import.meta.url)),
+  fileURLToPath(new URL('../../migrations/0004_workflow_hardening.sql', import.meta.url)),
 ]
 
 class SqliteStatement implements SqlStatement {
@@ -44,8 +46,14 @@ class SqliteStatement implements SqlStatement {
     return { results: results as T[] }
   }
 
-  async run(): Promise<unknown> {
-    return this.database.prepare(this.sql).run(...(this.values as never[]))
+  async run(): Promise<{ changes: number }> {
+    const result = this.database.prepare(this.sql).run(...(this.values as never[]))
+    return { changes: Number(result.changes) }
+  }
+
+  execute(): { changes: number } {
+    const result = this.database.prepare(this.sql).run(...(this.values as never[]))
+    return { changes: Number(result.changes) }
   }
 }
 
@@ -67,10 +75,12 @@ export interface TestDatabase extends SqlDatabase {
     updatedAt?: string
   }): void
   close(): void
+  failBatchAt(index: number | null): void
 }
 
 export function createTestDatabase(): TestDatabase {
   const database = new DatabaseSync(':memory:')
+  let failureIndex: number | null = null
 
   // D1 enforces foreign keys; plain SQLite does not unless asked. Matching D1 here keeps
   // the test honest about the constraint in the migrations.
@@ -82,6 +92,21 @@ export function createTestDatabase(): TestDatabase {
   return {
     prepare(query: string) {
       return new SqliteStatement(database, query)
+    },
+    async batch(statements) {
+      database.exec('BEGIN IMMEDIATE')
+      try {
+        const results = statements.map(function (statement, index) {
+          if (failureIndex === index) throw new Error('Injected batch failure at statement ' + index + '.')
+          if (!(statement instanceof SqliteStatement)) throw new Error('Unexpected SQLite statement implementation.')
+          return statement.execute()
+        })
+        database.exec('COMMIT')
+        return results
+      } catch (error) {
+        database.exec('ROLLBACK')
+        throw error
+      }
     },
     seedNote(householdId, id, label, createdAt) {
       database
@@ -120,6 +145,9 @@ export function createTestDatabase(): TestDatabase {
     },
     close() {
       database.close()
+    },
+    failBatchAt(index) {
+      failureIndex = index
     },
   }
 }

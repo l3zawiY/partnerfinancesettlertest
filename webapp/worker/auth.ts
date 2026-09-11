@@ -13,6 +13,8 @@ export interface VerifiedIdentity {
    * organization. Read from the verified token, never from a request body or query.
    */
   householdId: string | null
+  /** Verified Clerk organization role; destructive shared-history actions require admin. */
+  organizationRole?: string | null
 }
 
 export type IdentityVerifier = (
@@ -47,5 +49,5 @@ export const verifyClerkIdentity: IdentityVerifier = async (request, environment
   const auth = requestState.toAuth()
   if (!auth.userId) return null
 
-  return { userId: auth.userId, householdId: auth.orgId ?? null }
+  return { userId: auth.userId, householdId: auth.orgId ?? null, organizationRole: auth.orgRole ?? null }
 }

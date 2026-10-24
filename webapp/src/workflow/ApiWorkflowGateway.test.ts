@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { emptyWorkflow } from '../../shared/workflow'
 import { fictionalPartnerProjection } from '../testing/fictionalFixtures'
+import { UNREACHABLE_MESSAGE } from '../api'
 import { ApiWorkflowGateway } from './ApiWorkflowGateway'
 
 afterEach(function () { vi.unstubAllGlobals() })
@@ -46,5 +47,12 @@ describe('ApiWorkflowGateway', function () {
     const retryable = await gateway.close('2026-07', 1)
     expect(retryable.status).toBe('retryable-error')
     expect(retryable.errorMessage).toContain('Temporary storage fault')
+  })
+
+  it('explains an unreachable service in plain language instead of the bare browser error', async function () {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
+    const gateway = new ApiWorkflowGateway(async () => 'token_fixture', () => 'request_fixture')
+    await expect(gateway.getCapabilities()).rejects.toThrow(/^Could not reach the Split Ledger service\./)
+    expect(UNREACHABLE_MESSAGE).not.toMatch(/Failed to fetch/)
   })
 })

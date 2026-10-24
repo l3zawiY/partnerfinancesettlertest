@@ -8,7 +8,10 @@ import type { InvitationSurface } from './HouseholdPairingScreen'
  * invitations are read back from Clerk, not stored here.
  */
 export function useClerkInvitations(): InvitationSurface | undefined {
-  const { organization, invitations } = useOrganization({ invitations: { status: ['pending'] } })
+  // Clerk lets only administrators list invitations; a member's request is refused with 403.
+  const { membership } = useOrganization()
+  const canListInvitations = membership?.role === 'org:admin'
+  const { organization, invitations } = useOrganization({ invitations: canListInvitations ? { status: ['pending'] } : undefined })
   return useMemo(function () {
     if (!organization) return undefined
     return {

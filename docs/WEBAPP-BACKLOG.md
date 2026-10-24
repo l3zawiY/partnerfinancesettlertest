@@ -176,7 +176,7 @@ uppercase eyebrow labels (`#75916e`) and faint fine print (`--ink-faint` `#88958
 pale background are below 4.5:1. They come from the accepted v1 look, so changing them is
 an owner visual decision; darkening both by one step (for example `#5f7a58`) would pass.
 
-**Priority:** Should (after the pilot, or earlier if either person finds labels hard to read).
+**Priority:** Later. Owner decision 2026-10-24: after the pilot.
 
 *Noticed: 2026-10-24.*
 

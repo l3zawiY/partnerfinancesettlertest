@@ -147,6 +147,7 @@ export default function Workspace(props: { scopeKey: string; gateway: WorkflowGa
     </div></header>
     <div className="application-shell">
       {workflowMessage ? <p className="notice warn global-notice" role="status">{workflowMessage}</p> : null}
+      {workspace.tabNotice ? <p className="notice global-notice" role="status">{workspace.tabNotice} <button className="btn ghost" onClick={workspace.dismissTabNotice}>Dismiss</button></p> : null}
       {screen === 'setup' ? <SetupScreen workspace={workspace} householdReady={props.householdReady !== false} connected={!!props.connected} pairing={props.pairing} onRefreshPairing={props.onRefreshPairing} /> : null}
       {screen === 'import' ? <ImportScreen workspace={workspace} onContinue={() => setScreen('review')} /> : null}
       {screen === 'review' ? <ReviewScreen workspace={workspace} pairing={props.pairing} onContinue={() => workspace.undecidedCount ? workspace.setOnlyUndecided(true) : setScreen('share')} /> : null}

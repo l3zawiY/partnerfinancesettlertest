@@ -181,4 +181,29 @@ describe('complete fictional workspace', function () {
     expect(screen.getByText('2 of 3 decided')).toBeVisible()
     expect(screen.getAllByText(/Shared 50% to partner/)).toHaveLength(2)
   })
+
+  it('adopts a newer draft saved in another tab and stops after another tab deletes it', async function () {
+    const user = userEvent.setup()
+    const scopeKey = 'splitledger.webapp.v1.user_t.org_t'
+    const tab2 = render(<Workspace scopeKey={scopeKey} gateway={new LocalWorkflowGateway('tab2-workflow')} administration={new LocalWorkflowGateway('tab2-admin')} connected />)
+    const tab1 = render(<Workspace scopeKey={scopeKey} gateway={new LocalWorkflowGateway('tab1-workflow')} administration={new LocalWorkflowGateway('tab1-admin')} connected />)
+    const in1 = within(tab1.container), in2 = within(tab2.container)
+    fireEvent.change(in1.getByLabelText('Header reconciliation month'), { target: { value: '2026-07' } })
+    await user.click(in1.getByRole('tab', { name: 'Import' }))
+    await user.selectOptions(in1.getByLabelText('Supported bank'), 'Other / generic paste')
+    fireEvent.change(in1.getByLabelText('Statement text'), { target: { value: '2026-07-12 FICTIONAL HARDWARE $80.00' } })
+    await user.click(in1.getByRole('button', { name: 'Parse and add' }))
+    await waitFor(function () { expect(window.localStorage.getItem(scopeKey)).toContain('FICTIONAL HARDWARE') })
+    // The browser delivers a storage event only to the other tab; jsdom needs it dispatched.
+    window.dispatchEvent(new StorageEvent('storage', { key: scopeKey, newValue: window.localStorage.getItem(scopeKey) }))
+    await user.click(in2.getByRole('tab', { name: 'Review' }))
+    expect(await in2.findByText('Fictional Hardware')).toBeVisible()
+    expect(in2.getByText(/changed in another tab of this browser/)).toBeVisible()
+
+    window.localStorage.removeItem(scopeKey)
+    window.dispatchEvent(new StorageEvent('storage', { key: scopeKey, newValue: null }))
+    expect(await in2.findByText(/deleted in another tab of this browser/)).toBeVisible()
+    await new Promise(function (resolve) { setTimeout(resolve, 300) })
+    expect(window.localStorage.getItem(scopeKey)).toBeNull()
+  })
 })

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   amazonOccupiedBy,
   matchAmazonOrders,
@@ -65,6 +65,9 @@ export function usePrivateWorkspace(scopeKey: string) {
   const [groupBy, setGroupBy] = useState<'day' | 'merchant'>('day')
   const [onlyUndecided, setOnlyUndecided] = useState(false)
   const [confirmedTotals, setConfirmedTotals] = useState(false)
+  // The last draft text this tab wrote or adopted; another tab's newer save replaces it (WEB-027).
+  const lastSaved = useRef<string | null>(null)
+  const [tabNotice, setTabNotice] = useState<string | null>(null)
 
   const amazonMatches = useMemo(function () {
     return matchAmazonOrders(ledger, amazonContext.orders)
@@ -116,6 +119,8 @@ export function usePrivateWorkspace(scopeKey: string) {
     const timer = window.setTimeout(function () {
       try {
         const snapshot = JSON.stringify(createSessionSnapshot(sessionState()))
+        if (snapshot === lastSaved.current) return
+        lastSaved.current = snapshot
         window.localStorage.setItem(scopeKey, snapshot)
         window.localStorage.setItem(monthDraftKey(scopeKey, period), snapshot)
         setMessage('Private draft auto-saved in this browser.')
@@ -123,6 +128,31 @@ export function usePrivateWorkspace(scopeKey: string) {
     }, 150)
     return function () { window.clearTimeout(timer) }
   }, [amazonContext, blocks, card, confirmedTotals, defaultUnknown, excludePatterns, groupBy, hydrated, knownCards, ledger, meIndex, names, onlyUndecided, period, ranges, rules, scopeKey, threshold])
+
+  // WEB-027: another tab of this browser saved or deleted the same private draft. Adopt the
+  // newer save instead of overwriting it later, and stop auto-saving after a deletion so an
+  // open tab cannot re-create an erased draft. Storage events never fire in the writing tab.
+  useEffect(function () {
+    function onStorage(event: StorageEvent): void {
+      if (event.key !== scopeKey || event.newValue === lastSaved.current) return
+      if (event.newValue === null) {
+        clearState()
+        const notice = 'This private draft was deleted in another tab of this browser. Auto-save is paused until reload.'
+        setMessage(notice); setTabNotice(notice)
+        return
+      }
+      try {
+        const loaded = readSession(JSON.parse(event.newValue))
+        if (!loaded) return
+        lastSaved.current = event.newValue
+        loadState(loaded)
+        const notice = 'This private draft changed in another tab of this browser; showing the latest version.'
+        setMessage(notice); setTabNotice(notice)
+      } catch { /* an unreadable value is ignored; this tab keeps its own draft */ }
+    }
+    window.addEventListener('storage', onStorage)
+    return function () { window.removeEventListener('storage', onStorage) }
+  })
 
   function setPeriod(next: string): void {
     if (!/^\d{4}-\d{2}$/.test(next) || next === period) return
@@ -227,13 +257,18 @@ export function usePrivateWorkspace(scopeKey: string) {
   }
   function saveShared(): void { const value = projection(); downloadJson('split-' + period + '-' + safeFilePart(value.owner) + '.json', value) }
 
-  function erasePrivateDraft(): void {
-    deleteScopedPrivateDraft(window.localStorage, scopeKey)
+  function clearState(): void {
     setHydrated(false)
+    lastSaved.current = null
     setLedger([]); setRules([]); setRanges([]); setBlocks([]); setAmazonContext(emptyAmazonContext())
     setKnownCards(['TD Visa']); setCard('TD Visa'); setNames(['Me', 'Partner']); setMeIndex(0)
     setThresholdState(0); setDefaultUnknownState(1); setExcludePatterns(EXCLUDE_DEFAULT)
     setText(''); setAmazonText(''); setConfirmedTotals(false); setSummary(null); setParseError(null)
+  }
+
+  function erasePrivateDraft(): void {
+    deleteScopedPrivateDraft(window.localStorage, scopeKey)
+    clearState()
     setMessage('Every month\'s private draft for this account and household was deleted from this browser. Auto-save is paused until reload.')
   }
 
@@ -245,6 +280,7 @@ export function usePrivateWorkspace(scopeKey: string) {
     defaultUnknown, setDefaultUnknown, excludePatterns, setExcludePatterns, amazonText, setAmazonText,
     amazonContext, setAmazonContext, amazonMatches, message, groupBy, setGroupBy, onlyUndecided,
     setOnlyUndecided, confirmedTotals, setConfirmedTotals, postedCount: posted.length, undecidedCount,
+    tabNotice, dismissTabNotice: function () { setTabNotice(null) },
     parse, decide, decideGroup, forgetRule, reapplyRules, correctAmount, parseAmazon, setAmazonDecision, confirmAmazon,
     projection, saveSession, loadSession, saveShared, erasePrivateDraft,
   }

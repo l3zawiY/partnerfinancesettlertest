@@ -119,14 +119,14 @@ describe('complete fictional workspace', function () {
     expect(screen.queryByRole('button', { name: 'Simulate partner change (stale)' })).not.toBeInTheDocument()
   })
 
-  it('erases only the active private scope and exposes administrator limits before action', async function () {
+  it('erases only the active private scope and exposes coordinator-only limits before action', async function () {
     const user = userEvent.setup()
     window.localStorage.setItem('unrelated-owner-data', 'keep')
     const scopeKey = 'splitledger.webapp.v1.user_a.org_a'
     const gateway = new MemberGateway('member-workflow-test')
     render(<Workspace scopeKey={scopeKey} gateway={gateway} administration={gateway} connected />)
     await user.click(screen.getByRole('button', { name: 'Rules & Files' }))
-    expect(await screen.findByText(/Restore, abandoned-period cancellation, and deletion require a household administrator/)).toBeVisible()
+    expect(await screen.findByText(/Restore, abandoned-period cancellation, and deletion are for the coordinator only/)).toBeVisible()
     expect(screen.getByLabelText('Restore closed shared archives')).toBeDisabled()
     window.localStorage.setItem(scopeKey + '.month.2026-07', '{}')
     await user.type(screen.getByLabelText('Type DELETE PRIVATE DRAFT'), 'DELETE PRIVATE DRAFT')

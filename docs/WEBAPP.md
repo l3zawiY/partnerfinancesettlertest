@@ -1196,7 +1196,7 @@ Before any remote command, the coding session must make and test a small configu
 batch. It will add explicit `staging` and `production` environments to
 `webapp/wrangler.jsonc`, while leaving the existing local database command local-only. The
 staging Worker and D1 names must include `staging`; production must have separate names,
-IDs, keys, and bindings. The session must run the normal approval gate and automated tests.
+IDs, keys, and bindings. The session must run the full automated gate before any remote command.
 
 Do not deploy the current top-level configuration: its database ID is intentionally
 `local-development-placeholder`. Do not turn `db:migrate:local` into a remote command.
@@ -1208,7 +1208,7 @@ Run these only from `webapp/` (authorized by the owner on 2026-10-24):
 1. Authentication comes from the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
    environment values set in Part 1; there is no interactive login.
 2. Run `npx wrangler whoami`. Expected result: the intended account name appears. If it is
-   the wrong account, stop and log out; do not create anything.
+   the wrong account, stop and tell the owner; do not create anything.
 3. Run `npx wrangler d1 create split-ledger-staging`. Expected result: Cloudflare creates
    one D1 database and prints its database name and generated ID. This is an external
    resource even though it is on the free plan.
@@ -1244,7 +1244,7 @@ record access tokens or Clerk secrets there.
    ends in `.workers.dev` and whose Worker name clearly ends in `-staging`. If the output
    names production, an unnamed Worker, a custom domain, or a different account, stop.
 5. Open only that printed HTTPS URL. Confirm the page identifies fictional staging and can
-   sign in through the separate Clerk Development application. Never upload a real bank or
+   sign in through the existing Clerk Development instance. Never upload a real bank or
    Amazon file.
 
 The exact build/deploy command must be copied from the tested package/configuration at that

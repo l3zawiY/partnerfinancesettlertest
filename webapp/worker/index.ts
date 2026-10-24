@@ -95,6 +95,19 @@ async function readJson(request: Request): Promise<unknown> {
   return JSON.parse(text)
 }
 
+/**
+ * Plain-language storage failure. D1's free plan stops queries for the rest of the UTC day
+ * once a daily allowance is used up; that case gets its own explanation. Nothing about the
+ * request or its data is echoed or logged.
+ */
+export function storageUnavailable(error?: unknown): Response {
+  const text = error instanceof Error ? error.message : ''
+  const limit = /limit|exceeded|quota|too many/i.test(text)
+  return json({ error: limit
+    ? 'The shared service reached its free daily limit. Your private draft in this browser is safe. Shared actions work again after the daily reset at midnight UTC (7 or 8 p.m. in Toronto).'
+    : 'Shared storage is temporarily unavailable. Your private draft in this browser is safe; try again in a few minutes.' }, 503)
+}
+
 export function createWorker(
   verifyIdentity: IdentityVerifier,
   now = function () { return new Date().toISOString() },
@@ -151,8 +164,8 @@ export function createWorker(
             createdAt: household.createdAt,
             notes,
           })
-        } catch {
-          return json({ error: 'Household storage unavailable.' }, 503)
+        } catch (error) {
+          return storageUnavailable(error)
         }
       }
 
@@ -206,7 +219,7 @@ export function createWorker(
           if (error instanceof PairingForbiddenError) return json({ error: error.message }, 403)
           if (error instanceof PairingConflictError) return json({ error: error.message }, 409)
           if (error instanceof PairingValidationError) return json({ error: error.message }, 400)
-          return json({ error: 'Household storage unavailable.' }, 503)
+          return storageUnavailable(error)
         }
       }
 
@@ -305,7 +318,7 @@ export function createWorker(
             return json({ error: error.message }, 409)
           }
           if (error instanceof WorkflowForbiddenError || error instanceof PairingForbiddenError) return json({ error: error.message }, 403)
-          return json({ error: 'Workflow storage unavailable.' }, 503)
+          return storageUnavailable(error)
         }
       }
 

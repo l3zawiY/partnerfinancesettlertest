@@ -13,5 +13,5 @@
     "noUncheckedIndexedAccess": true,
     "types": ["@cloudflare/workers-types", "node"]
   },
-  "include": ["worker", "shared", "vite.config.ts", "vitest.config.ts"]
+  "include": ["worker", "shared", "vite.config.ts", "vitest.config.ts", "securityHeaders.ts"]
 }

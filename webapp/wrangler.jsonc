@@ -7,8 +7,8 @@
     {
       "binding": "DB",
       "database_name": "split-ledger-db",
-      // Local development only. Keep this non-deployable placeholder until the owner
-      // separately authorizes named staging and production resources in Batch 7.
+      // Local development only. This placeholder can never be deployed; hosted builds use
+      // the named environments below through the guarded npm scripts.
       "database_id": "local-development-placeholder",
       "migrations_dir": "migrations"
     }
@@ -17,5 +17,28 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
+  },
+  "env": {
+    // Fictional staging on workers.dev (Batch 7a). The agent replaces the database id after
+    // `wrangler d1 create split-ledger-staging`; scripts/deploy-guard.mjs refuses NOT-SET.
+    "staging": {
+      "name": "split-ledger-staging",
+      "workers_dev": true,
+      "d1_databases": [
+        { "binding": "DB", "database_name": "split-ledger-staging", "database_id": "STAGING-DATABASE-ID-NOT-SET", "migrations_dir": "migrations" }
+      ],
+      "assets": { "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] }
+    },
+    // Real pilot on the owner's domain (Batch 7b). Separate name, database, keys, and address;
+    // no workers.dev address. The guard refuses the placeholders below.
+    "production": {
+      "name": "split-ledger-production",
+      "workers_dev": false,
+      "routes": [{ "pattern": "PRODUCTION-DOMAIN-NOT-SET.invalid", "custom_domain": true }],
+      "d1_databases": [
+        { "binding": "DB", "database_name": "split-ledger-production", "database_id": "PRODUCTION-DATABASE-ID-NOT-SET", "migrations_dir": "migrations" }
+      ],
+      "assets": { "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] }
+    }
   }
 }

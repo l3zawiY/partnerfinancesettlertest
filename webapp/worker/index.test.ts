@@ -66,4 +66,20 @@ describe('Worker API boundary', () => {
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({ error: 'API route not found.' })
   })
+
+  it('explains storage failures in plain language and recognises the free daily limit', async () => {
+    const failing = function (message: string): WorkerEnvironment {
+      const fail = function (): never { throw new Error(message) }
+      return { ...environment(), DB: { prepare: fail, batch: async () => fail() } as unknown as WorkerEnvironment['DB'] }
+    }
+    const worker = createWorker(async () => ({ userId: 'user_fixture', householdId: 'org_fixture', organizationRole: 'org:admin' }))
+    const limited = await worker.fetch(new Request('https://split-ledger.example/api/household/pairing'), failing('D1_ERROR: Exceeded daily rows read limit'))
+    expect(limited.status).toBe(503)
+    expect(((await limited.json()) as { error: string }).error).toMatch(/free daily limit.*private draft in this browser is safe.*midnight UTC/)
+    const generic = await worker.fetch(new Request('https://split-ledger.example/api/workflows/2026-07'), failing('network glitch'))
+    expect(generic.status).toBe(503)
+    const body = ((await generic.json()) as { error: string }).error
+    expect(body).toMatch(/temporarily unavailable.*private draft in this browser is safe/)
+    expect(body).not.toMatch(/glitch|D1_ERROR/)
+  })
 })

@@ -3,12 +3,24 @@
 This is the canonical plan and continuation guide for the web-service experiment. Keep
 it current instead of creating session handoffs or a separate plan for every batch.
 
-## Current status — 2026-09-11
+## Current status — 2026-09-12
 
-Local production hardening is implemented. The remaining gates are the owner's documented
-human acceptance (WEB-005, WEB-010, WEB-012, and WEB-013) and separately authorized
-Cloudflare/Clerk staging and production setup. No Cloudflare account, hosted Worker, hosted
-D1 database, domain, or deployment exists.
+**WEB-019, the two-person collaboration redesign, is implemented locally and uncommitted
+as Batch 6e (2026-09-12).** The server now binds exactly two verified accounts to the stable
+`coordinator` and `partner` roles per household, authorizes every shared workflow route
+against that pairing, labels submissions and archives with server-bound aliases, lets only
+the coordinator close, and gives Share / Status and Settle automatic and manual freshness
+checks with plain-language change explanations. The WEB-020 occupied-Amazon-evidence defect
+is also fixed. Migration `0005_household_pairing.sql` was applied to the ignored local
+database on 2026-09-12 without touching any existing row. The next step is the owner's
+replacement two-account acceptance, HC-01 through HC-10 in `docs/WEBAPP-HUMAN-TESTING.md`
+and the checklist page. Nothing from this batch is committed, and no Cloudflare account,
+hosted Worker, hosted D1 database, domain, or deployment exists; Batch 7 stays paused
+until that acceptance passes.
+
+Web-app gate after Batch 6e and the 2026-09-12 owner-review fix: four TypeScript projects
+type-check; 98 pure/Worker/SQLite tests and 28 browser-like component tests pass; the
+production build succeeds; the legacy `node test/run-tests.js` gate remains 81/81.
 
 The hardening batch made every multi-record workflow mutation transactional through D1
 `batch()`, backed by a unique workflow-version event constraint and injected failures at
@@ -69,9 +81,13 @@ amount correction).
   replaced version 1, the stale tab was stopped with a refresh-required response, and its
   recovery control loaded version 2. The connected UI showed no partner-simulation controls
   and correctly waited for a second member of the same household.
-- Owner verification of Batch 4c is deliberately deferred until the owner has time. It is
-  tracked as WEB-010 and remains required before Batch 4c is considered human-accepted;
-  automated and coding-agent verification do not substitute for that product review.
+- Owner verification ran on 2026-09-11. Nine scenarios passed, six failed, and six were
+  blocked. The run accepted amount correction, refund handling, scoped restoration,
+  navigation, review controls, layout, invitation entry, archive export, and restart
+  persistence. It exposed occupied Amazon evidence (WEB-020), a state-dependent Remember
+  test, unclear/sticky stale recovery, and—most importantly—an incomplete two-person
+  collaboration model (WEB-019). Do not treat the earlier automated two-identity coverage
+  as product acceptance.
 - Exact owner scenarios, copyable fictional edge-case data, expected results, and failure
   symptoms for WEB-010, WEB-012, and WEB-013 live in
   `docs/WEBAPP-HUMAN-TESTING.md`.
@@ -79,8 +95,9 @@ amount correction).
   exists without reading it. Do not record Clerk user or organization IDs in the repository.
 - Verified by the owner in a browser: sign-in, sign-out, and two accounts in two separate
   organizations each seeing only their own household records.
-- Not yet verified: two accounts in the *same* organization both seeing that household. It
-  needs a member added to an existing organization in the Clerk Dashboard.
+- Two accounts were attempted in the owner run, but the sessions looked independent and
+  did not establish a trustworthy paired identity or handover. This is now a design and
+  implementation blocker in WEB-019, not merely a missing invitation check.
 - Deferred by owner decision: closing Clerk enrollment to invite-only. The Development
   instance holds no real data and stays open for now. Required before production; tracked in
   Batch 7 and the open-risks list. Do not put real financial data in that instance.
@@ -778,8 +795,10 @@ do not model hosted D1 replication. That hosted-runtime evidence belongs to the 
 authorized fictional staging gate; adopting an incompatible test-runner downgrade locally
 would add more risk than evidence.
 
-Owner acceptance is not complete. Follow `docs/WEBAPP-HUMAN-TESTING.md`, including H6-08,
-and keep WEB-005, WEB-010, WEB-012, and WEB-013 open until the owner performs them.
+Owner acceptance ran on 2026-09-11 and rejected the collaboration assumptions. Preserve
+that evidence in `docs/WEBAPP-HUMAN-TESTING.md`, keep WEB-005, WEB-010, WEB-012, and WEB-013
+open, and do not rerun the old H6 suite until WEB-019 is implemented and HC-01 through
+HC-10 are converted into an executable checklist.
 
 #### Operations and recovery contract
 
@@ -813,7 +832,127 @@ and keep WEB-005, WEB-010, WEB-012, and WEB-013 open until the owner performs th
   Missing keys fail closed; no development credential or local database may be reused for
   production.
 
-### Batch 7a — Cloudflare account and fictional staging (proposed)
+### Batch 6e — WEB-019 two-person collaboration model (implemented, uncommitted)
+
+Implemented on 2026-09-12 against the approved contract below, in the contract's five
+slices, with the complete gate green after each slice. Every change is local; nothing was
+committed, pushed, deployed, or changed in Clerk or Cloudflare.
+
+**What changed, in plain terms.** Before this batch the server knew only that a Clerk
+organization existed. Whoever submitted a month first took payer slot `a`, the archive
+labelled people with whatever name the browser typed, and any organization member could
+read the month. Now the server keeps its own two-row record of who the financial pair is.
+An organization administrator sets up the household once and becomes the stable
+coordinator; the invited account must explicitly choose **Join as partner**; both then see
+the same household name, aliases, roles, and **2 of 2 connected**. A third member of the
+organization, administrator or not, is refused on every financial route with a plain
+message and sees no submissions, archives, or recovery controls.
+
+**Files.** New migration `webapp/migrations/0005_household_pairing.sql`; new pure
+vocabulary `webapp/shared/pairing.ts`; new server module `webapp/worker/pairing.ts`
+(initialize, join, `requireParticipant`, legacy assessment); rewritten
+`webapp/worker/workflow.ts` acting as a verified participant; pairing routes and
+paired-participant authorization in `webapp/worker/index.ts`; browser gateway
+`webapp/src/pairing/ApiPairingGateway.ts`; onboarding screen
+`webapp/src/HouseholdPairingScreen.tsx`; Clerk invitation bridge
+`webapp/src/useClerkInvitations.ts`; the single alias-selection rule
+`webapp/src/identity.ts`, used by both `Workspace.tsx` (masthead) and `ReviewScreen.tsx`
+(subtitle) so a screen can never show a locally typed name once the household is paired;
+wiring in `App.tsx` and `SetupScreen.tsx`; rewritten `ShareStatusScreen.tsx` and
+`SettleScreen.tsx`; the two-viewer test fixture `webapp/src/testing/PairedFixtureServer.ts`;
+WEB-020 changes in `shared/amazon.ts`, `src/AmazonEvidence.tsx`, and
+`src/usePrivateWorkspace.ts`.
+
+**Decisions taken during implementation.**
+
+- *Attribution path:* the portable `split-ledger/v1` shape is kept unchanged. The Worker
+  overwrites the projection's `owner` with the caller's server-bound alias at the trust
+  boundary before storing it, and builds archive `people` from the pairing record. A forged
+  browser `owner` therefore cannot reach status, settlement, or an archive.
+- *Slots:* coordinator is always payer `a`, partner always `b`, so archives keep their
+  existing meaning. New months derive the slot from the role at first submission; the
+  per-month slot table remains as historical attribution.
+- *Aliases:* short human labels, at most 40 characters, no `@` so an email address can
+  never become a shared label, no control characters, and the two aliases must differ
+  ignoring case. The database enforces uniqueness per household; the domain code checks
+  first so the person gets a friendly message.
+- *Race guards:* the primary-key and unique constraints inside one D1 batch are the
+  guarantee for concurrent initialization and partner claims; pre-checks only improve the
+  message. Repeating a request as the same coordinator or partner is harmless.
+- *Legacy months:* an open month whose old slot rows all belong to current participants in
+  their own slot works normally. Any other open month with slot rows is reported as
+  **recovery required**: reads return no submissions, every mutation is refused with a 409
+  that keeps that status, and nothing is deleted or reinterpreted. If such a month has no
+  submissions, the existing administrator **Cancel an abandoned open period** control is the
+  recovery path; otherwise the message points to support. Closed months are immutable
+  history and are never flagged.
+- *Invitations:* the coordinator invites through Clerk's browser SDK
+  (`organization.inviteMember`) from the pairing screen. The email address goes to Clerk
+  only; the Worker never receives it and no Split Ledger table stores it. Pending
+  invitations are read back from Clerk for display.
+- *Freshness:* Share / Status and Settle check the server on entry, after every mutation,
+  on window focus and visibility, and every 20 seconds while visible, with one request in
+  flight at a time and never a write. A changed version replaces the screen's workflow and
+  explains the latest event by role and alias. **Check latest status** shows the last-check
+  time. A stale 409 disables the mutation buttons until **Load latest shared status** is
+  used; the rejected command is never replayed.
+- *Freshness is scoped to the monthly workflow, not pairing:* only Share / Status and Settle
+  poll automatically. The household-pairing screen (waiting for a partner to accept and
+  join) reads the server once on load and otherwise only on the explicit **Check latest
+  pairing** button or a page reload; it does not poll every 20 seconds while someone sits on
+  it. Owner-reviewed and accepted on 2026-09-12: pairing happens once per household, not
+  every month, so the coordinator's browser polling the server while idle on an onboarding
+  screen was judged not worth the added traffic. `docs/WEBAPP-HUMAN-TESTING.md` already
+  reflects this — HC-01 and HC-02 instruct clicking **Check latest pairing** rather than
+  waiting. If a future session revisits this, add the same interval/focus/visibility
+  handling `Workspace.tsx` uses for Share / Status to `HouseholdPairingScreen.tsx`, gated on
+  the `coordinator-only` and pending-invitation states only.
+- *Root cause of the sticky stale state seen on 2026-09-11:* after a withdrawal the old
+  per-month slot row stayed, and the next submission tried to insert it again, which failed
+  inside the transaction and surfaced as a refresh-required conflict. The insert is now
+  idempotent and a regression test covers withdraw-then-resubmit in one tab.
+- *Not included by design:* partner replacement, coordinator transfer, and lost-account
+  recovery fail closed. WEB-021 (fictional-month restart) was not retained in this batch.
+
+**Evidence.** Worker/SQLite tests prove administrator-only and atomic initialization with
+rollback, atomic partner claim, coordinator cannot hold both roles, duplicate aliases and
+same-named households cannot confuse identity, third-member denial on all eight workflow
+routes, viewer orientation, alias-bound attribution with forged owners, stable roles and
+archive direction across two months with opposite submission order, withdraw-then-resubmit
+without conflict, role-labelled handover events, coordinator-only close, refusal to close
+while coordinator-only, recovery-required legacy months with guarded cancellation, and
+migration 0005 applied over a database seeded in the pre-0005 shape. Component tests prove
+the onboarding states, invitation surface, identical paired summary, partner and coordinator
+seeing the same settlement, coordinator-only close in the UI, real stale recovery, automatic
+checks that never write, and the WEB-020 occupied evidence. The local database migration was
+verified by row counts before and after.
+
+**Owner acceptance next.** Run HC-01 through HC-10 with two Development accounts and, where
+practical, a third. If the local July 2026 month shows **Recovery required**, the person who
+held its old slot is not the coordinator; the coordinator can cancel that empty month from
+Rules & Files, or the owner may separately decide to delete the ignored local database.
+
+**Owner review, 2026-09-12.** The owner checked this batch against the original planning
+analysis that identified the collaboration gap, point by point, and confirmed the
+implementation matches it: stable pairing instead of first-submit slots, a privacy-safe
+identical summary for both participants, an explicit invite/join handover, server-bound
+attribution that a browser value cannot forge, coordinator-only close, and non-sticky stale
+recovery with the concrete root cause fixed. Three smaller findings from that check:
+
+1. **Fixed:** the Review screen greeted the person using the locally typed Setup names even
+   after pairing existed, while every other screen had already switched to the server-bound
+   alias. `src/identity.ts` now holds the one alias-selection rule and both `Workspace.tsx`
+   (masthead) and `ReviewScreen.tsx` (subtitle) call it, so a typed Setup name can no longer
+   surface once the household is paired. Covered by `src/identity.test.ts` and two new
+   `src/PairedWorkspace.test.tsx` cases, one of which renames a Setup field mid-test and
+   asserts the old name never appears.
+2. **Accepted, documented above:** the pairing screen's freshness is manual/on-load only,
+   not polled — see the *Freshness is scoped to the monthly workflow* bullet.
+3. **Not a gap:** the change notice on a replace or withdraw names who changed what and the
+   version, without restating the old and new settlement dollar amount in that sentence; the
+   updated amount is already visible on screen. Left as is.
+
+### Batch 7a — Cloudflare account and fictional staging (proposed; blocked until WEB-019 owner acceptance passes)
 
 Learning objective: introduce a hosted environment without exposing real financial data.
 
@@ -1044,25 +1183,36 @@ its security and maintenance costs.
 ### Copy-paste handover for the next implementation session
 
 ```text
-Read AGENTS.md, then CLAUDE.md, then docs/WEBAPP.md and
-docs/WEBAPP-BACKLOG.md in full. Read docs/WEBAPP-HUMAN-TESTING.md because it is the
-owner-acceptance contract. Preserve the entire working tree, including uncommitted
-Batches 4c–6c and the untracked "Claude artifacts/" directory. Do not commit, push,
-deploy, delete data, create/change Clerk or Cloudflare resources, or use real financial
-data without separate explicit permission.
+Start the local implementation of WEB-019, the approved two-person collaboration redesign.
 
-We are on experiment/web-service. Batches 4c through 6d are implemented, uncommitted,
-and locally verified. Owner acceptance WEB-010, WEB-012, WEB-013, and the same-household
-invitation evidence in WEB-005 remain open. Local production hardening is complete; Batch 7
-requires separate permission because it creates external Cloudflare/Clerk resources.
+Objective: replace the organization-only, first-submit-slot workflow with two stable,
+server-authorized roles (coordinator and partner), then build the explicit monthly handover.
+The private ledger must remain in each person's browser. Only the coordinator closes.
 
-Start read-only. Confirm branch/status and that webapp/.env.local exists without reading
-it. Inspect only files needed for Batch 6d. Run node test/run-tests.js, then present one
-exact file-by-file plan with benefit, cost, risk, and tradeoff and wait for the mandatory
-approval. After approval, implement autonomously and run the complete required gates.
-Cloudflare is currently local tooling only: no Cloudflare account, hosted Worker, hosted
-D1 database, domain, or deployment exists. Do not begin Batch 7a unless I explicitly
-authorize those external account/resource changes.
+Read AGENTS.md and CLAUDE.md first. Then read only these canonical sections:
+- PRODUCT.md → “Approved web-service collaboration direction”
+- docs/WEBAPP.md → current status and “Approved collaboration model and implementation contract”
+- docs/WEBAPP-BACKLOG.md → WEB-019
+- docs/WEBAPP-HUMAN-TESTING.md → recorded evidence and HC-01 through HC-10
+
+Starting plan:
+1. Inspect the working tree and preserve all existing/uncommitted owner work.
+2. Run the legacy test and webapp check before editing.
+3. Inspect the current auth, workflow, D1 schema, API, UI, and related tests.
+4. Give me a brief exact file plan, important tradeoffs, and migration/compatibility risk.
+5. Then begin the first coherent slice: pairing domain + new ordered migration +
+   paired-participant authorization + tests. Continue into the next slice only if the
+   boundary remains clear and the complete gate stays green.
+
+Treat the full WEB-019 contract as approved scope. Ask only if implementation reveals a
+consequential product choice not settled there. Do not reduce this to an invitation-only
+change: organization membership is the tenant boundary, not financial authorization;
+roles are stable across months; third members see no financial workflow; browser owner text
+is not authoritative; and unsafe legacy or replacement cases fail closed.
+
+Do not edit applied migrations, delete local data, read or expose .env.local contents,
+commit, push, deploy, send invitations, or change Clerk/Cloudflare resources. No hosted
+Cloudflare resource exists and Batch 7 remains paused. Use fictional data only.
 ```
 
 ## Files and commands introduced in Batch 1
@@ -1172,9 +1322,12 @@ surface area.
   learns the development sign-up URL could create an account there. This is acceptable
   only while the instance holds no real data, and must be closed before a production
   pilot. Do not reuse the Development instance for real financial data.
-- Organization-as-household is implemented but still unproven until two real accounts sign
-  in to the same organization. The server-side boundary is tested; the Clerk membership and
-  invitation flow is not yet exercised.
+- Organization id remains the tenant boundary, and since Batch 6e the server additionally
+  requires one of the two paired participants on every financial route. This retires the
+  code-level risk; the product-level risk stays open until the replacement two-account
+  acceptance (HC-01 through HC-10) passes.
+- Partner replacement, coordinator transfer, and lost-coordinator recovery have no approved
+  design and fail closed. A household in that situation needs support, not the product.
 - The household tests run against SQLite and the local development path uses workerd/local
   D1. Hosted replication behavior remains a fictional-staging check, not a local code gap.
 - Browser-only private processing becomes harder as the React migration grows; parity and
@@ -1194,3 +1347,318 @@ surface area.
   independently rechecks administrator authorization on every request.
 - Production should remain an experiment until a parallel pilot demonstrates a concrete
   benefit over v1.
+
+## Approved collaboration model and implementation contract — 2026-09-12
+
+> Status: implemented locally on 2026-09-12 as Batch 6e; see that section for the decisions
+> taken where this contract left a choice open, and for the evidence. The text below remains
+> the approved contract the implementation is judged against.
+
+### Why the existing model is not sufficient
+
+The current code correctly verifies a Clerk user and derives the active organization from
+the verified token. It also orients a workflow response by comparing the reader's user id
+with each submission's creator. Those are useful security properties and must remain.
+
+They do not yet produce a complete two-person product:
+
+- any organization member can currently read the household workflow;
+- the first two members to submit a particular month acquire `a` and `b` slots, so timing
+  assigns financial identity and the roles can differ across months;
+- the archive labels people using the projection's locally typed `owner`, which is not
+  authoritative identity;
+- `Household authorized` proves only an active organization, not that the intended partner
+  joined or that the household has exactly two paired financial participants;
+- two organizations can have confusingly similar display names while remaining isolated;
+- partner progress appears only after a status fetch, with no visible presence, handover,
+  polling, or clearly named manual update action;
+- either participant can currently close even though the product definition makes one
+  settler operationally authoritative; and
+- stale recovery protects versions but does not explain the collaboration event or make
+  the recovery result obvious enough to a nontechnical user.
+
+The owner observed these gaps in the 2026-09-11 human run: two signed-in browsers looked
+independent, the shared workflow could not be completed, and a sequential withdraw/resubmit
+attempt surfaced a sticky `Stale — refresh required` state. This invalidates the old
+assumption that organization membership plus two first-submit slots is a sufficient MVP.
+
+### Authoritative concepts
+
+The implementation must keep these layers separate:
+
+| Concept | Authority | Purpose | Must not be used as |
+|---|---|---|---|
+| Account | verified Clerk user id | identify the signed-in person | a display label or household by itself |
+| Tenant/security scope | verified active Clerk organization id | isolate one household's server records | proof that a member is one of the two financial participants |
+| Organization role | verified Clerk organization role | permit organization administration | the monthly settler role by inference |
+| Split Ledger participant | D1 row bound to organization id + Clerk user id | identify one of exactly two financial participants | a role assigned by submission timing |
+| Shared alias | server-stored label bound to a participant | privacy-safe human identification | an email address or client-authoritative identity |
+| Period submission | server record bound to the verified participant | hand over one current privacy-filtered projection | a private draft or an identity claim |
+
+The active organization remains the tenant key, but paired-participant authorization is an
+additional server check on every financial workflow read and write. Clerk documents the
+active organization as session context; Split Ledger remains responsible for its narrower
+two-person business rule.
+
+### Stable household pairing
+
+1. An uninitialized organization may be initialized only by a verified organization
+   administrator. That account becomes the stable Split Ledger `coordinator`.
+2. The coordinator supplies their own privacy-safe shared alias and invites exactly one
+   partner through an in-product Clerk organization invitation path.
+3. The invitation carries membership, not financial authority. After accepting and making
+   that exact organization active, the invited account sees the coordinator alias,
+   household name, privacy explanation, and vacant partner role.
+4. The invited account explicitly confirms **Join as partner** and supplies their own
+   privacy-safe alias. The Worker atomically binds that verified user id to the stable
+   `partner` role if it is still vacant.
+5. Both accounts then see the same server-derived household summary: household display
+   name, coordinator alias, partner alias, roles, and `2 of 2 connected`.
+6. An organization member who is not one of those two participants receives no financial
+   workflow rows and cannot claim a role once pairing is full. Admin status alone does not
+   bypass this financial boundary.
+7. Duplicate organization names are harmless because the verified organization id remains
+   the server scope. The UI should show enough privacy-safe pairing information that users
+   can recognize the selected household without displaying its internal id.
+8. Participant roles persist across every month. A new month never reallocates identity by
+   arrival or submission order.
+
+The initial implementation must not silently support partner replacement, coordinator
+transfer, or lost-account recovery. Those operations can expose existing financial history
+to a new identity and require their own approved recovery design. Until then, fail closed
+with plain support guidance.
+
+### Server-owned identity and attribution
+
+- The browser continues to build a strict privacy-filtered projection, but it does not
+  decide who submitted it. Every write is bound to the verified paired participant.
+- The server uses the paired aliases and stable roles for status, settlement, and archive
+  attribution. It must ignore, overwrite, or remove the legacy client `owner` value at the
+  trust boundary; it must never use that value as identity.
+- Decide during implementation whether portable `split-ledger/v1` compatibility is best
+  preserved by server-overwriting `owner` or by introducing an internal submission shape.
+  Either path must retain strict allowlisting and tests. Do not change a persisted format
+  casually or without updating `docs/DATA-FORMATS.md` and compatibility coverage.
+- Shared aliases are deliberately shared household data. Emails, Clerk ids, token claims,
+  and internal organization ids remain absent from projections and archives.
+
+### Explicit onboarding and handover journey
+
+#### Coordinator onboarding
+
+1. Sign in and select or create the intended Clerk organization.
+2. The app says that Split Ledger is not initialized for this organization.
+3. Choose **Set up this household**, enter a privacy-safe household name and own alias, and
+   confirm the coordinator responsibility.
+4. The Worker atomically creates the household pairing and binds the caller as coordinator.
+5. The app shows **1 of 2 connected — waiting for partner** and an **Invite partner** action.
+6. Invite one controlled address through Clerk. Show pending/accepted state without storing
+   the email in Split Ledger workflow tables or logs.
+
+#### Partner onboarding
+
+1. Open the Clerk invitation using the invited account and accept it.
+2. Land in Split Ledger with the invited organization active, or select it explicitly.
+3. See which privacy-safe household/coordinator is offering the pairing and what data will
+   and will not be shared.
+4. Choose **Join as partner** and set the partner alias.
+5. The Worker atomically claims the vacant role or safely reports that it is no longer
+   available.
+6. Both participants see the same `2 of 2 connected` confirmation.
+
+#### Monthly private preparation
+
+1. Each participant selects the same calendar month.
+2. Import, Amazon evidence, rules, corrections, and unfinished decisions stay in that
+   participant's account+organization-scoped browser draft.
+3. Each participant completes Review and inspects the exact shared-data preview.
+4. The UI names the participant using the server-bound alias; locally editable names are
+   presentation preferences only and cannot change shared attribution.
+
+#### Submission as handover
+
+1. **Submit shared projection** creates or replaces only the caller's current projection.
+2. The submitter sees their version and time, plus **Waiting for [partner alias]**.
+3. The other participant sees **[alias] submitted [month]** and **Your submission is
+   needed** after the next automatic or manual status check.
+4. Share / Status and Settle check for changes on entry, after every mutation, on window
+   focus, and at a modest interval while visible. The recommended starting interval is
+   20 seconds; pause it when the document is hidden and avoid overlapping requests.
+5. Provide **Check latest status** with last-checked time. Browser reload is never the
+   primary collaboration instruction.
+6. Do not add email/SMS reminders or analytics in this batch. The invitation email is the
+   only required outbound communication.
+
+#### Both-ready review and close
+
+1. Once both current projections exist, both accounts show **Both submissions ready**,
+   participant aliases, versions, submission times, and the same deterministic settlement.
+2. Either participant may inspect both privacy-filtered sides. Neither may inspect the
+   other's private ledger or evidence.
+3. If one participant replaces or withdraws, both-ready is revoked. The other screen shows
+   who changed what workflow state and requires a fresh review of the settlement.
+4. Only the stable coordinator sees an enabled **Close month and archive** action. The
+   partner sees who must close and may continue to replace or withdraw until close begins.
+5. The coordinator acknowledges the private count/net check. The Worker rechecks role,
+   both current submissions, expected version, and open status, then creates one immutable
+   archive from server-held projections and server-bound aliases.
+6. Both accounts subsequently see the same closed result, who closed it, and when. Closing
+   does not transfer money.
+
+### Collaboration state model
+
+The UI combines private local state with authoritative shared state but must label the
+boundary. The shared state machine is:
+
+```text
+household-uninitialized
+  -> coordinator-only / invitation pending
+  -> paired (2 of 2 connected)
+
+paired month
+  -> neither submitted
+  -> coordinator submitted / waiting for partner
+  -> partner submitted / waiting for coordinator
+  -> both ready
+  -> one replaced (new version, both ready only if both current submissions remain)
+  -> one withdrawn (waiting for that participant)
+  -> closing (short-lived server action)
+  -> closed (immutable)
+```
+
+`stale` is a recoverable client condition, not a durable business state. A stale response
+means the submitted expected version is older than the server version. Recovery must:
+
+1. state that shared status changed after the screen loaded;
+2. affirm that the browser-only private draft is safe;
+3. load or use the authoritative workflow returned by the server;
+4. identify the workflow change when possible (partner submitted/replaced/withdrew or
+   another tab changed the caller's submission);
+5. return the page to its normal current state; and
+6. require an explicit retry for the rejected mutation—never silently replay a financial
+   workflow command against a newer version.
+
+A single tab performing successful sequential actions must update its local version after
+each response and must not become stale without an actual intervening server change.
+
+### Data and migration requirements
+
+- Add a new ordered migration; do not edit an applied migration. The expected design is a
+  household/pairing record plus exactly two participant rows with stable roles, aliases,
+  timestamps, and uniqueness constraints on organization+user and organization+role.
+- Continue using verified organization id as every table's tenant key. Every financial
+  workflow query must also authorize the verified user against the paired participant
+  table before returning any shared financial data.
+- Existing per-period participant slots may remain as immutable historical attribution,
+  but new periods derive their slots from stable household roles. Prefer a deliberate
+  coordinator=`a`, partner=`b` mapping for archive compatibility.
+- Never delete or reinterpret existing local records silently. If legacy open periods
+  cannot be mapped unambiguously to a new pairing, show a recovery-required state. Any
+  cleanup of fictional local D1 requires separate destructive approval.
+- Append-only events should carry stable actor role internally so the API can explain the
+  latest workflow change without exposing Clerk ids.
+- Pairing/invitation responses contain only privacy-safe aliases, roles, invitation state,
+  and timestamps. They contain no email address once the Clerk invitation action is done.
+
+### API and authorization requirements
+
+Exact endpoints may change after implementation inspection, but the vocabulary must cover:
+
+- read/initialize household pairing;
+- create or surface the Clerk invitation flow;
+- confirm the vacant partner role;
+- read the privacy-safe participant summary;
+- read current period status including actor aliases, roles, versions, timestamps, and the
+  latest non-financial handover event;
+- submit/replace/withdraw only the caller's projection;
+- close only as coordinator; and
+- preserve existing role-aware archive export/recovery subject to the paired-participant
+  boundary.
+
+Every route authenticates first, derives organization and organization role from the
+verified token, then checks Split Ledger participant authorization. The browser never sends
+a household id or chooses its participant role. Request bodies reject unknown/private
+fields. Conflict responses include a strictly validated authoritative current workflow
+when safe so recovery does not require a blind second request.
+
+Use current official Clerk documentation during implementation rather than relying on this
+plan for SDK syntax:
+
+- [React Organizations setup](https://clerk.com/docs/react/guides/organizations/getting-started)
+- [OrganizationSwitcher and active organization](https://clerk.com/docs/react/reference/components/organization/organization-switcher)
+- [Organization invitations](https://clerk.com/docs/guides/development/custom-flows/organizations/manage-organization-invitations)
+- [Session and active-organization claims](https://clerk.com/docs/guides/sessions/session-tokens)
+- [React active-organization membership data](https://clerk.com/docs/react/reference/hooks/use-organization)
+
+Recheck these sources at implementation time because Clerk APIs and component behavior are
+version-sensitive. Do not change the Clerk Development instance or send a real invitation
+without the owner's separate authorization for that external action.
+
+### Required implementation slices
+
+Implement WEB-019 as reviewable vertical slices, keeping all old gates green after each:
+
+1. **Pairing domain and migration:** types, schema, database helpers, stable-role
+   authorization, legacy behavior, and Worker/SQLite tests.
+2. **Pairing API and onboarding UI:** coordinator initialization, invitation surface,
+   partner confirmation, household summary, full/third-member states, and privacy tests.
+3. **Server attribution and workflow authorization:** remove first-submit identity,
+   authorize every read/write to paired participants, bind aliases on the server, and
+   enforce coordinator-only close.
+4. **Handover and freshness UX:** actor-aware statuses, automatic/manual checks,
+   last-checked time, change explanation, and non-sticky stale recovery.
+5. **Regression fixes and acceptance reset:** WEB-020 Amazon conflict clarity, WEB-021
+   fictional-month restart if separately retained in scope, updated documentation, and the
+   replacement owner checklist.
+
+Do not combine external staging/account changes with these local product slices.
+
+Expected file impact for the implementation plan:
+
+| Area | Expected files | Responsibility |
+|---|---|---|
+| Schema | new `webapp/migrations/0005_*.sql` | stable household pairing, roles, aliases, constraints, and safe legacy state |
+| Shared contracts | `webapp/shared/workflow.ts`, `webapp/shared/api.ts`, possibly a focused new `webapp/shared/pairing.ts`, plus their tests | validated pairing/status/event types, server-bound attribution, strict response guards |
+| Worker data/authorization | `webapp/worker/db.ts`, `webapp/worker/workflow.ts`, `webapp/worker/index.ts`, `webapp/worker/auth.ts` only if verified claims need extension | paired-participant checks on every financial route, atomic role claims, coordinator-only close, actor-aware conflict responses |
+| Worker verification | `webapp/worker/household.test.ts`, `webapp/worker/workflow.test.ts`, `webapp/worker/index.test.ts`, SQLite test setup | races, migrations, role stability, third-member denial, attribution, privacy, rollback, legacy refusal |
+| Browser API | `webapp/src/api.ts`, `webapp/src/workflow/ApiWorkflowGateway.ts` and tests | pairing/invitation/status vocabulary, authoritative conflict parsing, no private fields |
+| Onboarding UI | `webapp/src/App.tsx`, `webapp/src/SetupScreen.tsx`, and preferably one focused new household/pairing component | initialize, invite, join confirmation, aliases, roles, readiness, full/unpaired states |
+| Monthly orchestration | `webapp/src/Workspace.tsx` | entry/focus/interval/manual refresh, no overlapping reads, actor-aware state, current-version discipline |
+| Handover/close UI | `webapp/src/ShareStatusScreen.tsx`, `webapp/src/SettleScreen.tsx`, styles and component tests | next action, aliases, versions/times, last checked, change explanation, coordinator-only close |
+| Related owner defects | `webapp/src/AmazonEvidence.tsx`, `webapp/src/usePrivateWorkspace.ts`, relevant pure/component tests | WEB-020 occupied recommendation and, if approved in the batch, WEB-021 safe fictional restart |
+| Documentation | `PRODUCT.md`, `docs/WEBAPP.md`, `docs/WEBAPP-BACKLOG.md`, `docs/WEBAPP-HUMAN-TESTING.md`, `docs/TESTING.md`, `docs/DATA-FORMATS.md` only if a format changes, checklist HTML | final behavior, evidence, exact owner steps, traceability, continuation handover |
+
+This is a planning map, not permission to touch every file. The implementation session
+must inspect the current interfaces, minimize the actual file set, name the migration from
+its final schema, and present the exact batch diff plan before code edits.
+
+### Verification and acceptance contract
+
+Automated coverage must prove at least:
+
+- only an organization admin initializes; concurrent initialization is atomic;
+- the coordinator cannot occupy both roles and partner claim is atomic;
+- the same alias or duplicate organization display name cannot confuse identity;
+- stable roles remain the same across months regardless of submission order;
+- an unpaired or third organization member cannot read, submit, export, restore, delete, or
+  close financial workflow data;
+- each paired participant sees their own submission as `mine` and the other as partner;
+- client `owner` cannot forge archive attribution;
+- submission/replacement/withdrawal handover events identify the correct safe alias;
+- polling/focus/manual checking updates status without clearing private drafts or issuing
+  duplicate writes;
+- stale conflicts load authoritative state, explain the change, and require explicit retry;
+- sequential same-tab mutations do not create false stale state;
+- only coordinator closes and both participants read the same immutable archive;
+- all strict projection, cent arithmetic, privacy, transaction rollback, idempotency,
+  archive export/restore, telemetry-off, narrow layout, and legacy v1 parity tests remain;
+  and
+- migration tests cover empty, paired, full, legacy-open, and legacy-closed households.
+
+Human acceptance replaces the old H6 assumptions and must use two real Development
+accounts plus a third unpaired member or separate household where practical. It must prove
+the invitation/join language, identical pairing summary, visible handover in both
+directions, status freshness, replace/withdraw effects, stale recovery, third-member
+refusal, coordinator-only close, identical archive, browser restart, and privacy boundaries.
+The executable guide remains `docs/WEBAPP-HUMAN-TESTING.md`; its old H6 scenarios are paused
+until implementation.

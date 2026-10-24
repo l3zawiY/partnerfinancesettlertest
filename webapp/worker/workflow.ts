@@ -1,6 +1,8 @@
 import { buildHouseholdArchiveBundle, buildMonthArchive, isMonthArchive, type HouseholdArchiveBundle, type SharedExport } from '../shared/formats'
-import { emptyWorkflow, isStrictSharedProjection, type PeriodWorkflow, type WorkflowSubmission } from '../shared/workflow'
+import type { ParticipantRole } from '../shared/pairing'
+import { emptyWorkflow, isStrictSharedProjection, type PeriodWorkflow, type WorkflowAction, type WorkflowEvent, type WorkflowSubmission } from '../shared/workflow'
 import type { SqlDatabase, SqlRunResult } from './db'
+import type { VerifiedParticipant } from './pairing'
 
 export class WorkflowConflictError extends Error {
   constructor(message: string, readonly workflow?: PeriodWorkflow) { super(message); this.name = 'WorkflowConflictError' }
@@ -8,8 +10,19 @@ export class WorkflowConflictError extends Error {
 export class WorkflowForbiddenError extends Error {}
 export class WorkflowValidationError extends Error {}
 
+/**
+ * Who is acting, as the server established it from the verified session plus the paired
+ * participant table. Every workflow function takes this instead of a bare user id so no
+ * code path can act for an unpaired account. `partner` is null while the pairing is
+ * still coordinator-only.
+ */
+export interface WorkflowActor { me: VerifiedParticipant; partner: VerifiedParticipant | null }
+
 interface PeriodRow { version: number; status: 'open' | 'closed'; closed_at: string | null; archive_json: string | null }
 interface SubmissionRow { submitted_by: string; slot: 'a' | 'b'; projection_json: string; submission_version: number; submitted_at: string }
+interface EventRow { version: number; action: WorkflowAction; actor_id: string; actor_role: ParticipantRole | null; created_at: string }
+
+const RECOVERY_REASON = 'This month holds submissions or participant slots recorded before the household was paired, and they cannot be matched to the current coordinator and partner safely. Nothing was changed or deleted. If the month has no submissions, a household administrator can cancel the abandoned month from Rules & Files; otherwise contact support before continuing.'
 
 function changed(result: SqlRunResult): number { return result.changes ?? result.meta?.changes ?? 0 }
 function parseProjection(text: string): SharedExport {
@@ -36,16 +49,51 @@ async function lastOwnAction(database: SqlDatabase, householdId: string, period:
   return row?.action ?? null
 }
 
+function roleOf(actor: WorkflowActor, userId: string, recorded: ParticipantRole | null): ParticipantRole | null {
+  if (recorded) return recorded
+  if (userId === actor.me.userId) return actor.me.role
+  if (actor.partner && userId === actor.partner.userId) return actor.partner.role
+  return null
+}
+
+async function latestEvent(database: SqlDatabase, householdId: string, period: string, actor: WorkflowActor): Promise<WorkflowEvent | null> {
+  const row = await database.prepare('SELECT version, action, actor_id, actor_role, created_at FROM workflow_events WHERE household_id = ? AND period = ? ORDER BY version DESC LIMIT 1').bind(householdId, period).first<EventRow>()
+  return row ? { version: row.version, action: row.action, actorRole: roleOf(actor, row.actor_id, row.actor_role), at: row.created_at } : null
+}
+
+async function closeEvent(database: SqlDatabase, householdId: string, period: string, actor: WorkflowActor): Promise<ParticipantRole | null> {
+  const row = await database.prepare('SELECT version, action, actor_id, actor_role, created_at FROM workflow_events WHERE household_id = ? AND period = ? AND action = \'close\' ORDER BY version DESC LIMIT 1').bind(householdId, period).first<EventRow>()
+  return row ? roleOf(actor, row.actor_id, row.actor_role) : null
+}
+
+/**
+ * True when an open month carries a participant slot that does not belong to a current
+ * participant in that participant's own stable slot. Closed months are immutable history.
+ */
+async function needsRecovery(database: SqlDatabase, householdId: string, period: string, actor: WorkflowActor): Promise<boolean> {
+  const { results } = await database.prepare('SELECT user_id, slot FROM workflow_participants WHERE household_id = ? AND period = ?').bind(householdId, period).all<{ user_id: string; slot: 'a' | 'b' }>()
+  const expected = new Map<string, 'a' | 'b'>([[actor.me.userId, actor.me.slot]])
+  if (actor.partner) expected.set(actor.partner.userId, actor.partner.slot)
+  return results.some(function (row) { return expected.get(row.user_id) !== row.slot })
+}
+
 function submission(row: SubmissionRow): WorkflowSubmission {
   return { projection: parseProjection(row.projection_json), version: row.submission_version, submittedAt: row.submitted_at }
 }
 
-export async function readWorkflow(database: SqlDatabase, householdId: string, userId: string, period: string): Promise<PeriodWorkflow> {
+function participants(actor: WorkflowActor): PeriodWorkflow['participants'] {
+  return { me: { role: actor.me.role, alias: actor.me.alias }, partner: actor.partner ? { role: actor.partner.role, alias: actor.partner.alias } : null }
+}
+
+export async function readWorkflow(database: SqlDatabase, householdId: string, actor: WorkflowActor, period: string): Promise<PeriodWorkflow> {
   const row = await periodRow(database, householdId, period)
-  if (!row) return emptyWorkflow(period)
+  if (!row) return { ...emptyWorkflow(period), participants: participants(actor), lastEvent: null }
+  if (row.status === 'open' && await needsRecovery(database, householdId, period, actor)) {
+    return { period, status: 'recovery-required', version: row.version, mine: null, partner: null, participants: participants(actor), lastEvent: null, recoveryReason: RECOVERY_REASON }
+  }
   const rows = await submissionRows(database, householdId, period)
-  const mineRow = rows.find(function (item) { return item.submitted_by === userId })
-  const partnerRow = rows.find(function (item) { return item.submitted_by !== userId })
+  const mineRow = rows.find(function (item) { return item.submitted_by === actor.me.userId })
+  const partnerRow = rows.find(function (item) { return item.submitted_by !== actor.me.userId })
   let archive
   if (row.archive_json) {
     const candidate: unknown = JSON.parse(row.archive_json)
@@ -54,10 +102,13 @@ export async function readWorkflow(database: SqlDatabase, householdId: string, u
   }
   const mine = mineRow ? submission(mineRow) : null
   const partner = partnerRow ? submission(partnerRow) : null
-  if (row.status === 'closed') return { period, status: 'closed', version: row.version, mine, partner, archive }
-  const action = await lastOwnAction(database, householdId, period, userId)
+  const lastEvent = await latestEvent(database, householdId, period, actor)
+  if (row.status === 'closed') {
+    return { period, status: 'closed', version: row.version, mine, partner, archive, participants: participants(actor), lastEvent, closedBy: await closeEvent(database, householdId, period, actor), closedAt: row.closed_at ?? undefined }
+  }
+  const action = await lastOwnAction(database, householdId, period, actor.me.userId)
   const status = mine && partner ? 'partner-ready' : mine ? action === 'replace' ? 'replaced' : 'submitted' : action === 'withdraw' ? 'withdrawn' : 'draft'
-  return { period, status, version: row.version, mine, partner }
+  return { period, status, version: row.version, mine, partner, participants: participants(actor), lastEvent }
 }
 
 async function ensurePeriod(database: SqlDatabase, householdId: string, period: string, now: string): Promise<void> {
@@ -73,113 +124,122 @@ async function cachedCommand(database: SqlDatabase, householdId: string, userId:
   return JSON.parse(row.response_json) as PeriodWorkflow
 }
 
-async function participantSlot(database: SqlDatabase, householdId: string, period: string, userId: string): Promise<'a' | 'b' | null> {
-  const existing = await database.prepare('SELECT slot FROM workflow_participants WHERE household_id = ? AND period = ? AND user_id = ?').bind(householdId, period, userId).first<{ slot: string }>()
-  if (existing) return existing.slot as 'a' | 'b'
-  const { results } = await database.prepare('SELECT slot FROM workflow_participants WHERE household_id = ? AND period = ? ORDER BY slot').bind(householdId, period).all<{ slot: string }>()
-  if (results.length >= 2) throw new WorkflowForbiddenError('This period already has two participants.')
-  return results.some(function (item) { return item.slot === 'a' }) ? 'b' : 'a'
+function eventStatement(database: SqlDatabase, id: string, householdId: string, period: string, version: number, actor: VerifiedParticipant, action: WorkflowAction, now: string) {
+  return database.prepare('INSERT INTO workflow_events (id, household_id, period, version, actor_id, actor_role, action, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id, householdId, period, version, actor.userId, actor.role, action, now)
 }
 
-async function advanceVersion(database: SqlDatabase, householdId: string, period: string, expected: number, now: string, closeArchive?: string): Promise<number> {
-  const sql = closeArchive === undefined
-    ? 'UPDATE workflow_periods SET version = version + 1, updated_at = ? WHERE household_id = ? AND period = ? AND version = ? AND status = \'open\''
-    : 'UPDATE workflow_periods SET version = version + 1, status = \'closed\', closed_at = ?, archive_json = ?, updated_at = ? WHERE household_id = ? AND period = ? AND version = ? AND status = \'open\''
-  const statement = closeArchive === undefined
-    ? database.prepare(sql).bind(now, householdId, period, expected)
-    : database.prepare(sql).bind(now, closeArchive, now, householdId, period, expected)
-  const result = await statement.run()
-  if (!changed(result)) throw new WorkflowConflictError('The workflow changed after this screen loaded.')
-  return expected + 1
+function commandStatement(database: SqlDatabase, householdId: string, requestId: string, actor: VerifiedParticipant, type: string, body: string, workflow: PeriodWorkflow, now: string, period: string) {
+  return database.prepare('INSERT INTO workflow_commands (household_id, request_id, actor_id, command_type, request_json, response_json, created_at, period) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(householdId, requestId, actor.userId, type, body, JSON.stringify(workflow), now, period)
 }
 
-async function addEvent(database: SqlDatabase, householdId: string, period: string, version: number, userId: string, action: string, now: string, id: string): Promise<void> {
-  await database.prepare('INSERT INTO workflow_events (id, household_id, period, version, actor_id, action, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(id, householdId, period, version, userId, action, now).run()
+function advance(database: SqlDatabase, householdId: string, period: string, expected: number, now: string) {
+  return database.prepare('UPDATE workflow_periods SET version = version + 1, updated_at = ? WHERE household_id = ? AND period = ? AND version = ? AND status = \'open\'').bind(now, householdId, period, expected)
 }
 
 export async function submitWorkflow(input: {
-  database: SqlDatabase; householdId: string; userId: string; projection: SharedExport; expectedVersion: number | null; requestId: string; replace: boolean; now: string; eventId: string
+  database: SqlDatabase; householdId: string; actor: WorkflowActor; projection: SharedExport; expectedVersion: number | null; requestId: string; replace: boolean; now: string; eventId: string
 }): Promise<PeriodWorkflow> {
-  const body = JSON.stringify({ period: input.projection.period, expectedVersion: input.expectedVersion, projection: input.projection })
-  const type = input.replace ? 'replace' : 'submit'
-  const cached = await cachedCommand(input.database, input.householdId, input.userId, input.requestId, type, body)
+  const { database, householdId, actor } = input
+  const period = input.projection.period
+  // The browser's `owner` text is not identity. The server rebinds attribution to the
+  // verified participant's alias at this trust boundary, and everything stored or
+  // archived from here on carries that alias.
+  const projection: SharedExport = { ...input.projection, owner: actor.me.alias }
+  const body = JSON.stringify({ period, expectedVersion: input.expectedVersion, projection: input.projection })
+  const type: WorkflowAction = input.replace ? 'replace' : 'submit'
+  const cached = await cachedCommand(database, householdId, actor.me.userId, input.requestId, type, body)
   if (cached) return cached
-  await ensurePeriod(input.database, input.householdId, input.projection.period, input.now)
-  const current = await readWorkflow(input.database, input.householdId, input.userId, input.projection.period)
+  await ensurePeriod(database, householdId, period, input.now)
+  const current = await readWorkflow(database, householdId, actor, period)
   if (current.status === 'closed') throw new WorkflowConflictError('A closed month is locked.', current)
+  if (current.status === 'recovery-required') throw new WorkflowConflictError('This month needs recovery before a submission can be accepted.', current)
   if (input.replace && !current.mine) throw new WorkflowConflictError('There is no current submission to replace.', current)
   if (!input.replace && current.mine) {
-    if (JSON.stringify(current.mine.projection) === JSON.stringify(input.projection)) return current
+    if (JSON.stringify(current.mine.projection) === JSON.stringify(projection)) return current
     throw new WorkflowConflictError('A submission already exists. Replace it instead.', current)
   }
   if (input.expectedVersion !== null && input.expectedVersion !== current.version) throw new WorkflowConflictError('The workflow changed after this screen loaded.', current)
-  if (current.mine && JSON.stringify(current.mine.projection) === JSON.stringify(input.projection)) return current
-  const slot = await participantSlot(input.database, input.householdId, input.projection.period, input.userId)
+  if (current.mine && JSON.stringify(current.mine.projection) === JSON.stringify(projection)) return current
   const version = current.version + 1
   const workflow: PeriodWorkflow = {
-    period: current.period,
+    period,
     status: current.partner ? 'partner-ready' : input.replace ? 'replaced' : 'submitted',
     version,
-    mine: { projection: input.projection, version, submittedAt: input.now },
+    mine: { projection, version, submittedAt: input.now },
     partner: current.partner,
+    participants: participants(actor),
+    lastEvent: { version, action: type, actorRole: actor.me.role, at: input.now },
   }
-  const statements = []
-  if (!current.mine) statements.push(input.database.prepare('INSERT INTO workflow_participants (household_id, period, user_id, slot, joined_at) VALUES (?, ?, ?, ?, ?)').bind(input.householdId, input.projection.period, input.userId, slot, input.now))
-  statements.push(input.database.prepare('UPDATE workflow_periods SET version = version + 1, updated_at = ? WHERE household_id = ? AND period = ? AND version = ? AND status = \'open\'').bind(input.now, input.householdId, input.projection.period, current.version))
-  statements.push(input.database.prepare(
-    'INSERT INTO workflow_submissions (household_id, period, submitted_by, projection_json, submission_version, submitted_at) VALUES (?, ?, ?, ?, ?, ?) ' +
-    'ON CONFLICT (household_id, period, submitted_by) DO UPDATE SET projection_json = excluded.projection_json, submission_version = excluded.submission_version, submitted_at = excluded.submitted_at',
-  ).bind(input.householdId, input.projection.period, input.userId, JSON.stringify(input.projection), version, input.now))
-  statements.push(input.database.prepare('INSERT INTO workflow_events (id, household_id, period, version, actor_id, action, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(input.eventId, input.householdId, input.projection.period, version, input.userId, type, input.now))
-  statements.push(input.database.prepare('INSERT INTO workflow_commands (household_id, request_id, actor_id, command_type, request_json, response_json, created_at, period) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(input.householdId, input.requestId, input.userId, type, body, JSON.stringify(workflow), input.now, input.projection.period))
-  try { await input.database.batch(statements) }
-  catch { throw new WorkflowConflictError('The workflow changed or storage interrupted the operation. Refresh and retry safely.', await readWorkflow(input.database, input.householdId, input.userId, input.projection.period)) }
+  // The slot comes from the stable role, never from arrival order. A row left behind by an
+  // earlier withdrawal is simply kept, which is what makes withdraw-then-resubmit in one
+  // tab an ordinary sequence rather than a false conflict.
+  const statements = [
+    database.prepare('INSERT INTO workflow_participants (household_id, period, user_id, slot, joined_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (household_id, period, user_id) DO NOTHING').bind(householdId, period, actor.me.userId, actor.me.slot, input.now),
+    advance(database, householdId, period, current.version, input.now),
+    database.prepare(
+      'INSERT INTO workflow_submissions (household_id, period, submitted_by, projection_json, submission_version, submitted_at) VALUES (?, ?, ?, ?, ?, ?) ' +
+      'ON CONFLICT (household_id, period, submitted_by) DO UPDATE SET projection_json = excluded.projection_json, submission_version = excluded.submission_version, submitted_at = excluded.submitted_at',
+    ).bind(householdId, period, actor.me.userId, JSON.stringify(projection), version, input.now),
+    eventStatement(database, input.eventId, householdId, period, version, actor.me, type, input.now),
+    commandStatement(database, householdId, input.requestId, actor.me, type, body, workflow, input.now, period),
+  ]
+  try { await database.batch(statements) }
+  catch { throw new WorkflowConflictError('The workflow changed or storage interrupted the operation. Refresh and retry safely.', await readWorkflow(database, householdId, actor, period)) }
   return workflow
 }
 
-export async function withdrawWorkflow(input: { database: SqlDatabase; householdId: string; userId: string; period: string; expectedVersion: number; requestId: string; now: string; eventId: string }): Promise<PeriodWorkflow> {
-  const body = JSON.stringify({ period: input.period, expectedVersion: input.expectedVersion })
-  const cached = await cachedCommand(input.database, input.householdId, input.userId, input.requestId, 'withdraw', body)
+export async function withdrawWorkflow(input: { database: SqlDatabase; householdId: string; actor: WorkflowActor; period: string; expectedVersion: number; requestId: string; now: string; eventId: string }): Promise<PeriodWorkflow> {
+  const { database, householdId, actor, period } = input
+  const body = JSON.stringify({ period, expectedVersion: input.expectedVersion })
+  const cached = await cachedCommand(database, householdId, actor.me.userId, input.requestId, 'withdraw', body)
   if (cached) return cached
-  const current = await readWorkflow(input.database, input.householdId, input.userId, input.period)
+  const current = await readWorkflow(database, householdId, actor, period)
   if (current.status === 'closed') throw new WorkflowConflictError('A closed month is locked.', current)
+  if (current.status === 'recovery-required') throw new WorkflowConflictError('This month needs recovery before it can change.', current)
   if (!current.mine) return current
   if (current.version !== input.expectedVersion) throw new WorkflowConflictError('Refresh before withdrawing this submission.', current)
   const version = current.version + 1
-  const workflow: PeriodWorkflow = { period: current.period, status: 'withdrawn', version, mine: null, partner: current.partner }
-  try { await input.database.batch([
-    input.database.prepare('UPDATE workflow_periods SET version = version + 1, updated_at = ? WHERE household_id = ? AND period = ? AND version = ? AND status = \'open\'').bind(input.now, input.householdId, input.period, current.version),
-    input.database.prepare('DELETE FROM workflow_submissions WHERE household_id = ? AND period = ? AND submitted_by = ?').bind(input.householdId, input.period, input.userId),
-    input.database.prepare('INSERT INTO workflow_events (id, household_id, period, version, actor_id, action, created_at) VALUES (?, ?, ?, ?, ?, \'withdraw\', ?)').bind(input.eventId, input.householdId, input.period, version, input.userId, input.now),
-    input.database.prepare('INSERT INTO workflow_commands (household_id, request_id, actor_id, command_type, request_json, response_json, created_at, period) VALUES (?, ?, ?, \'withdraw\', ?, ?, ?, ?)').bind(input.householdId, input.requestId, input.userId, body, JSON.stringify(workflow), input.now, input.period),
-  ]) } catch { throw new WorkflowConflictError('The workflow changed or storage interrupted the withdrawal. Refresh and retry safely.', await readWorkflow(input.database, input.householdId, input.userId, input.period)) }
+  const workflow: PeriodWorkflow = { period, status: 'withdrawn', version, mine: null, partner: current.partner, participants: participants(actor), lastEvent: { version, action: 'withdraw', actorRole: actor.me.role, at: input.now } }
+  try { await database.batch([
+    advance(database, householdId, period, current.version, input.now),
+    database.prepare('DELETE FROM workflow_submissions WHERE household_id = ? AND period = ? AND submitted_by = ?').bind(householdId, period, actor.me.userId),
+    eventStatement(database, input.eventId, householdId, period, version, actor.me, 'withdraw', input.now),
+    commandStatement(database, householdId, input.requestId, actor.me, 'withdraw', body, workflow, input.now, period),
+  ]) } catch { throw new WorkflowConflictError('The workflow changed or storage interrupted the withdrawal. Refresh and retry safely.', await readWorkflow(database, householdId, actor, period)) }
   return workflow
 }
 
-export async function closeWorkflow(input: { database: SqlDatabase; householdId: string; userId: string; period: string; expectedVersion: number; requestId: string; now: string; eventId: string }): Promise<PeriodWorkflow> {
-  const body = JSON.stringify({ period: input.period, expectedVersion: input.expectedVersion })
-  const cached = await cachedCommand(input.database, input.householdId, input.userId, input.requestId, 'close', body)
+export async function closeWorkflow(input: { database: SqlDatabase; householdId: string; actor: WorkflowActor; period: string; expectedVersion: number; requestId: string; now: string; eventId: string }): Promise<PeriodWorkflow> {
+  const { database, householdId, actor, period } = input
+  const body = JSON.stringify({ period, expectedVersion: input.expectedVersion })
+  const cached = await cachedCommand(database, householdId, actor.me.userId, input.requestId, 'close', body)
   if (cached) return cached
-  const current = await readWorkflow(input.database, input.householdId, input.userId, input.period)
+  const current = await readWorkflow(database, householdId, actor, period)
   if (current.status === 'closed') return current
+  if (current.status === 'recovery-required') throw new WorkflowConflictError('This month needs recovery before it can close.', current)
+  // The coordinator owns the operational close, as in v1's settler model. The check uses
+  // the stable server-bound role, never anything the browser sent.
+  if (actor.me.role !== 'coordinator') throw new WorkflowForbiddenError('Only the coordinator' + (actor.partner ? ', ' + actor.partner.alias + ',' : '') + ' can close this month.')
+  if (!actor.partner) throw new WorkflowConflictError('A partner must join the household before a month can close.', current)
   if (current.version !== input.expectedVersion) throw new WorkflowConflictError('A submission changed before close.', current)
-  const participants = await input.database.prepare('SELECT user_id, slot FROM workflow_participants WHERE household_id = ? AND period = ? ORDER BY slot').bind(input.householdId, input.period).all<{ user_id: string; slot: 'a' | 'b' }>()
-  if (!participants.results.some(function (item) { return item.user_id === input.userId })) throw new WorkflowForbiddenError('Only a participating household member may close this period.')
-  const rows = await submissionRows(input.database, input.householdId, input.period)
+  const rows = await submissionRows(database, householdId, period)
   if (rows.length !== 2) throw new WorkflowConflictError('Both household submissions are required before close.', current)
   const a = rows.find(function (item) { return item.slot === 'a' })
   const b = rows.find(function (item) { return item.slot === 'b' })
   if (!a || !b) throw new Error('Two participant slots are required before close.')
   const aProjection = parseProjection(a.projection_json)
   const bProjection = parseProjection(b.projection_json)
-  const archive = buildMonthArchive({ toolVersion: aProjection.toolVersion, period: input.period, closed: input.now, people: { a: aProjection.owner, b: bProjection.owner }, mine: aProjection.items, theirs: bProjection.items })
+  const coordinator = actor.me
+  const partner = actor.partner
+  // people come from the paired participant records, never from projection text.
+  const archive = buildMonthArchive({ toolVersion: aProjection.toolVersion, period, closed: input.now, people: { a: coordinator.alias, b: partner.alias }, mine: aProjection.items, theirs: bProjection.items })
   const version = current.version + 1
-  const workflow: PeriodWorkflow = { ...current, status: 'closed', version, archive }
-  try { await input.database.batch([
-    input.database.prepare('UPDATE workflow_periods SET version = version + 1, status = \'closed\', closed_at = ?, archive_json = ?, updated_at = ? WHERE household_id = ? AND period = ? AND version = ? AND status = \'open\'').bind(input.now, JSON.stringify(archive), input.now, input.householdId, input.period, current.version),
-    input.database.prepare('INSERT INTO workflow_events (id, household_id, period, version, actor_id, action, created_at) VALUES (?, ?, ?, ?, ?, \'close\', ?)').bind(input.eventId, input.householdId, input.period, version, input.userId, input.now),
-    input.database.prepare('INSERT INTO workflow_commands (household_id, request_id, actor_id, command_type, request_json, response_json, created_at, period) VALUES (?, ?, ?, \'close\', ?, ?, ?, ?)').bind(input.householdId, input.requestId, input.userId, body, JSON.stringify(workflow), input.now, input.period),
-  ]) } catch { throw new WorkflowConflictError('The workflow changed or storage interrupted close. Refresh before retrying.', await readWorkflow(input.database, input.householdId, input.userId, input.period)) }
+  const workflow: PeriodWorkflow = { ...current, status: 'closed', version, archive, closedBy: 'coordinator', closedAt: input.now, lastEvent: { version, action: 'close', actorRole: 'coordinator', at: input.now } }
+  try { await database.batch([
+    database.prepare('UPDATE workflow_periods SET version = version + 1, status = \'closed\', closed_at = ?, archive_json = ?, updated_at = ? WHERE household_id = ? AND period = ? AND version = ? AND status = \'open\'').bind(input.now, JSON.stringify(archive), input.now, householdId, period, current.version),
+    eventStatement(database, input.eventId, householdId, period, version, actor.me, 'close', input.now),
+    commandStatement(database, householdId, input.requestId, actor.me, 'close', body, workflow, input.now, period),
+  ]) } catch { throw new WorkflowConflictError('The workflow changed or storage interrupted close. Refresh before retrying.', await readWorkflow(database, householdId, actor, period)) }
   return workflow
 }
 
@@ -218,7 +278,7 @@ export async function deleteWorkflowHistory(database: SqlDatabase, householdId: 
   return Number(count?.total || 0)
 }
 
-export async function restoreWorkflowHistory(database: SqlDatabase, householdId: string, userId: string, bundle: HouseholdArchiveBundle, now: string, id: () => string): Promise<number> {
+export async function restoreWorkflowHistory(database: SqlDatabase, householdId: string, actor: VerifiedParticipant, bundle: HouseholdArchiveBundle, now: string, id: () => string): Promise<number> {
   const archives = bundle.archives.map(function (archive) {
     const asItem = function (item: (typeof archive.items)[number]) { return { date: item.date, merchant: item.merchant, category: item.category, amount: item.amount, share: item.shareOfPayer } }
     return buildMonthArchive({ toolVersion: archive.toolVersion, period: archive.period, closed: archive.closed, people: archive.people, mine: archive.items.filter(function (item) { return item.payer === 'a' }).map(asItem), theirs: archive.items.filter(function (item) { return item.payer === 'b' }).map(asItem) })
@@ -234,7 +294,7 @@ export async function restoreWorkflowHistory(database: SqlDatabase, householdId:
   for (const archive of archives) {
     if (await periodRow(database, householdId, archive.period)) continue
     statements.push(database.prepare('INSERT INTO workflow_periods (household_id, period, version, status, closed_at, archive_json, created_at, updated_at) VALUES (?, ?, 1, \'closed\', ?, ?, ?, ?)').bind(householdId, archive.period, archive.closed, JSON.stringify(archive), now, now))
-    statements.push(database.prepare('INSERT INTO workflow_events (id, household_id, period, version, actor_id, action, created_at) VALUES (?, ?, ?, 1, ?, \'restore\', ?)').bind(id(), householdId, archive.period, userId, now))
+    statements.push(eventStatement(database, id(), householdId, archive.period, 1, actor, 'restore', now))
   }
   if (statements.length) await database.batch(statements)
   return archives.length

@@ -23,6 +23,7 @@ const MIGRATIONS = [
   fileURLToPath(new URL('../../migrations/0002_shared_entries.sql', import.meta.url)),
   fileURLToPath(new URL('../../migrations/0003_period_workflows.sql', import.meta.url)),
   fileURLToPath(new URL('../../migrations/0004_workflow_hardening.sql', import.meta.url)),
+  fileURLToPath(new URL('../../migrations/0005_household_pairing.sql', import.meta.url)),
 ]
 
 class SqliteStatement implements SqlStatement {
@@ -76,18 +77,29 @@ export interface TestDatabase extends SqlDatabase {
   }): void
   close(): void
   failBatchAt(index: number | null): void
+  /**
+   * Apply the migrations not yet applied. Used with `stopAfterMigration` to seed rows the
+   * way an older database held them, then prove a later migration runs over real data.
+   */
+  applyPendingMigrations(): void
 }
 
-export function createTestDatabase(): TestDatabase {
+export function createTestDatabase(options: { stopAfterMigration?: number } = {}): TestDatabase {
   const database = new DatabaseSync(':memory:')
   let failureIndex: number | null = null
+  let applied = 0
+
+  function applyMigrationsUpTo(count: number): void {
+    for (const migration of MIGRATIONS.slice(applied, count)) {
+      database.exec(readFileSync(migration, 'utf8'))
+    }
+    applied = Math.max(applied, Math.min(count, MIGRATIONS.length))
+  }
 
   // D1 enforces foreign keys; plain SQLite does not unless asked. Matching D1 here keeps
   // the test honest about the constraint in the migrations.
   database.exec('PRAGMA foreign_keys = ON')
-  for (const migration of MIGRATIONS) {
-    database.exec(readFileSync(migration, 'utf8'))
-  }
+  applyMigrationsUpTo(options.stopAfterMigration ?? MIGRATIONS.length)
 
   return {
     prepare(query: string) {
@@ -148,6 +160,9 @@ export function createTestDatabase(): TestDatabase {
     },
     failBatchAt(index) {
       failureIndex = index
+    },
+    applyPendingMigrations() {
+      applyMigrationsUpTo(MIGRATIONS.length)
     },
   }
 }

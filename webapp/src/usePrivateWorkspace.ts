@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  amazonConfirmationConflict,
+  amazonOccupiedBy,
   matchAmazonOrders,
   parseAmazonOrders,
   type AmazonContext,
@@ -191,7 +191,12 @@ export function usePrivateWorkspace(scopeKey: string) {
   }
 
   function confirmAmazon(rowId: string, orderId: string): void {
-    if (amazonConfirmationConflict(rowId, orderId, amazonMatches, amazonContext.decisions)) { setMessage('That fictional order is already confirmed for another charge.'); return }
+    const occupiedBy = amazonOccupiedBy(rowId, orderId, amazonMatches, amazonContext.decisions)
+    if (occupiedBy) {
+      const other = ledger.find(function (row) { return row.id === occupiedBy })
+      setMessage('That fictional order is already confirmed for ' + (other ? other.merchant + ' on ' + other.date : 'another charge') + '. Open that charge\'s Details and choose Change match first.')
+      return
+    }
     setAmazonDecision(rowId, { status: 'confirmed', orderId })
   }
 

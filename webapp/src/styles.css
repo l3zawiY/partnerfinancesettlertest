@@ -205,6 +205,10 @@ details[open] > summary .summary-chevron { transform: rotate(90deg); }
 .evidence.muted { border-color: #dce3d9; border-left-color: #aab5a6; background: #f3f5f1; }
 .evidence > div, .evidence-heading > div { display: grid; gap: 3px; }
 .evidence span, .evidence small { color: var(--ink-soft); }
+/* WEB-020: an order already confirmed for another charge stays visible but is plainly used. */
+.evidence-order.occupied { opacity: .85; }
+.evidence-order.occupied .occupied-note { color: #8a642e; font-weight: 600; }
+.evidence button:disabled { cursor: not-allowed; border-style: dashed; color: #8a8f8b; background: #f3f5f1; }
 .evidence-order { display: flex !important; align-items: center; justify-content: space-between; gap: 14px; border-radius: 8px; background: rgba(255,255,255,.68); padding: 10px; }
 .review-rail { padding-top: 111px; }
 .review-rail-title { display: flex; justify-content: space-between; margin-bottom: 14px; color: #405046; font-size: 15px; font-weight: 600; }
@@ -287,6 +291,26 @@ th, td { border-bottom: 1px solid var(--hairline); padding: 8px; }
 .signed-out-card h1 { margin: 0; color: var(--ink-strong); font-size: 38px; letter-spacing: -.045em; }
 .signed-out-card > p:not(.eyebrow) { color: var(--ink-soft); }
 
+/* Household pairing (WEB-019): the onboarding screen before the monthly workspace. */
+.pairing-page { padding: 0 16px; }
+.pairing-card { width: min(720px, 100%); margin: 6vh auto; border: 1px solid var(--rule); border-radius: 20px; background: var(--card); padding: 34px; box-shadow: 0 24px 70px rgba(31, 42, 37, .08); animation: gentle-in .28s ease-out; }
+.pairing-card h1 { margin: 0 0 12px; color: var(--ink-strong); font-size: 30px; letter-spacing: -.035em; line-height: 1.15; }
+.pairing-card > p { color: var(--ink-soft); line-height: 1.6; }
+.pairing-form { margin-top: 18px; }
+.pairing-form .ack { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 16px; color: var(--ink); font-size: 13px; line-height: 1.5; }
+.pairing-actions { margin-top: 22px; }
+.pairing-summary { margin: 10px 0 18px; border: 1px solid var(--rule); border-radius: 14px; background: #f9fbf7; padding: 16px 18px; }
+.pairing-summary h2 { margin: 0 0 10px; color: var(--ink-strong); font-size: 18px; }
+.connected-pill { display: inline-block; width: max-content; margin: 0 0 10px; border-radius: 999px; background: var(--accent-soft); padding: 4px 10px; color: var(--mine); font-size: 12px; font-weight: 600; }
+.pairing-roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 0; }
+.pairing-roles dt { color: #75916e; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.pairing-roles dd { display: flex; flex-direction: column; gap: 3px; margin: 4px 0 0; color: var(--ink-strong); font-size: 15px; font-weight: 600; }
+.pairing-roles dd small { color: var(--ink-faint); font-size: 11px; font-weight: 400; }
+.pairing-roles dd .tag { margin-left: 6px; }
+.invite-card { margin-top: 18px; }
+.invitation-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.invitation-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--hairline); padding: 8px 0; font-size: 13px; }
+
 @keyframes gentle-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
 @media (max-width: 1180px) {
@@ -315,7 +339,7 @@ th, td { border-bottom: 1px solid var(--hairline); padding: 8px; }
   .page-heading, .review-heading { align-items: flex-start; }
   .privacy-pill, .fiction-pill, .review-kpis { display: none; }
   .page-title { font-size: 34px; }
-  .row-two, .row-three, .hero-breakdown, .checks { grid-template-columns: 1fr; }
+  .row-two, .row-three, .hero-breakdown, .checks, .pairing-roles { grid-template-columns: 1fr; }
   .review-toolbar { align-items: flex-start; flex-direction: column; }
   .ledger-columns { display: none; }
   .txn { grid-template-columns: minmax(0, 1fr) 90px; }

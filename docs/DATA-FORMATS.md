@@ -26,6 +26,9 @@ Filename: `split-<period>-<owner>.json`
 ```
 
 - `owner` identifies the payer. Loading one's own export as the partner file is rejected.
+  In the web service the Worker replaces `owner` with the caller's server-bound participant
+  alias before storing a submission; the browser-supplied value is never used for
+  attribution. The format itself is unchanged.
 - `amount` is positive spend or a negative matched refund.
 - `share` is the payer's fraction. A value of 1 is never exported.
 - `category` supports future archive analytics without re-derivation.
@@ -64,7 +67,9 @@ Filename: `split-<period>-archive.json`
 }
 ```
 
-`people` freezes display names at close. `payer` is `a` (settler) or `b` (partner).
+`people` freezes display names at close. `payer` is `a` (settler) or `b` (partner). In the
+web service `a` is always the stable coordinator and `b` the partner, and both names are the
+server-bound aliases from the household pairing, never text from a projection.
 `direction` is `b_owes_a`, `a_owes_b`, or `square`. Future readers must ignore unknown
 additive fields and must not assume names stay constant across archives.
 

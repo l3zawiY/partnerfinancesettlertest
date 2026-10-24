@@ -405,21 +405,27 @@ export function amazonReviewState(
   }
 }
 
-export function amazonConfirmationConflict(
+/**
+ * The id of another charge that has already confirmed this order, or null when the order
+ * is free for `txnId`. One order may legitimately cover several charges only when both
+ * sides are recognised parts of the same split order; otherwise the order is occupied.
+ * This is private Review evidence: it names a charge, never money or a decision.
+ */
+export function amazonOccupiedBy(
   txnId: string,
   orderId: string,
   matches: AmazonMatch[],
   decisions: Record<string, AmazonDecision>,
-): boolean {
+): string | null {
   const current =
     matches.filter(function (m) {
       return m.txnId === txnId
     })[0] || null
-  let conflict = false
+  let occupiedBy: string | null = null
   Object.keys(decisions || {}).forEach(function (otherTxnId) {
     const decision = decisions[otherTxnId]
     if (
-      conflict ||
+      occupiedBy ||
       otherTxnId === txnId ||
       !decision ||
       decision.status !== 'confirmed' ||
@@ -431,9 +437,18 @@ export function amazonConfirmationConflict(
         return m.txnId === otherTxnId
       })[0] || null
     if (!current || !other || current.kind !== 'split-order' || other.kind !== 'split-order')
-      conflict = true
+      occupiedBy = otherTxnId
   })
-  return conflict
+  return occupiedBy
+}
+
+export function amazonConfirmationConflict(
+  txnId: string,
+  orderId: string,
+  matches: AmazonMatch[],
+  decisions: Record<string, AmazonDecision>,
+): boolean {
+  return amazonOccupiedBy(txnId, orderId, matches, decisions) !== null
 }
 
 function amazonSessionCount(value: unknown): number {

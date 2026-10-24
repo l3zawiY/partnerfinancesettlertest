@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { amountEdited, canEditAmount } from '../shared/amountCorrection'
 import { hasRule, ruleFor } from '../shared/rules'
+import type { HouseholdPairing } from '../shared/pairing'
 import AmazonEvidence from './AmazonEvidence'
+import { viewerAliases } from './identity'
 import type { PrivateWorkspace } from './usePrivateWorkspace'
 
 function money(value: number): string { return new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(value) }
@@ -21,7 +23,8 @@ function creditTreatment(row: PrivateWorkspace['ledger'][number]): string {
 
 const PRESETS = [{ label: 'Mine', share: 1 }, { label: '70/30', share: 0.7 }, { label: '50/50', share: 0.5 }, { label: '30/70', share: 0.3 }, { label: 'Theirs', share: 0 }]
 
-export default function ReviewScreen({ workspace, onContinue }: { workspace: PrivateWorkspace; onContinue: () => void }) {
+export default function ReviewScreen({ workspace, pairing, onContinue }: { workspace: PrivateWorkspace; pairing?: HouseholdPairing; onContinue: () => void }) {
+  const { me, partner } = viewerAliases(pairing, workspace.names, workspace.meIndex)
   const [custom, setCustom] = useState<Record<string, string>>({})
   const [correction, setCorrection] = useState<Record<string, string>>({})
   const [details, setDetails] = useState<Record<string, boolean>>({})
@@ -35,7 +38,7 @@ export default function ReviewScreen({ workspace, onContinue }: { workspace: Pri
   const currentClaim = shared.reduce(function (sum, row) { return sum + row.amount * (1 - row.share) }, 0)
   const privateCount = workspace.ledger.filter(function (row) { return row.amount > 0 && row.decided && row.share === 1 }).length
   return <section className="screen screen-frame review-page" aria-labelledby="review-title"><div className="review-grid"><main>
-    <header className="review-heading"><div><p className="eyebrow">{workspace.period} · Review</p><h1 id="review-title" className="page-title">Review transactions</h1><p className="page-subtitle">Decide how each purchase should be shared between {workspace.names[0]} and {workspace.names[1]}.</p></div><div className="review-kpis" aria-label="Review progress"><div className="review-kpi"><strong>{decidedCount} <span>of {workspace.postedCount}</span></strong><small>decided</small></div><div className="review-kpi remaining"><strong>{workspace.undecidedCount}</strong><small>remaining</small></div></div></header>
+    <header className="review-heading"><div><p className="eyebrow">{workspace.period} · Review</p><h1 id="review-title" className="page-title">Review transactions</h1><p className="page-subtitle">Decide how each purchase should be shared between {me} and {partner}.</p></div><div className="review-kpis" aria-label="Review progress"><div className="review-kpi"><strong>{decidedCount} <span>of {workspace.postedCount}</span></strong><small>decided</small></div><div className="review-kpi remaining"><strong>{workspace.undecidedCount}</strong><small>remaining</small></div></div></header>
     <div className="review-toolbar"><div className="review-toolbar-left"><div className="toggle-set" aria-label="Transaction grouping"><button aria-pressed={workspace.groupBy === 'day'} onClick={() => workspace.setGroupBy('day')}>Group by day</button><button aria-pressed={workspace.groupBy === 'merchant'} onClick={() => workspace.setGroupBy('merchant')}>Merchant</button></div><div className="toggle-set" aria-label="Transaction visibility"><button aria-pressed={workspace.onlyUndecided} onClick={() => workspace.setOnlyUndecided(true)}>Undecided {workspace.undecidedCount}</button><button aria-pressed={!workspace.onlyUndecided} onClick={() => workspace.setOnlyUndecided(false)}>All transactions</button></div></div><button className="toolbar-action" onClick={workspace.reapplyRules}>↻ Reapply rules</button></div>
     <div className="ledger-card"><div className="ledger-columns"><span>Transaction</span><span>Amount</span><span>Share between you</span><span /></div>{visible.length ? Array.from(groups.entries()).map(function ([key, rows]) { return <section className="ledger-group" key={key}><h2><span>{workspace.groupBy === 'merchant' ? rows[0]?.merchant : key}</span><small>{rows.length} row{rows.length === 1 ? '' : 's'}</small></h2>{rows.map(function (row) {
       const saved = hasRule(workspace.rules, row); const savedRule = ruleFor(workspace.rules, row); const open = details[row.id] === true

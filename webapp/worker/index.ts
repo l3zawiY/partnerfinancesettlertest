@@ -10,6 +10,7 @@ import type {
   WorkflowResponse,
 } from '../shared/api'
 import { isWorkflowCancelRequest, isWorkflowDeleteRequest, isWorkflowMutationRequest, isWorkflowRestoreRequest, isWorkflowSubmissionRequest } from '../shared/api'
+import { isInitializeHouseholdRequest, isJoinHouseholdRequest, type HouseholdPairingResponse } from '../shared/pairing'
 import {
   type ClerkEnvironment,
   type IdentityVerifier,
@@ -21,6 +22,16 @@ import {
   type SqlDatabase,
 } from './db'
 import {
+  initializeHousehold,
+  joinAsPartner,
+  pairedCounterpart,
+  PairingConflictError,
+  PairingForbiddenError,
+  PairingValidationError,
+  readPairing,
+  requireParticipant,
+} from './pairing'
+import {
   closeWorkflow,
   cancelAbandonedWorkflow,
   deleteWorkflowHistory,
@@ -31,6 +42,7 @@ import {
   withdrawWorkflow,
   WorkflowConflictError,
   WorkflowForbiddenError,
+  type WorkflowActor,
 } from './workflow'
 
 interface AssetBinding {
@@ -49,6 +61,7 @@ export interface WorkerEnvironment extends ClerkEnvironment {
 type ApiBody =
   | AuthenticatedIdentityResponse
   | HouseholdResponse
+  | HouseholdPairingResponse
   | WorkflowResponse
   | WorkflowExportResponse
   | WorkflowRestoreResponse
@@ -138,6 +151,40 @@ export function createWorker(
         }
       }
 
+      // Stable two-person pairing. Authentication proves the person; the active
+      // organization is the tenant; these routes create or read the financial roles.
+      const pairingRoute = url.pathname.match(/^\/api\/household\/pairing(?:\/(initialize|join))?$/)
+      if (pairingRoute) {
+        let identity
+        try { identity = await verifyIdentity(request, environment) }
+        catch { return json({ error: 'Authentication service unavailable.' }, 503) }
+        if (!identity) return json({ error: 'Authentication required.' }, 401)
+        if (!identity.householdId) return json({ error: 'No active household for this session.' }, 403)
+        const action = pairingRoute[1]
+        if ((action === undefined && request.method !== 'GET') || (action !== undefined && request.method !== 'POST')) return json({ error: 'Method not allowed.' }, 405)
+
+        try {
+          await ensureHousehold(environment.DB, identity.householdId, now())
+          if (action === undefined) {
+            return json({ pairing: await readPairing(environment.DB, identity.householdId, identity.userId, identity.organizationRole) })
+          }
+          let body: unknown
+          try { body = await readJson(request) }
+          catch (error) { return json({ error: error instanceof Error ? error.message : 'Request body must be JSON.' }, 400) }
+          if (action === 'initialize') {
+            if (!isInitializeHouseholdRequest(body)) return json({ error: 'Household setup is invalid. Provide a short household name and alias with no email address.' }, 400)
+            return json({ pairing: await initializeHousehold({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, organizationRole: identity.organizationRole, householdName: body.householdName, alias: body.alias, now: now() }) })
+          }
+          if (!isJoinHouseholdRequest(body)) return json({ error: 'Partner join is invalid. Provide a short alias with no email address.' }, 400)
+          return json({ pairing: await joinAsPartner({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, organizationRole: identity.organizationRole, alias: body.alias, now: now() }) })
+        } catch (error) {
+          if (error instanceof PairingForbiddenError) return json({ error: error.message }, 403)
+          if (error instanceof PairingConflictError) return json({ error: error.message }, 409)
+          if (error instanceof PairingValidationError) return json({ error: error.message }, 400)
+          return json({ error: 'Household storage unavailable.' }, 503)
+        }
+      }
+
       if (url.pathname === '/api/shared-entries') {
         return json({ error: 'The Batch 3 shared-entry diagnostic has been retired. Use the period workflow API.' }, 410)
       }
@@ -154,9 +201,14 @@ export function createWorker(
 
         try {
           await ensureHousehold(environment.DB, identity.householdId, now())
+          // Organization membership got the request this far. Shared financial workflow
+          // additionally requires one of the two paired Split Ledger participants, and
+          // every function below acts as that verified participant, never as a raw user id.
+          const me = await requireParticipant(environment.DB, identity.householdId, identity.userId)
+          const actor: WorkflowActor = { me, partner: await pairedCounterpart(environment.DB, identity.householdId, me) }
           if (workflowPeriod) {
             if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405)
-            return json({ workflow: await readWorkflow(environment.DB, identity.householdId, identity.userId, workflowPeriod[1]!) })
+            return json({ workflow: await readWorkflow(environment.DB, identity.householdId, actor, workflowPeriod[1]!) })
           }
 
           if (workflowAction) {
@@ -167,19 +219,19 @@ export function createWorker(
             catch (error) { return json({ error: error instanceof Error ? error.message : 'Request body must be JSON.' }, 400) }
             if (action === 'submission' && request.method === 'POST') {
               if (!isWorkflowSubmissionRequest(body) || body.projection.period !== period || body.expectedVersion !== null) return json({ error: 'Workflow submission is invalid.' }, 400)
-              return json({ workflow: await submitWorkflow({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, projection: body.projection, expectedVersion: body.expectedVersion, requestId: body.requestId, replace: false, now: now(), eventId: randomId() }) })
+              return json({ workflow: await submitWorkflow({ database: environment.DB, householdId: identity.householdId, actor, projection: body.projection, expectedVersion: body.expectedVersion, requestId: body.requestId, replace: false, now: now(), eventId: randomId() }) })
             }
             if (action === 'submission' && request.method === 'PUT') {
               if (!isWorkflowSubmissionRequest(body) || body.projection.period !== period || body.expectedVersion === null) return json({ error: 'Workflow replacement is invalid.' }, 400)
-              return json({ workflow: await submitWorkflow({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, projection: body.projection, expectedVersion: body.expectedVersion, requestId: body.requestId, replace: true, now: now(), eventId: randomId() }) })
+              return json({ workflow: await submitWorkflow({ database: environment.DB, householdId: identity.householdId, actor, projection: body.projection, expectedVersion: body.expectedVersion, requestId: body.requestId, replace: true, now: now(), eventId: randomId() }) })
             }
             if (action === 'submission' && request.method === 'DELETE') {
               if (!isWorkflowMutationRequest(body)) return json({ error: 'Workflow withdrawal is invalid.' }, 400)
-              return json({ workflow: await withdrawWorkflow({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, period, expectedVersion: body.expectedVersion, requestId: body.requestId, now: now(), eventId: randomId() }) })
+              return json({ workflow: await withdrawWorkflow({ database: environment.DB, householdId: identity.householdId, actor, period, expectedVersion: body.expectedVersion, requestId: body.requestId, now: now(), eventId: randomId() }) })
             }
             if (action === 'close' && request.method === 'POST') {
               if (!isWorkflowMutationRequest(body)) return json({ error: 'Workflow close is invalid.' }, 400)
-              return json({ workflow: await closeWorkflow({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, period, expectedVersion: body.expectedVersion, requestId: body.requestId, now: now(), eventId: randomId() }) })
+              return json({ workflow: await closeWorkflow({ database: environment.DB, householdId: identity.householdId, actor, period, expectedVersion: body.expectedVersion, requestId: body.requestId, now: now(), eventId: randomId() }) })
             }
             return json({ error: 'Method not allowed.' }, 405)
           }
@@ -198,7 +250,7 @@ export function createWorker(
             let body: unknown
             try { body = await readJson(request) } catch { return json({ error: 'Request body must be valid JSON.' }, 400) }
             if (!isWorkflowRestoreRequest(body)) return json({ error: 'Shared archive bundle is invalid.' }, 400)
-            const restoredPeriods = await restoreWorkflowHistory(environment.DB, identity.householdId, identity.userId, body.bundle, now(), randomId)
+            const restoredPeriods = await restoreWorkflowHistory(environment.DB, identity.householdId, me, body.bundle, now(), randomId)
             return json({ restoredPeriods })
           }
           if (url.pathname === '/api/workflows') {
@@ -220,10 +272,12 @@ export function createWorker(
           }
         } catch (error) {
           if (error instanceof WorkflowConflictError) {
-            if (error.workflow) return json({ workflow: { ...error.workflow, status: 'stale', staleReason: error.message } }, 409)
+            // A recovery-required month stays labelled as such; every other conflict is a
+            // recoverable stale condition carrying the authoritative workflow.
+            if (error.workflow) return json({ workflow: { ...error.workflow, status: error.workflow.status === 'recovery-required' ? 'recovery-required' : 'stale', staleReason: error.message } }, 409)
             return json({ error: error.message }, 409)
           }
-          if (error instanceof WorkflowForbiddenError) return json({ error: error.message }, 403)
+          if (error instanceof WorkflowForbiddenError || error instanceof PairingForbiddenError) return json({ error: error.message }, 403)
           return json({ error: 'Workflow storage unavailable.' }, 503)
         }
       }

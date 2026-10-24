@@ -87,11 +87,14 @@ describe('complete fictional workspace', function () {
     expect(await screen.findByText('Submitted')).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Simulate fictional partner submission' }))
-    expect((await screen.findAllByText('Partner ready')).length).toBeGreaterThanOrEqual(1)
+    expect((await screen.findAllByText('Both submissions ready')).length).toBeGreaterThanOrEqual(1)
     await user.click(screen.getByRole('button', { name: 'Simulate partner change (stale)' }))
-    expect(await screen.findByText(/Stale/)).toBeVisible()
-    await user.click(screen.getByRole('button', { name: 'Refresh and review' }))
-    expect((await screen.findAllByText('Partner ready')).length).toBeGreaterThanOrEqual(1)
+    expect((await screen.findAllByText(/Shared status changed/)).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText(/Your private draft in this browser is safe/)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Replace submission' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Load latest shared status' }))
+    expect((await screen.findAllByText('Both submissions ready')).length).toBeGreaterThanOrEqual(1)
+    expect(screen.queryByText(/Shared status changed/)).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Continue to Settle' }))
 
     const close = screen.getByRole('button', { name: 'Close month and archive' })

@@ -9,6 +9,12 @@ correction, and Amazon data; exact click paths; expected results; failure sympto
 traceability to WEB-010, WEB-012, WEB-013, and the same-household invitation evidence.
 Automated evidence does not close those human items.
 
+The 2026-09-11 owner run is recorded in that guide. Two-account acceptance is paused until
+WEB-019 replaces the organization-only/first-submit-slot model with stable paired roles and
+an explicit handover. Existing automated tests remain required regression evidence, but
+they do not prove that the superseded collaboration model is acceptable. The replacement
+suite is outlined as HC-01 through HC-10 and must become executable before owner retest.
+
 ## Automated gate
 
 ```bash
@@ -79,8 +85,27 @@ The fictional local adapter is retained only as a deterministic component-test f
 Apply migration `0003_period_workflows.sql` with `npm run db:migrate:local`. Never add
 `--remote` during ordinary development verification.
 Apply `0004_workflow_hardening.sql` the same way; it adds the concurrency uniqueness guard
-and period-scoped replay-receipt index used by atomic writes. Migration files are ordered
-and must not be edited after remote application.
+and period-scoped replay-receipt index used by atomic writes. Apply
+`0005_household_pairing.sql` the same way; it adds the stable two-person pairing tables and
+a nullable event `actor_role` column, and touches no existing row. Migration files are
+ordered and must not be edited after remote application.
+
+WEB-019 coverage (Batch 6e) adds pure tests for the pairing vocabulary and strict response
+guards, Worker/SQLite tests for administrator-only atomic initialization, atomic partner
+claims, alias and same-name isolation, third-member denial on every workflow route,
+server-bound attribution, stable roles across months, withdraw-then-resubmit without a
+false conflict, role-labelled handover events, coordinator-only close, recovery-required
+legacy months, and migration 0005 applied over a database seeded in the pre-0005 shape.
+Component tests render the onboarding states with an injected invitation surface, and a
+deterministic two-viewer fixture (`src/testing/PairedFixtureServer.ts`) proves partner and
+coordinator see the same settlement, only the coordinator can close, stale recovery keeps
+private work and requires an explicit retry, and automatic status checks never write.
+WEB-020 adds pure and component coverage for occupied Amazon evidence. After Batch 6e the
+gate reports 98 pure/Worker tests and 28 browser-like tests. A 2026-09-12 owner review
+against the original collaboration-gap analysis added `src/identity.ts`, the single rule
+picking server-bound aliases over locally typed Setup names, with pure and component
+coverage proving Review can no longer show a renamed Setup field once the household is
+paired.
 
 Production-hardening coverage includes exact half-cent/refund rounding, strict rejection
 of unknown private fields, scoped private-browser deletion, server-derived recovery roles,

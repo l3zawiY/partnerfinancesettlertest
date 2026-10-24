@@ -1,5 +1,6 @@
 import { buildMonthArchive, isMonthArchive, type HouseholdArchiveBundle, type MonthArchive, type SharedExport } from './formats'
 import { centsToDollars, dollarsToCents } from './money'
+import { isSafeAlias, type ParticipantRole } from './pairing'
 
 export type WorkflowStatus =
   | 'draft'
@@ -12,11 +13,27 @@ export type WorkflowStatus =
   | 'closing'
   | 'retryable-error'
   | 'closed'
+  /** A month whose pre-pairing participant slots cannot be mapped to the stable roles. */
+  | 'recovery-required'
 
 export interface WorkflowSubmission {
   projection: SharedExport
   version: number
   submittedAt: string
+}
+
+/** Server-bound identity of one participant as it appears in status and archives. */
+export interface WorkflowParticipant { role: ParticipantRole; alias: string }
+
+export type WorkflowAction = 'submit' | 'replace' | 'withdraw' | 'close' | 'restore'
+
+/** The latest non-financial handover event, so a screen can say who changed what. */
+export interface WorkflowEvent {
+  version: number
+  action: WorkflowAction
+  /** null only for events recorded before pairing existed and by an account no longer paired. */
+  actorRole: ParticipantRole | null
+  at: string
 }
 
 export interface PeriodWorkflow {
@@ -28,6 +45,12 @@ export interface PeriodWorkflow {
   staleReason?: string
   errorMessage?: string
   archive?: MonthArchive
+  /** Present when the server derived the viewer from a paired participant. */
+  participants?: { me: WorkflowParticipant; partner: WorkflowParticipant | null }
+  lastEvent?: WorkflowEvent | null
+  closedBy?: ParticipantRole | null
+  closedAt?: string
+  recoveryReason?: string
 }
 
 export interface SubmissionCommand {
@@ -107,7 +130,24 @@ export function isStrictSharedProjection(value: unknown): value is SharedExport 
   return centsToDollars(computedCents) === totals.sharedPaidByOwner
 }
 
-const WORKFLOW_STATUSES = new Set<WorkflowStatus>(['draft', 'ready', 'submitted', 'replaced', 'withdrawn', 'partner-ready', 'stale', 'closing', 'retryable-error', 'closed'])
+const WORKFLOW_STATUSES = new Set<WorkflowStatus>(['draft', 'ready', 'submitted', 'replaced', 'withdrawn', 'partner-ready', 'stale', 'closing', 'retryable-error', 'closed', 'recovery-required'])
+const WORKFLOW_ACTIONS = new Set<WorkflowAction>(['submit', 'replace', 'withdraw', 'close', 'restore'])
+
+function isRole(value: unknown): value is ParticipantRole { return value === 'coordinator' || value === 'partner' }
+
+function isWorkflowParticipant(value: unknown): value is WorkflowParticipant {
+  if (!value || typeof value !== 'object') return false
+  const participant = value as Record<string, unknown>
+  return Object.keys(participant).every(function (key) { return key === 'role' || key === 'alias' }) && isRole(participant.role) && isSafeAlias(participant.alias)
+}
+
+function isWorkflowEvent(value: unknown): value is WorkflowEvent {
+  if (!value || typeof value !== 'object') return false
+  const event = value as Record<string, unknown>
+  return Object.keys(event).every(function (key) { return ['version', 'action', 'actorRole', 'at'].includes(key) }) &&
+    Number.isInteger(event.version) && WORKFLOW_ACTIONS.has(event.action as WorkflowAction) &&
+    (event.actorRole === null || isRole(event.actorRole)) && typeof event.at === 'string' && !Number.isNaN(Date.parse(event.at))
+}
 
 export function isPeriodWorkflow(value: unknown): value is PeriodWorkflow {
   if (!value || typeof value !== 'object') return false
@@ -123,6 +163,18 @@ export function isPeriodWorkflow(value: unknown): value is PeriodWorkflow {
     if (!Number.isInteger(candidate.version) || typeof candidate.submittedAt !== 'string' || !isStrictSharedProjection(candidate.projection) || candidate.projection.period !== workflow.period) return false
   }
   if (workflow.archive !== undefined && !isMonthArchive(workflow.archive)) return false
+  if (workflow.participants !== undefined) {
+    const participants = workflow.participants as Record<string, unknown> | null
+    if (!participants || typeof participants !== 'object') return false
+    if (!Object.keys(participants).every(function (key) { return key === 'me' || key === 'partner' })) return false
+    if (!isWorkflowParticipant(participants.me)) return false
+    if (participants.partner !== null && !isWorkflowParticipant(participants.partner)) return false
+    if (participants.partner && (participants.partner as WorkflowParticipant).role === (participants.me as WorkflowParticipant).role) return false
+  }
+  if (workflow.lastEvent !== undefined && workflow.lastEvent !== null && !isWorkflowEvent(workflow.lastEvent)) return false
+  if (workflow.closedBy !== undefined && workflow.closedBy !== null && !isRole(workflow.closedBy)) return false
+  if (workflow.closedAt !== undefined && (typeof workflow.closedAt !== 'string' || Number.isNaN(Date.parse(workflow.closedAt)))) return false
+  if (workflow.recoveryReason !== undefined && typeof workflow.recoveryReason !== 'string') return false
   return true
 }
 

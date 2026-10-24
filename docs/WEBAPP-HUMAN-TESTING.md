@@ -1,5 +1,11 @@
 # Web-app human acceptance guide
 
+> **Replacement acceptance active — 2026-09-12.** WEB-019 is implemented locally (Batch 6e in
+> `docs/WEBAPP.md`). Run the replacement two-account suite HC-01 through HC-10 below, plus the
+> reruns listed in section 8. The old H6-01 through H6-08 scenarios stay in section 6 as
+> historical evidence only. WEB-005, WEB-012, WEB-013, and WEB-019 close only on the results
+> of this run.
+
 This guide covers the owner verification deliberately deferred from Batches 4c, 5, and
 6a–6c. It is written for a product reviewer: follow the visible controls and judge both
 correctness and clarity. Automated tests already protect calculations and boundaries, but
@@ -8,6 +14,340 @@ they cannot prove that the real invitation flow makes sense or that the product 
 Every merchant, amount, order, person, and period below is **fictional test data**. Never
 paste real statements, order history, names, email addresses, account numbers, card numbers,
 or financial files into the development application.
+
+## 0. Recorded owner evidence — 2026-09-11
+
+Tester YL completed the first full run on a monitor. Results:
+
+- Passed: H4C-01, H4C-02, H4C-04, H5-01, H5-02, H5-05, H6-01, H6-06, HX-01.
+- Failed: H4C-03, H4C-05, H5-03, H5-04, H6-02, H6-05.
+- Blocked: H6-03, H6-04, H6-07, H6-08, HX-02, HX-03.
+
+Interpretation after review:
+
+- H4C-03 is a real private-Review UX defect: an Amazon order already confirmed elsewhere
+  remains apparently actionable on another charge. WEB-020 tracks explicit occupied-state
+  labeling and a disabled conflicting action.
+- H4C-05 was skipped because the owner expected full online persistence. It is not an
+  accepted removal of private sessions: full ledgers intentionally remain browser-only,
+  so private backup/recovery still needs human acceptance.
+- H5-03 used a Remember control whose visibility depends on the row already being decided
+  and not already having a saved rule. The replacement test must start from a known clean
+  merchant-rule state.
+- H5-04 produced an unclear `Stale — refresh required` state during withdraw/resubmit.
+  Recovery purpose and result were not understandable. WEB-019 requires actor-aware,
+  non-sticky stale recovery and same-tab sequential coverage.
+- H6-02 demonstrated the release-blocking gap: two signed-in users looked independent, and
+  the product did not prove they were the intended paired participants or visibly hand work
+  from one to the other.
+- H6-05 had no evidence of a real isolation violation and is treated as not completed, not
+  a confirmed privacy defect.
+- The remaining H6 cases could not be judged once the collaboration foundation failed.
+
+Implementation response, 2026-09-12: all of the above is addressed locally in Batch 6e. The
+sticky stale state had a concrete cause, a withdrawn month's participant row being inserted
+again on resubmit, which is fixed and covered by a regression test. H4C-03's occupied Amazon
+evidence (WEB-020) is fixed. H5-03 and H5-04 keep their clean-state reruns. H4C-05 still needs
+the privacy explanation and a rerun.
+
+## Replacement collaboration acceptance — HC-01 through HC-10 (active from 2026-09-12)
+
+These scenarios use Clerk's real Development service plus the local Worker and local D1. They
+replace the paused H6 suite. Run them in order in one sitting; later scenarios rely on the
+state left by earlier ones. Use fictional data only. The same scenarios, with copy buttons
+for every statement, are in `docs/webapp-human-testing-checklist.html`.
+
+### Test roles
+
+| Role | Account | Alias to type | Organization |
+|---|---|---|---|
+| Organization administrator, becomes coordinator | Account A | `Fictional A` | Fictional Household Alpha |
+| Invited member, becomes partner | Account B | `Fictional B` | Fictional Household Alpha |
+| Third member (optional) | Account C | none | Fictional Household Alpha |
+
+Expected July figures with F-A for Account A and F-G for Account B: Fictional B owes
+Fictional A $89.54 ($73.34 + $16.20), Fictional A owes Fictional B $68.00 ($40.00 + $28.00),
+so **Fictional B pays Fictional A $21.54**. Expected August figures with F-H: **Fictional B
+pays Fictional A $10.00**.
+
+### HC-01 — Coordinator initializes the household
+
+1. In Account A’s browser profile, open the app URL and sign in. In the household switcher
+   at the top right, select Fictional Household Alpha. If it does not exist yet, create it
+   there; you must be its administrator.
+2. Read the card headed Household pairing. It must say Split Ledger is not set up for this
+   household yet, and the top bar must say Household not set up yet.
+3. Type Fictional Household Alpha into Household name. Type person@example.com into Your
+   alias and confirm the warning that aliases cannot contain an email address appears and
+   Set up this household stays disabled. Replace the alias with Fictional A.
+4. Tick I understand that as coordinator I am the one who closes each month. Choose Set up
+   this household.
+5. Choose Check latest pairing. Then reload the browser page.
+
+Expected: Heading Waiting for your partner. The green pill says 1 of 2 connected — waiting
+for partner. Coordinator shows Fictional A with a you tag and “Closes each month”; Partner
+shows Vacant. An Invite exactly one partner panel with an email field and Send invitation
+is present. The top bar says Fictional Household Alpha · 1 of 2 connected. Reload and
+Check latest pairing show the same state and never a second setup form. The monthly tabs
+(Setup, Import, Review…) are not shown yet.
+
+Failure signals: A second setup form after reload, the monthly tabs appear before a
+partner joined, the pill says 2 of 2, an email address is accepted as an alias, or a non-
+administrator test account is offered the setup form.
+
+### HC-02 — Invitation and explicit partner join
+
+1. As Account A on the pairing card, type Account B’s test email into Partner’s email
+   address and choose Send invitation. Expect the green note Invitation sent through
+   Clerk… and the address listed under Pending invitations.
+2. In a second browser profile, open Account B’s invitation email and accept it, signing
+   in or signing up as Account B.
+3. In Account B’s browser open the app URL. In the household switcher select Fictional
+   Household Alpha. Do not create a new household.
+4. Read the card: heading You are invited to pair with Fictional A, the household name,
+   and the privacy text about what is and is not shared. Type Fictional B into Your alias
+   and choose Join as partner.
+5. In Account A’s browser choose Check latest pairing.
+6. In both browsers open the Setup tab and compare the Household access panel on the
+   right. Then compare the top bar and the header line that starts with You are.
+7. Optional same-name check: if you have a second test household (Fictional Household
+   Beta), switch Account B to it and read the pairing card; then switch back to Alpha.
+
+Expected: Both browsers show 2 of 2 connected, household Fictional Household Alpha,
+Coordinator Fictional A (Closes each month), Partner Fictional B (Submits and reviews),
+each with a you tag beside their own alias. Account A’s header says You are Fictional A
+(coordinator) · Settling with Fictional B; Account B’s says You are Fictional B (partner)
+· Settling with Fictional A. The top bar says Fictional Household Alpha · 2 of 2 connected
+· you are the coordinator (or partner). The monthly tabs appear only now. A different
+household never shows Alpha’s aliases, and switching back restores 2 of 2.
+
+Failure signals: Either side lacks 2 of 2, the roles or aliases differ between browsers,
+Account B was able to create a second household by accident, Alpha’s aliases appear under
+another household, or a Join as partner button is still offered after joining.
+
+### HC-03 — Third-member refusal
+
+1. Where practical, use a third test account, Account C. As Account A, open the household
+   switcher, choose Manage organization, and invite Account C as a member of Fictional
+   Household Alpha. Accept it in a third browser profile (or in Account B’s profile after
+   signing out).
+2. As Account C, open the app URL and select Fictional Household Alpha.
+3. Read the whole page and try every visible control.
+4. Optional: in Manage organization make Account C an administrator, then reload Account
+   C’s page.
+
+Expected: Heading This household already has two participants. The summary shows Fictional
+A and Fictional B with no you tag. The text says household membership does not grant
+access to shared financial records. There are no Setup, Import, Review, Share / Status, or
+Settle tabs, no Join as partner button, no email addresses, and no amounts. The top bar
+says Household already has two participants. Making Account C an administrator changes
+nothing.
+
+Failure signals: Account C sees the monthly tabs, a Join as partner button, any
+submission, amount, or archive, an email address, or can close, restore, cancel, or delete
+anything.
+
+### HC-04 — Stable roles independent of submission order
+
+1. Account B: in the month control in the header choose August 2026 (2026-08). If asked to
+   start August with a clean monthly workspace, confirm; names, cards, and rules stay.
+2. Account B: Import. Bank Other / generic paste, any fictional card label. Choose Copy
+   Account B August statement on this page, paste it into Statement text, choose Parse and
+   add. Review: choose 50/50 for Sample Bakery. Share / Status: choose Submit shared
+   projection. Expect Waiting for Fictional A.
+3. Account A: choose August 2026 in the header. Import: bank Other / generic paste, any
+   fictional card. Choose Copy Account A August statement, paste, Parse and add. Review:
+   50/50 for Sample Cinema.
+4. Account A: Share / Status must already say Fictional B submitted August 2026 and Next:
+   Your submission is needed. Choose Submit shared projection. Expect Both submissions
+   ready.
+5. Both accounts: Continue to Settle and compare.
+6. Account A: tick I checked the private count and net against my bank, choose Close month
+   and archive, keep the downloaded file, and open it in a text editor.
+7. Account A: open Setup and change First person to Someone Else. Look at the header and
+   reopen Settle.
+
+Expected: Although Fictional B submitted first, both headers keep You are Fictional A
+(coordinator) and You are Fictional B (partner). Both Settle screens say Fictional B pays
+Fictional A $10.00 with Fictional B owes Fictional A $15.00, Fictional A owes Fictional B
+$5.00, Offset $10.00. The archive file contains "people":{"a":"Fictional A","b":"Fictional
+B"}, "direction":"b_owes_a", and "net":10. Changing a typed name in Setup changes nothing
+in the header aliases, status, or archive.
+
+Failure signals: Roles or aliases swap because of submission order, the archive lists a
+typed name, Fictional A appears as payer b, the direction is inverted, or the two Settle
+screens differ.
+
+### HC-05 — Submission is a visible handover
+
+1. Account A: choose July 2026 in the header. If Share / Status shows Recovery required
+   for 2026-07, follow the Before scenario 1 note first.
+2. Account A: Import. Bank TD, card Fictional TD Visa (add it in Setup if missing). Choose
+   Copy TD statement, paste, Parse and add. Review: 50/50 for Sample Restaurant and 50/50
+   for Sample Book Shop.
+3. Account A: Share / Status. Read the right panel: Nothing submitted yet and Next:
+   Whoever submits first hands the month to the other. Choose Submit shared projection.
+4. Account A: read the screen. Expect Waiting for Fictional B, Version 1 · submitted with
+   a time, and Next: Waiting for Fictional B to submit.
+5. Account B (July 2026): open Share / Status. Do not reload the browser. Wait up to 20
+   seconds or choose Check latest status.
+6. Account B: Import. Bank Other / generic paste, any fictional card. Choose Copy Account
+   B statement, paste, Parse and add. Review: 50/50 for Fictional Hardware and 30/70 for
+   Fictional Tickets. Share / Status: Submit shared projection.
+7. Account A: without reloading, wait up to 20 seconds or choose Check latest status.
+8. Both: Continue to Settle and compare.
+
+Expected: Account B saw Fictional A submitted July 2026, Fictional A: version 1, submitted
+with a time, Next: Your submission is needed, and a Last checked time. After B submitted,
+Account A saw a green notice Shared status updated while you were here. Fictional B
+submitted (version 2, …), the heading Both submissions ready, Fictional B: version 2,
+submitted, and Next: … You review the settlement and close the month. Both Settle screens
+say Fictional B pays Fictional A $21.54 with Fictional B owes Fictional A $89.54,
+Fictional A owes Fictional B $68.00, Offset $21.54.
+
+Failure signals: Either side needs a browser reload to see the other’s submission, the
+other person appears without an alias or with a typed name, versions or times are missing,
+the next-step line is wrong, or the two Settle screens differ.
+
+### HC-06 — Replace and withdraw revoke readiness
+
+1. Account B: Review, change Fictional Tickets to 50/50. Share / Status: choose Replace
+   submission. Expect Both submissions ready, Version 3, and Latest change: You replaced
+   your submission (version 3…).
+2. Account A: wait or choose Check latest status. Expect the notice Shared status updated
+   while you were here. Fictional B replaced their submission (version 3…). Open Settle:
+   expect Fictional B pays Fictional A $29.54.
+3. Account B: Share / Status, choose Withdraw. Expect Withdrawn, Version 4, and Next: Your
+   submission is needed.
+4. Account A: wait or Check latest status. Expect Waiting for Fictional B, the notice …
+   Fictional B withdrew their submission (version 4…), and on Settle the words Both
+   current submissions are needed with Close month and archive disabled.
+5. Account B: Review, set Fictional Tickets back to 30/70. Share / Status: Submit shared
+   projection. Expect Both submissions ready, Version 5.
+6. Account A: wait or Check latest status. Open Settle.
+7. Account B: confirm that Share / Status shows Replace and Withdraw only for its own
+   submission and no control for Fictional A’s side.
+
+Expected: Every change by one person appears on the other screen without a browser reload,
+named by alias and version. After the withdrawal the coordinator loses readiness and
+cannot close; after the resubmission both return to Both submissions ready and Settle says
+Fictional B pays Fictional A $21.54 again.
+
+Failure signals: Account A keeps Both submissions ready after the withdrawal, B can change
+A’s side, versions do not increase by one per action, or the settlement does not return to
+$21.54.
+
+### HC-07 — Stale recovery is safe and understandable
+
+1. Account B: open Share / Status in two tabs of the same browser window (tab 1 and tab
+   2). Both show Version 5.
+2. Tab 1: Review, change Fictional Hardware to 70/30, return to Share / Status, choose
+   Replace submission. Expect Version 6.
+3. Switch to tab 2 and simply watch it.
+4. Optional forced conflict (a race, not guaranteed): switch to tab 2 again after another
+   Replace in tab 1 and click Withdraw immediately, before any notice appears. If you win
+   the race you see Shared status changed after this screen loaded, Your private draft in
+   this browser is safe and unchanged, Replace and Withdraw disabled, and a Load latest
+   shared status button. Choose it.
+5. In one tab: choose Withdraw, then Submit shared projection.
+6. Open Review in that tab.
+
+Expected: Step 3: tab 2 updates by itself with the green notice Shared status updated
+while you were here. You replaced your submission (version 6, …) and Version 6, without a
+reload. Step 4, if reached: Load latest shared status shows Loaded the latest shared
+status. Your private draft was not changed. You replaced your submission (version …), the
+buttons are enabled again, no review-needed wording remains, and your withdrawal was not
+applied until you chose it again. Step 5: Withdrawn then submitted, versions increasing by
+one, with no changed or review-needed message in between. Step 6: Fictional Hardware and
+Fictional Tickets are still there with their decisions.
+
+Failure signals: A stale message that stays after Load latest shared status, a resubmit
+that reports a conflict when nobody else changed anything, an emptied private ledger, a
+rejected action that was silently applied, or a page that only recovers after a browser
+reload.
+
+### HC-08 — Coordinator-only deterministic close
+
+1. Account B: Review, set Fictional Hardware to 50/50 and Fictional Tickets to 30/70.
+   Share / Status: choose Replace submission if the current submission differs. Open
+   Settle.
+2. Account B: read the Settle screen carefully. Try to find any close control.
+3. Account A: open Settle and choose Check latest status. Read the amounts. Tick I checked
+   the private count and net against my bank. Choose Close month and archive. Keep the
+   downloaded file.
+4. Account A: read the screen after closing. Choose Download fresh archive.
+5. Account B: wait or choose Check latest status on Settle, then open Share / Status.
+   Choose Download fresh archive on Settle.
+6. Compare the two downloaded archive files in a text editor.
+
+Expected: Account B’s Settle says Fictional B pays Fictional A $21.54, the eyebrow says
+Waiting for Fictional A to close, the right panel is headed Coordinator closes and says
+Only the coordinator, Fictional A, can close this month; there is no close button. After
+Account A closes: Month closed, Closed with 4 shared item(s) on [time] by the coordinator
+(you). Account B sees Month closed and by the coordinator (Fictional A), the same amounts,
+and Share / Status shows Closed with no Submit, Replace, or Withdraw. The two files are
+identical and contain "people":{"a":"Fictional A","b":"Fictional B"},
+"direction":"b_owes_a", "net":21.54, and no email address, id, card label, rule, raw text,
+or Amazon detail.
+
+Failure signals: Account B can close, the archives differ, people show typed names,
+Account A can replace or close again after closing, or the close is described as sending
+money.
+
+### HC-09 — Restart and browser persistence boundaries
+
+1. Both accounts: reload the page after the close. Then fully quit each test browser
+   profile, reopen it, open the app URL, and sign in again.
+2. Both accounts: open Review for July 2026 and August 2026, open Setup, and read the
+   Household access panel.
+3. Account B: switch the household switcher to a different test household if you have one,
+   then back to Alpha.
+4. Note: a Restart this fictional month action (WEB-021) is not part of this batch. The
+   only private erase is Rules & Files → Delete this private browser draft, which clears
+   the whole account + household draft. Do not use it unless you intend to.
+
+Expected: Private rows, decisions, and rules return for the same account and household;
+the pairing summary still shows 2 of 2 with the same aliases; July and August stay Closed;
+nothing from Alpha appears under another household, and switching back restores
+everything.
+
+Failure signals: Private rows lost, pairing lost or changed, a closed month reopened, or
+private data visible under another household or account.
+
+### HC-10 — Privacy and recovery regression
+
+1. Account B: Rules & Files → Download closed shared archives. Open the file in a text
+   editor and search for @, user_, org_, Visa, Mastercard, raw, rule, amazon, product,
+   orderId, and originalAmount.
+2. Account B: confirm Restore closed shared archives, the abandoned-period cancellation,
+   and Delete shared workflow history are disabled with the administrator explanation.
+3. Account A: Rules & Files → Download closed shared archives, type DELETE SHARED HISTORY,
+   choose Delete shared workflow history. Reload. Open Share / Status for July and August,
+   then Setup.
+4. Account A: Restore closed shared archives with the file saved in step 3. Reload and
+   open Settle for July and August in both accounts.
+5. Account C, if available: open the app again and select Alpha.
+6. Both accounts: use the browser’s responsive tools at about 390 × 844 on the pairing
+   summary (Setup), Share / Status, and Settle. Open the browser console on those screens.
+7. Account B: with Share / Status open, block requests to /api/workflows in the browser’s
+   network tools and choose Check latest status. Then unblock and choose Check latest
+   status again.
+
+Expected: The archive file contains July and August only, with aliases Fictional A and
+Fictional B (allowed) and none of the searched strings. Account B cannot restore, cancel,
+or delete. After Account A deletes, July and August show Nothing submitted yet, the
+pairing still shows 2 of 2, and both private drafts remain; after the restore both months
+show Closed with the same archives in both accounts. Account C still sees This household
+already has two participants. Narrow screens stack without page-level horizontal
+scrolling; the console shows no application-origin errors. While blocked, a warning
+message appears and private data remains; after unblocking, Check latest status works
+normally.
+
+Failure signals: Any searched string in the file, the partner can delete or restore,
+deletion removes the pairing or a private draft, the restore fails or differs between
+accounts, console errors from the application, or the blocked network changes any data.
+
+WEB-019 owner acceptance passes when HC-01 through HC-10 pass or record an accepted exception.
 
 ## 1. Test record
 
@@ -42,9 +382,20 @@ item passes or the item explicitly records an accepted exception.
 2. Have two test email accounts you control. Call them **Account A** and **Account B** in
    notes; never put their addresses in repository files.
 3. Keep a third existing test organization available for the isolation check if practical.
-4. From `webapp/`, run `npm run db:migrate:local`, then `npm run dev`.
+4. From `webapp/`, run `npm run db:migrate:local`, then `npm run dev`. The migration step
+   applies `0005_household_pairing.sql` if it has not been applied yet; it adds tables and
+   deletes nothing.
 5. Open the URL printed by Vite. Confirm the page says **Web-service experiment · fictional
    data only**.
+6. Pairing comes first. Until HC-02 completes, the monthly tabs are not shown; that is
+   expected.
+7. If, after pairing, July 2026 shows **Recovery required for 2026-07**, an earlier fictional
+   run left a July slot that belongs to an account that is not the coordinator. As Account A,
+   open Rules & Files, choose **Download closed shared archives**, then under **Cancel an
+   abandoned open period** select `2026-07`, type `CANCEL ABANDONED PERIOD`, and cancel it. It
+   has no submissions, so nothing financial is lost. Alternatively, and only by your own
+   decision, stop the dev server and delete the ignored folder `webapp/.wrangler/state` to
+   start from an empty fictional database.
 
 Failure signals:
 
@@ -222,6 +573,34 @@ different projection:
 Choose `50/50` for Fictional Hardware and `30/70` for Fictional Tickets. Here, `30/70`
 means the card owner bears 30% and the partner bears 70%.
 
+### F-H — August statements for the stable-role check
+
+Select month `2026-08`, bank **Other / generic paste**, and any fictional card label.
+
+Account A:
+
+```text
+2026-08-03 SAMPLE CINEMA $30.00
+```
+
+Account B:
+
+```text
+2026-08-05 SAMPLE BAKERY $10.00
+```
+
+Both rows are decided `50/50`. Expected settlement: Fictional B pays Fictional A `$10.00`.
+
+### F-E2 — A second $25.00 Amazon charge for the occupied-evidence check
+
+Import after F-E on the same Fictional Amazon Card, month `2026-07`:
+
+```text
+2026-07-14 AMAZON MARKETPLACE $25.00
+```
+
+Expected: a second ambiguous `$25.00` charge sharing the two `$25.00` fictional orders.
+
 ## 4. WEB-010 — Batch 4c private workflow acceptance
 
 ### H4C-01 — Large-amount correction remains auditable
@@ -258,18 +637,24 @@ or a refund precedes/matches the wrong purchase.
 
 ### H4C-03 — Amazon is evidence, not financial authority
 
-1. Import F-E, then load F-F under **Amazon order context**.
+1. Import F-E, then F-E2 on the same card, then load F-F under **Amazon order context**.
 2. Open each Amazon row's **Details** in Review.
 3. Confirm the exact `$40.00` candidate.
-4. Reject and then reconsider an ambiguous candidate if those controls are offered.
-5. Decide ownership independently using the normal share controls.
+4. On the Jul 13 `$25.00` row choose **Use this order** for *Fictional book A*. Then open
+   **Details** on the Jul 14 `$25.00` row.
+5. Reject and then reconsider an ambiguous candidate if those controls are offered.
+6. Decide ownership independently using the normal share controls.
 
 Expected: every evidence state is distinct; full fictional product titles are visible only
-inside the private Review context; confirming/rejecting evidence never changes amount,
-share, totals, or settlement.
+inside the private Review context; on the Jul 14 row *Fictional book A* is labelled **Already
+used for Amazon Marketplace on 2026-07-13 ($25.00)** with its button reading **Already used**
+and disabled, the note explains to use **Change match** on the other charge first, and
+*Fictional book B* stays usable; confirming/rejecting evidence never changes amount, share,
+totals, or settlement.
 
 Failure signals: Amazon makes an ownership decision, changes money, allows the same order
-to be confirmed for two charges, or exposes product/order information in Share / Status.
+to be confirmed for two charges, leaves a used order looking actionable, or exposes
+product/order information in Share / Status.
 
 ### H4C-04 — Autosave and scoped restoration
 
@@ -363,9 +748,11 @@ for fixture-only controls.
 3. Finish decisions and inspect **Exact shared-data preview**.
 4. Submit, replace, and withdraw; then resubmit.
 
-Expected: statuses progress through ready, submitted, replaced, withdrawn, and submitted;
-versions advance on real changes; only the allowlisted projection is visible. With no second
-participant, partner status says it is waiting rather than offering a fake partner button.
+Expected: statuses progress through ready, submitted, replaced, withdrawn, and submitted
+without any changed-or-review-needed message in between; versions advance by one on real
+changes; only the allowlisted projection is visible. While the other participant has not
+submitted, the handover panel says **Waiting for [partner alias]** and offers a **Check
+latest status** button, never a fake partner button.
 
 Failure signals: submit while decisions remain, simulation controls in connected mode,
 private details in the preview, silent overwrite, or no explanation for a disabled control.
@@ -384,7 +771,7 @@ Expected: signature green remains visibly present; the desktop hierarchy follows
 Failure signals: inaccessible menu items, tiny tap targets, unreadable tables with no local
 scroll, overlapping Clerk controls, missing focus, or a generic redesign unrelated to v1.
 
-WEB-012 passes after H5-01 through H5-05 and the complete two-person close in H6-04 pass.
+WEB-012 passes after H5-01 through H5-05 and the coordinator-only close in HC-08 pass.
 
 ## 6. WEB-013 — Batch 6 two-account and recovery acceptance
 
@@ -532,7 +919,9 @@ Failure signals: a member sees enabled restore/delete/cancel controls, an active
 is discarded, a different period disappears, erased private rows return after reload, or
 shared/Clerk records change during private deletion.
 
-WEB-013 passes only after H6-01 through H6-08 pass with two real test accounts.
+This legacy WEB-013 rule is superseded by WEB-019. Preserve its results, but do not use it
+to close acceptance. After implementation, WEB-013 passes only through the executable
+replacement HC-01 through HC-10 suite with two real test accounts.
 
 ## 7. Cross-cutting regression pass
 
@@ -564,10 +953,12 @@ warning; browser-extension errors are not application errors.
 
 | Backlog item | Required scenarios |
 |---|---|
-| WEB-010 — Batch 4c | H4C-01 through H4C-05 |
-| WEB-012 — Batch 5 | H5-01 through H5-05 and H6-04 |
-| WEB-013 — Batch 6 | H6-01 through H6-08 |
-| WEB-005 — invitation evidence | H6-01 |
+| WEB-019 — collaboration redesign | HC-01 through HC-10 (executable above) |
+| WEB-020 — occupied Amazon evidence | Revised H4C-03 |
+| WEB-010 — Batch 4c remainder | Revised H4C-03 and H4C-05 with the privacy boundary explained |
+| WEB-012 — Batch 5 remainder | Clean-state H5-03, revised H5-04, and replacement HC-08 |
+| WEB-013 — Batch 6 | Replacement HC-01 through HC-10; legacy H6 evidence is insufficient |
+| WEB-005 — invitation evidence | Replacement HC-02 and HC-03 |
 | OBS-003 — optional v1 Amazon/file depth | H4C-03 through H4C-05 may provide related evidence but do not automatically close the v1 item |
 
 When a scenario fails, record the smallest reproducible set of actions, expected result,

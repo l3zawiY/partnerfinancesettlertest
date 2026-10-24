@@ -24,7 +24,69 @@ Supporting targets are at most 45 minutes in month one, at most 15 minutes combi
 month three, no more than 30 explicit decisions in steady state, and results within $20 of
 a fully manual reconciliation.
 
-## Product invariants
+## Approved web-service collaboration direction — 2026-09-12
+
+The released v1 file-exchange workflow above remains unchanged. The experimental web
+service may replace the manual file handover only if it makes the two-person relationship
+and responsibility clearer without moving either person's private ledger to the server.
+
+Implementation status: implemented locally on 2026-09-12 (Batch 6e in `docs/WEBAPP.md`),
+uncommitted, awaiting the replacement two-account acceptance. Two implementation rules were
+settled there: a shared alias may not contain an email address and the two aliases must
+differ, and the coordinator is always archive payer `a`.
+
+The web service separates three concepts that must never be treated as interchangeable:
+
+1. **Account identity:** Clerk authenticates one person and supplies a verified user id.
+2. **Household access:** an active Clerk Organization supplies the verified security scope.
+3. **Financial role:** Split Ledger binds exactly two verified accounts to stable
+   `coordinator` and `partner` roles for that household.
+
+Organization membership is necessary but is not sufficient financial authorization. Only
+the two paired Split Ledger participants may read or change monthly shared financial
+workflow records. A third organization member must not see or claim a participant's data.
+The first person to submit a month must not determine permanent identity or role.
+
+The coordinator owns the operational close, consistent with v1's settler model. Both
+participants may prepare privately, submit, replace, and withdraw only their own
+privacy-filtered projection, and inspect the combined result. Only the coordinator may
+close a month after both current submissions exist and the coordinator completes the
+required private checks. Closing never sends money.
+
+The handover is the server-recorded submission, not a file or an implied browser state.
+Each person must see the paired participant aliases, who is expected to act next, current
+submission versions and times, and whether the other participant submitted, replaced, or
+withdrew. Share / Status and Settle must check for server changes automatically while
+visible and also offer an explicit **Check latest status** action. A version conflict must
+preserve the private draft, load the authoritative shared state, and explain what changed
+in ordinary language.
+
+Shared aliases are identity labels bound by the server to verified participant accounts.
+A browser-provided export `owner` string is never authoritative for attribution or archive
+creation. Email addresses, Clerk ids, raw statements, complete ledgers, private rows,
+rules, card labels, unfinished decisions, and Amazon evidence remain outside shared
+workflow responses and archives.
+
+The required onboarding and monthly journey is:
+
+1. A verified organization administrator initializes Split Ledger and becomes the stable
+   household coordinator.
+2. The coordinator invites one partner through an explicit in-product invitation path.
+3. The invited account accepts, selects that exact organization, reviews the pairing, and
+   explicitly joins the vacant partner role.
+4. Both screens show the same privacy-safe household identity and `2 of 2 connected` state.
+5. Each person independently imports and reviews private data in their own browser.
+6. Each submits only their allowlisted shared projection; submission visibly hands the
+   month to the other person.
+7. When both current projections exist, both may inspect the same deterministic preview.
+8. The coordinator performs the final check and closes one immutable archive.
+
+Account removal, partner replacement, household transfer, and a lost-coordinator recovery
+are consequential lifecycle operations. Until a separately approved recovery design is
+implemented, the product must fail closed and direct the users to support rather than
+silently rebinding a role or exposing an existing household to a replacement account.
+
+## Released v1 product invariants
 
 1. Private purchases are absent from exchanged files by construction.
 2. Full histories and normalized retailer context remain local to each person.
@@ -74,7 +136,7 @@ shared exports or archives.
 These are directions, not authorized work. Smaller unresolved items and speculative ideas
 live in `docs/BACKLOG.md`.
 
-## Explicitly out of scope
+## Explicitly out of scope for released v1
 
 - Live bank or retailer connections, scraping, email imports, and account access
 - A backend, user accounts, uploads, telemetry, or background synchronization

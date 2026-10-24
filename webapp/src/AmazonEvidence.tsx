@@ -19,7 +19,7 @@ export default function AmazonEvidence({ row, workspace }: { row: LedgerRow; wor
       const occupiedBy = review.kind === 'confirmed' ? null : amazonOccupiedBy(row.id, order.orderId, workspace.amazonMatches, workspace.amazonContext.decisions)
       const occupant = occupiedBy ? workspace.ledger.find(function (candidate) { return candidate.id === occupiedBy }) || null : null
       return <div className={'evidence-order' + (occupiedBy ? ' occupied' : '')} key={order.orderId}>
-        <div>{order.products.map(function (product) { return <strong key={product}>{product}</strong> })}<small>Fictional order · {order.orderDate} · ${order.total.toFixed(2)}</small>
+        <div>{order.products.map(function (product) { return <strong key={product}>{product}</strong> })}<small>Order · {order.orderDate} · ${order.total.toFixed(2)}</small>
           {occupiedBy ? <small className="occupied-note" role="note">Already used for {occupant ? occupant.merchant + ' on ' + occupant.date + ' (' + money(occupant.amount) + ')' : 'another charge'}. To use it here instead, open that charge’s Details and choose Change match first.</small> : null}</div>
         {review.kind !== 'confirmed' ? <button disabled={!!occupiedBy} aria-disabled={!!occupiedBy} title={occupiedBy ? 'This order is already confirmed for another charge.' : undefined} onClick={() => workspace.confirmAmazon(row.id, order.orderId)}>{occupiedBy ? 'Already used' : 'Use this order'}</button> : null}
       </div>

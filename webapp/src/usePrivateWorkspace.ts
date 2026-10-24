@@ -233,7 +233,7 @@ export function usePrivateWorkspace(scopeKey: string) {
   }
 
   function parseAmazon(): void {
-    if (!amazonText.trim()) { setMessage('Paste fictional Amazon order text first.'); return }
+    if (!amazonText.trim()) { setMessage('Paste Amazon order text first.'); return }
     const parsed = parseAmazonOrders(amazonText)
     if (!parsed.orders.length) { setMessage('No complete Amazon orders were found; nothing changed.'); return }
     setAmazonContext({ ...parsed, decisions: {} }); setAmazonText(''); setMessage('Normalized Amazon evidence saved privately; raw paste discarded.')
@@ -250,7 +250,7 @@ export function usePrivateWorkspace(scopeKey: string) {
     const occupiedBy = amazonOccupiedBy(rowId, orderId, amazonMatches, amazonContext.decisions)
     if (occupiedBy) {
       const other = ledger.find(function (row) { return row.id === occupiedBy })
-      setMessage('That fictional order is already confirmed for ' + (other ? other.merchant + ' on ' + other.date : 'another charge') + '. Open that charge\'s Details and choose Change match first.')
+      setMessage('That order is already confirmed for ' + (other ? other.merchant + ' on ' + other.date : 'another charge') + '. Open that charge\'s Details and choose Change match first.')
       return
     }
     setAmazonDecision(rowId, { status: 'confirmed', orderId })

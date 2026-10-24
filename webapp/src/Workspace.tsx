@@ -1,3 +1,4 @@
+import { environmentLabels } from './environment'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { HouseholdPairing } from '../shared/pairing'
 import { localDraftStatus, type PeriodWorkflow, type WorkflowAdministrationGateway, type WorkflowCapabilities, type WorkflowGateway, type WorkflowStatus } from '../shared/workflow'
@@ -155,6 +156,6 @@ export default function Workspace(props: { scopeKey: string; gateway: WorkflowGa
       {screen === 'settle' ? <SettleScreen workspace={workspace} workflow={workflow} busy={busy} connected={!!props.connected} onClose={close} onFailNextClose={props.simulation ? failClose : undefined} onRecoverStale={recover} lastChecked={lastChecked} checking={checking} onCheckLatest={() => void checkLatest(true)} /> : null}
       {screen === 'files' ? <RulesFilesScreen workspace={workspace} administration={props.administration} capabilities={capabilities} connected={!!props.connected} support={{ pairing: { connected: props.pairing?.connected ?? 0, role: viewer ? viewer.role : props.pairing ? 'member' : 'none' }, workflow: { status: workflow.status, version: workflow.version } }} /> : null}
     </div>
-    <footer className="app-footer"><div className="footer-inner"><span>{props.connected ? 'Local API · fictional data only' : 'Fictional local workflow'}</span><button aria-current={screen === 'files' ? 'page' : undefined} onClick={() => setScreen('files')}>Rules &amp; Files</button><span>Private import and review remain in this browser.</span></div></footer>
+    <footer className="app-footer"><div className="footer-inner"><span>{props.connected ? environmentLabels().footer : 'Fictional local workflow'}</span><button aria-current={screen === 'files' ? 'page' : undefined} onClick={() => setScreen('files')}>Rules &amp; Files</button><span>Private import and review remain in this browser.</span></div></footer>
   </>
 }

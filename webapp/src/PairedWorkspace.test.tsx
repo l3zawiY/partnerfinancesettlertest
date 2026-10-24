@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { HouseholdPairing } from '../shared/pairing'
 import { fictionalPartnerProjection } from './testing/fictionalFixtures'
 import { FIXTURE_ALIASES, PairedFixtureServer } from './testing/PairedFixtureServer'
@@ -168,5 +168,23 @@ describe('paired two-person workspace', function () {
     render(<Workspace scopeKey="unpaired-review-identity" gateway={server.as('partner')} connected now={CLOCK} statusCheckIntervalMs={60_000} />)
     await user.click(screen.getByRole('tab', { name: 'Review' }))
     expect(screen.getByText('Decide how each purchase should be shared between Me and Partner.')).toBeVisible()
+  })
+
+  it('after closing, offers the coordinator a ready message and a private backup reminder', async function () {
+    const user = userEvent.setup()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(function () { return 'blob:fictional' }) })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {})
+    const server = new PairedFixtureServer(CLOCK)
+    server.submit('partner', fictionalPartnerProjection('2026-07'), null, 'submit')
+    server.submit('coordinator', fictionalPartnerProjection('2026-07'), null, 'submit')
+    await server.as('coordinator').close('2026-07', server.view('2026-07', 'coordinator').version)
+    render(<Workspace scopeKey="paired-closed-coordinator" gateway={server.as('coordinator')} connected now={CLOCK} statusCheckIntervalMs={60_000} />)
+    fireEvent.change(screen.getByLabelText('Header reconciliation month'), { target: { value: '2026-07' } })
+    await user.click(screen.getByRole('tab', { name: 'Settle' }))
+    expect(await screen.findByText(/^July 2026 is closed in Split Ledger: (Fictional A and Fictional B are square|.+ pays .+ \$[\d.]+)\. http/)).toBeVisible()
+    expect(screen.getByText(/Keep a private backup\./)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Download private session' }))
+    expect(screen.getByText(/Private backup downloaded for this month/)).toBeVisible()
   })
 })

@@ -363,3 +363,5 @@ th, td { border-bottom: 1px solid var(--hairline); padding: 8px; }
 .handover-message { display: grid; gap: 8px; margin-top: 12px; border-top: 1px solid var(--hairline); padding-top: 12px; }
 .handover-message .handover-text { margin: 0; border-radius: 8px; background: var(--accent-pale); padding: 10px 12px; font-size: 13px; line-height: 1.45; }
 .handover-message a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+.backup-reminder { display: grid; gap: 8px; margin: 12px 0; border: 1px dashed #bfd3ad; border-radius: 10px; padding: 12px; font-size: 13px; }
+.backup-reminder p { margin: 0; }

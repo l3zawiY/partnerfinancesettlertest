@@ -26,7 +26,16 @@ function promote(row: EngineRow | LedgerRow): LedgerRow {
   return 'creditKind' in row ? row as LedgerRow : toLedgerRow(row)
 }
 
-export function defaultPeriod(): string { return new Date().toISOString().slice(0, 7) }
+/**
+ * WEB-033: people settle after a month ends, so during the first half of a month the month
+ * that just ended opens by default. Uses the browser's own time zone: a Toronto evening on the
+ * last day of a month is already the next month in UTC.
+ */
+export function defaultPeriod(now: Date = new Date()): string {
+  const year = now.getFullYear(), month = now.getMonth()
+  const target = now.getDate() <= 15 ? new Date(year, month - 1, 1) : new Date(year, month, 1)
+  return target.getFullYear() + '-' + String(target.getMonth() + 1).padStart(2, '0')
+}
 
 export function downloadJson(name: string, value: unknown): void {
   const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' })
@@ -68,6 +77,7 @@ export function usePrivateWorkspace(scopeKey: string) {
   // The last draft text this tab wrote or adopted; another tab's newer save replaces it (WEB-027).
   const lastSaved = useRef<string | null>(null)
   const [tabNotice, setTabNotice] = useState<string | null>(null)
+  const [backedUpPeriods, setBackedUpPeriods] = useState<string[]>([])
 
   const amazonMatches = useMemo(function () {
     return matchAmazonOrders(ledger, amazonContext.orders)
@@ -250,7 +260,7 @@ export function usePrivateWorkspace(scopeKey: string) {
     return buildSharedExport({ toolVersion: WEBAPP_TOOL_VERSION, period, owner: (names[meIndex] || 'Me').trim() || 'Me', txns: ledger })
   }
 
-  function saveSession(): void { downloadJson('split-session-' + period + '.json', createSessionSnapshot(sessionState())) }
+  function saveSession(): void { downloadJson('split-session-' + period + '.json', createSessionSnapshot(sessionState())); setBackedUpPeriods(function (done) { return done.includes(period) ? done : done.concat(period) }) }
   async function loadSession(file: File): Promise<void> {
     try { const loaded = readSession(JSON.parse(await file.text())); if (!loaded) throw new Error(); loadState(loaded); setMessage('Private session loaded and auto-save resumed.') }
     catch { setMessage('That file is not a readable Split Ledger private session; nothing changed.') }
@@ -280,7 +290,7 @@ export function usePrivateWorkspace(scopeKey: string) {
     defaultUnknown, setDefaultUnknown, excludePatterns, setExcludePatterns, amazonText, setAmazonText,
     amazonContext, setAmazonContext, amazonMatches, message, groupBy, setGroupBy, onlyUndecided,
     setOnlyUndecided, confirmedTotals, setConfirmedTotals, postedCount: posted.length, undecidedCount,
-    scopeKey, tabNotice, dismissTabNotice: function () { setTabNotice(null) },
+    scopeKey, backedUp: backedUpPeriods.includes(period), tabNotice, dismissTabNotice: function () { setTabNotice(null) },
     parse, decide, decideGroup, forgetRule, reapplyRules, correctAmount, parseAmazon, setAmazonDecision, confirmAmazon,
     projection, saveSession, loadSession, saveShared, erasePrivateDraft,
   }

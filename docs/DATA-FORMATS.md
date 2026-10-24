@@ -178,6 +178,29 @@ descriptions, amounts, product titles, order IDs, raw paste, filenames, local pa
 or session/partner contents. Browser details and counts are still metadata, so users must
 share the report deliberately rather than publish it.
 
+### Web app variant (`app: "web"`, WEB-030)
+
+The web app's Rules & Files → **Copy safe diagnostic report** uses the same format name and
+adds `app: "web"`. Built by `webapp/shared/diagnostic.ts` from an allowlist, it may contain:
+
+- application version; deployment (`local`, `staging`, `production`, or `unknown`); browser
+  family, major version, and operating system only (for example `Chrome 141 on Windows`);
+  whether browser storage is available;
+- counts: saved private months, transactions, decided and undecided purchases, credits,
+  pending rows, rules, cards, Amazon orders and decisions;
+- grouping and undecided-filter settings;
+- pairing as connected count (0–2) and the viewer's own role
+  (`coordinator`, `partner`, `member`, `none`);
+- the current workflow status word and version number;
+- the last eight API calls as a fixed route name (periods collapsed to `:period`) and HTTP
+  status code;
+- self-test totals and failures (`webapp/shared/selfTest.ts`, ids mirroring v1's T ids,
+  plus web-only W ids).
+
+The same exclusions as v1 apply, plus aliases, household name, email addresses, and Clerk
+ids. Unknown values for deployment or status are replaced by `unknown` or `other` rather
+than echoed.
+
 ## Internal transaction shape
 
 ```js

@@ -13,6 +13,13 @@ type GetToken = () => Promise<string | null>
 /** Shown instead of the browser's bare "Failed to fetch" when the request never reached the Worker. */
 export const UNREACHABLE_MESSAGE = 'Could not reach the Split Ledger service. Your private draft in this browser is unchanged; check your connection and try again.'
 
+/** The last few API route/status pairs, for the safe diagnostic (WEB-030). Never bodies. */
+export const recentApiStatuses: { route: string; status: number }[] = []
+function recordStatus(path: string, status: number): void {
+  recentApiStatuses.push({ route: path, status })
+  if (recentApiStatuses.length > 8) recentApiStatuses.shift()
+}
+
 export async function authenticatedApiRequest(
   getToken: GetToken,
   path: string,
@@ -25,7 +32,8 @@ export async function authenticatedApiRequest(
   if (init.body !== undefined) headers.set('Content-Type', 'application/json')
   let response: Response
   try { response = await fetch(path, { ...init, headers }) }
-  catch { throw new Error(UNREACHABLE_MESSAGE) }
+  catch { recordStatus(path, 0); throw new Error(UNREACHABLE_MESSAGE) }
+  recordStatus(path, response.status)
   const body: unknown = await response.json().catch(function () { return null })
   if (response.status === 403 && body && typeof body === 'object' && 'error' in body && String((body as { error: unknown }).error).includes('active household')) throw new NoActiveHouseholdError()
   return { response, body }

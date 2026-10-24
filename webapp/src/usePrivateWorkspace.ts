@@ -280,7 +280,7 @@ export function usePrivateWorkspace(scopeKey: string) {
     defaultUnknown, setDefaultUnknown, excludePatterns, setExcludePatterns, amazonText, setAmazonText,
     amazonContext, setAmazonContext, amazonMatches, message, groupBy, setGroupBy, onlyUndecided,
     setOnlyUndecided, confirmedTotals, setConfirmedTotals, postedCount: posted.length, undecidedCount,
-    tabNotice, dismissTabNotice: function () { setTabNotice(null) },
+    scopeKey, tabNotice, dismissTabNotice: function () { setTabNotice(null) },
     parse, decide, decideGroup, forgetRule, reapplyRules, correctAmount, parseAmazon, setAmazonDecision, confirmAmazon,
     projection, saveSession, loadSession, saveShared, erasePrivateDraft,
   }

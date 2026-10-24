@@ -16,7 +16,7 @@ and Amazon samples under Import to try the full workflow without real data.
 
 1. Choose the calendar month and import each card's bank table.
 2. Optionally paste Amazon Your Orders text for private product context.
-3. Reconcile imported counts and totals, then review ownership with the mouse or keyboard.
+3. Reconcile imported counts and totals, then review ownership.
 4. Download the privacy-redacted shared file and exchange it directly with the partner.
 5. The settler loads the partner file, reviews checks, and closes the month.
 

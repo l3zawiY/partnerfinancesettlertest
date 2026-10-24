@@ -68,8 +68,7 @@ migration, so a cross-household read is genuinely refused by SQL rather than by 
 Batch 5 component coverage exercises the complete fictional journey, credit-row behavior,
 undecided labels, five presets and custom share, rule removal, the privacy projection,
 workflow transitions and recovery, close prerequisites, archive intent, ordinary keyboard
-activation, and account/organization-scoped persistence. Keyword shortcuts from v1 are
-intentionally out of web-app scope by owner decision; normal keyboard accessibility remains.
+activation, and account/organization-scoped persistence.
 
 Batch 6 adds a second level of workflow proof. Worker/SQLite tests act as two verified
 members of one household and assert viewer-oriented submissions, a two-participant limit,

@@ -31,7 +31,9 @@ service may replace the manual file handover only if it makes the two-person rel
 and responsibility clearer without moving either person's private ledger to the server.
 
 Implementation status: implemented on 2026-09-12 (Batch 6e in `docs/WEBAPP.md`), committed,
-with an automated two-account pre-run on 2026-10-24; awaiting the owner's acceptance decision. Two implementation rules were
+with an automated two-account pre-run on 2026-10-24. The owner approved a real pilot with
+the partner, targeted for about 2026-10-31 on the October 2026 month, following the refined
+pilot roadmap in `docs/WEBAPP.md`; acceptance testing is delegated to the coding agent. Two implementation rules were
 settled there: a shared alias may not contain an email address and the two aliases must
 differ, and the coordinator is always archive payer `a`.
 
@@ -109,7 +111,7 @@ silently rebinding a role or exposing an existing household to a replacement acc
 | M5 | Deduplicate repeated imports |
 | M6 | Mine, 70/30, 50/50, 30/70, theirs, and custom payer-share decisions |
 | M7–M8 | Deliberate remembered-merchant rules and an optional small-unknown threshold that defaults to zero |
-| M9–M10 | Day/merchant review, focus, and keyboard-driven decisions |
+| M9–M10 | Day/merchant review and focus |
 | M11–M13 | Privacy-redacted shared export, partner-file settlement, and self-import protection |
 | M14–M15 | Pre-settlement checks and statement-date coverage evidence |
 | M16–M17 | Append-only month close/archive and synthetic self-test |

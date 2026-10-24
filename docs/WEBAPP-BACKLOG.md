@@ -4,6 +4,10 @@ Unresolved work for the `webapp/` experiment only. Items about the released sing
 `index.html` application belong in `docs/BACKLOG.md`. Completed engineering items are
 removed and recorded in `docs/WEBAPP.md`; stable ids are never reused.
 
+Every item carries a **Priority** line: **Must before pilot** (blocks real data, per the
+refined pilot roadmap of 2026-10-24 in `docs/WEBAPP.md`), **Should** (scheduled but not
+blocking), or **Later**. Batch 7b's go/no-go requires no open Must item.
+
 ## Observations
 
 ### WEB-005 — Complete invited-partner household acceptance
@@ -15,6 +19,8 @@ replacement acceptance must still prove invitation acceptance into the exact org
 but now also proves stable pairing, privacy-safe participant identity, a visible handover,
 and third-member refusal. Do not close WEB-005 before WEB-019 passes.
 
+**Priority:** Must before pilot. Closed by the WEB-031 suite run on staging (HC-02) plus owner spot-check 7b-6.
+
 *Noticed: 2026-09-07.*
 
 ### WEB-010 — Complete deferred Batch 4c owner verification
@@ -24,6 +30,8 @@ Amazon-recommendation defect now tracked as WEB-020. H4C-05 was skipped because 
 expected online persistence; the privacy boundary still requires private-session recovery
 because complete ledgers deliberately remain browser-only. Complete WEB-020 and rerun only
 H4C-03 and H4C-05 under the revised guide.
+
+**Priority:** Must before pilot. Closed by the WEB-031 suite (H4C-03, H4C-05) on staging.
 
 *Noticed: 2026-09-09.*
 
@@ -36,6 +44,8 @@ on resubmit, which failed inside the transaction). H6-04 could not run because t
 workflow was not understandable. WEB-012 remains open; rerun H5-03, the revised H5-04, and
 HC-08.
 
+**Priority:** Must before pilot. Closed by the WEB-031 suite (H5-03, H5-04, HC-08) on staging.
+
 *Noticed: 2026-09-10.*
 
 ### WEB-013 — Complete deferred Batch 6 two-account owner acceptance
@@ -46,6 +56,8 @@ submission hands work to the other person. H6-02 and H6-05 were recorded as fail
 H6-03, H6-04, H6-07, and H6-08 were blocked. This is an architecture/product gap rather
 than missing evidence. WEB-013 is blocked by WEB-019 and must use the replacement
 collaboration acceptance suite after that work lands.
+
+**Priority:** Must before pilot. Closed by the WEB-031 suite (HC-01 to HC-10) on staging.
 
 *Noticed: 2026-09-10.*
 
@@ -100,6 +112,8 @@ decision on the pre-run (or a manual spot-check). WEB-026 (one private draft per
 decided and completed the same day as Batch 6g in `docs/WEBAPP.md`. Do not close WEB-005,
 WEB-012, or WEB-013 before then.
 
+**Priority:** Must before pilot. Closes with WEB-005, WEB-012, and WEB-013.
+
 *Noticed: 2026-09-12.*
 
 ### WEB-020 — Make occupied Amazon evidence explicit
@@ -117,6 +131,8 @@ private Review, its button reads **Already used** and is disabled, and the note 
 that **Change match** on the other charge frees it. Pure and component tests cover the rule.
 Closes after the owner reruns H4C-03.
 
+**Priority:** Must before pilot. Closes when the WEB-031 suite passes H4C-03.
+
 *Noticed: 2026-09-11.*
 
 ### WEB-021 — Add a safe fictional-month restart action
@@ -131,6 +147,8 @@ testability and recovery control, not permission to weaken production deletion s
 
 Not retained in the WEB-019 batch; still open. HC-09 runs without it.
 
+**Priority:** Later. Not needed for the pilot; the per-month draft and private-draft deletion cover testing.
+
 *Noticed: 2026-09-11.*
 
 ### WEB-022 — Let only the invited account claim the partner role
@@ -140,6 +158,8 @@ partner**, not only the account the coordinator invited. Bind the claim to the p
 invitation (for example, the invited email's Clerk user) or require coordinator
 confirmation, and refuse others with a plain message. Add Worker tests for an uninvited
 member racing the invited one.
+
+**Priority:** Must before pilot (Batch 6h).
 
 *Noticed: 2026-10-24 (code review of `f1766cb`).*
 
@@ -152,6 +172,8 @@ partner to Clerk administrator, or demoting the coordinator, would move these po
 Decide whether they belong to the coordinator only, then align the Worker, the
 capabilities route, and the "requires a household administrator" wording.
 
+**Priority:** Must before pilot (Batch 6h).
+
 *Noticed: 2026-10-24.*
 
 ### WEB-024 — Validate restored archive aliases
@@ -159,6 +181,8 @@ capabilities route, and the "requires a household administrator" wording.
 Restore accepts archives without checking `people.a` and `people.b` against the alias
 rules (no email address, distinct aliases) or against the current pairing. Reject or
 explain mismatches before writing. Add Worker tests.
+
+**Priority:** Must before pilot (Batch 6h).
 
 *Noticed: 2026-10-24.*
 
@@ -170,6 +194,8 @@ again before deleting shared history.** Scope the deletion token to the account 
 exported. The partner also sees "The deletion token is valid for 15 minutes" although the
 partner cannot delete; show that line only to someone who can.
 
+**Priority:** Must before pilot (Batch 6h).
+
 *Noticed: 2026-10-24.*
 
 ### WEB-027 — Stop two tabs from silently overwriting each other's private draft
@@ -180,6 +206,8 @@ submission; tab 2, opened earlier, kept 50/50 in memory and its later resubmissi
 storage, last writer wins. Detect a newer saved draft from another tab (a `storage` event)
 and ask before overwriting, or reload it.
 
+**Priority:** Must before pilot (Batch 6h).
+
 *Noticed: 2026-10-24.*
 
 ### WEB-028 — Clean up leftover fictional-adapter and closed-month wording
@@ -188,6 +216,56 @@ Small copy issues seen in the 2026-10-24 pre-run: the Settle check **Partner pro
 ready** says "The fictional partner submission is present" with a real paired partner; after
 an archive restore, a closed month's handover panel says "Fictional A has no current
 submission for this month". Replace with paired-participant wording.
+
+**Priority:** Should, in Batch 6h (small).
+
+*Noticed: 2026-10-24.*
+
+### WEB-029 — In-browser self-test (web equivalent of v1 M17)
+
+v1 has **Run self-test** in Rules & Files: it runs the calculation engine on built-in
+fictional data inside the user's own browser and reports pass/fail, proving that this
+computer and this copy of the app calculate correctly. It is not user testing. Add the same
+to the web app: run the shared parsing, refund, rule, settlement (including half-cent
+rounding), and projection-allowlist logic on built-in fictional fixtures, with no network
+request and no storage write, and show the pass count and any failure in plain language.
+Reuse the existing parity fixtures. Used by both participants in owner spot-check 7b-6 and
+before each pilot month after a deploy.
+
+**Priority:** Must before pilot (Batch 6h).
+
+*Noticed: 2026-10-24.*
+
+### WEB-030 — Copy safe diagnostic report (web equivalent of v1 M18)
+
+v1 has **Copy safe diagnostic report**: a short text a user can paste into a support
+conversation that describes the app and browser state without any personal or financial
+content. Add the web version, following `split-ledger-diagnostic/v1` in
+`docs/DATA-FORMATS.md` (extend that section rather than invent a new format): app version
+and build, environment (local, staging, production), browser family, storage
+availability, number of saved private months, counts of rows by state, rule and card
+counts, self-test totals, pairing state as connected count and own role, and the last
+workflow API status codes. Never include aliases, household name, emails, Clerk ids,
+periods, dates, merchants, amounts, card labels, raw text, or URLs. During the pilot this is
+the agent's only window into a participant's problem.
+
+**Priority:** Must before pilot (Batch 6h).
+
+*Noticed: 2026-10-24.*
+
+### WEB-031 — Automated two-account acceptance suite
+
+Turn the 2026-10-24 Playwright pre-run into a committed, repeatable suite under `webapp/`
+that runs HC-01 to HC-10 and the reruns H4C-03, H4C-05, H5-03, and H5-04 against a
+configurable base URL (local or staging). It creates three fictional `+clerk_test` users
+through Clerk's Backend API in the **Development** instance only, uses separate browser
+profiles, saves screenshots and archives outside the repository, prints a pass/fail table,
+and removes its fictional users and household at the end. No login bypass in the
+application; the suite refuses to run against a production URL or with a `sk_live_` key.
+Not part of `npm run check` (it needs network and Clerk); document its command in
+`docs/TESTING.md`.
+
+**Priority:** Must before pilot (Batch 6h); run before every staging and production deploy.
 
 *Noticed: 2026-10-24.*
 
@@ -202,6 +280,8 @@ Add a search field on the Review page so a person can quickly find transactions 
 or transaction description. Consider category search as part of the same design. Search
 must work together with the existing review filters, be keyboard and screen-reader
 accessible, and remain usable on a narrow phone layout.
+
+**Priority:** Later (post-pilot).
 
 *Noticed: 2026-09-11.*
 
@@ -220,5 +300,7 @@ copy of either partner's complete private ledger. Private transactions, card lab
 rules, and Amazon-only evidence remain on that partner's device and must not be added merely
 for analytics. Define retention, correction, deletion, authorization, schema migrations,
 and privacy-projection tests when this evolution is designed.
+
+**Priority:** Later (post-pilot).
 
 *Noticed: 2026-09-11.*

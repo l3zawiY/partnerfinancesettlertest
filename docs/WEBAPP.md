@@ -69,9 +69,10 @@ and WEB-028 in
 email; right after sign-in, Clerk's in-app **Choose an organization** step listed Fictional
 Household Gamma with **Join**.
 
-**Next step:** the owner reviews the pre-run evidence and either accepts
-the pre-run or spot-checks steps by hand (in particular a real human sign-up, which the
-pre-run could not cover, and HC-09 with the per-month draft). Batch 7 stays paused until owner acceptance.
+**Next step:** follow the **Refined pilot roadmap — 2026-10-24** under Batch roadmap:
+Batch 6h (pre-pilot hardening, agent) and Batch 7a (fictional staging; the owner's
+Cloudflare setup steps are in 7a Part 1) run in parallel; Batch 7b (production) follows;
+the real pilot (Batch 7c) targets the October 2026 month, starting about 2026-10-31.
 
 ## Status — 2026-09-12 (superseded by the status above)
 
@@ -334,7 +335,87 @@ Priority order approved on 2026-09-10:
    parallel pilot. Convenience ideas such as search, AI assistance, and deeper diagnostics
    do not displace these controls.
 
-### Batch 1 — Authenticated frontend-to-backend foundation (implemented, finishing)
+### Refined pilot roadmap — 2026-10-24 (owner-approved)
+
+**Owner decisions recorded 2026-10-24.**
+
+- Goal: a real two-person pilot with the owner's partner, starting about **2026-10-31**.
+  The first real month is **October 2026**, settled in early November. v1 stays available
+  as the fallback.
+- The owner delegates building, deployment, and in-depth testing to the coding agent and
+  wants minimal owner effort. For this pilot, the agent's automated two-account runs in a
+  real browser count as acceptance evidence. The owner keeps only the short **owner
+  spot-check** in Batch 7b step 7b-6 (about 15 minutes each for the owner and partner).
+  This replaces the earlier rule that automation cannot mark human checks passed.
+- Fictional staging (7a) runs in parallel with hardening (6h). Production (7b) and any
+  real data wait until 6h's exit criteria and the staging run pass.
+- The owner owns a domain; production uses a subdomain of it, never `workers.dev`.
+- v1 shortcut keys stay out of scope.
+- v1's built-in self-test (M17) and safe diagnostic (M18) get web equivalents, WEB-029 and
+  WEB-030, in Batch 6h.
+
+**Who does what, in order.** "D0" is 2026-10-24. Days are targets, not promises; a failed
+gate moves every later step.
+
+| Step | What | Who | Owner time | Gate to continue |
+|---|---|---|---|---|
+| 6h | Fix the must-have backlog items, add self-test, diagnostic, and an automated acceptance suite; run extended tests locally | Agent | none | Gate green, suite green, must items closed |
+| 7a-owner | Cloudflare account, MFA, API token, two environment settings, network allowlist (7a Part 1) | Owner | ~20 min, D0–D1 | Agent confirms it can reach Cloudflare with the token |
+| 7a | Staging configuration, hosted database, deploy, full automated suite against staging, rollback rehearsal | Agent | none | 7a exit criteria |
+| 7b-owner | Domain DNS, Clerk Production instance, production secret pasted into Cloudflare (7b steps 7b-1 to 7b-4) | Owner | ~30–40 min, D2–D3 | Clerk shows the domain verified |
+| 7b | Production configuration, security headers, runbook, deploy, unauthenticated production checks | Agent | none | 7b checks green |
+| 7b-6 | Owner spot-check with real accounts and fictional data, partner joins | Owner + partner | ~15 min each, D4 | Both see the same fictional result; self-test passes on both laptops |
+| Go/no-go | Written review in this document | Agent writes, owner reads | ~10 min, D5 | Owner says go |
+| 7c | Pilot month 1 (October 2026) | Owner + partner, agent supports | normal monthly effort | Month closes; owner answers five questions |
+
+**Real-data rule for the agent (pilot and later).** The agent never opens, queries, exports,
+or asks for production shared records, real statements, archives, or screenshots of real
+data. Production support uses only status codes, Cloudflare/D1 operational counts, and the
+privacy-safe diagnostic from WEB-030 that a participant chooses to paste. Any production
+database command that reads rows is forbidden; migrations are applied only after a staging
+rehearsal of the same files.
+
+### Batch 6h — Pre-pilot hardening (planned; agent; runs in parallel with 7a)
+
+Learning objective: close the defects found in review and the pre-run, and turn the
+pre-run into a repeatable automated suite, before any real account or data exists.
+
+Scope (each item's detail lives in `docs/WEBAPP-BACKLOG.md`):
+
+1. **WEB-022** — only the invited account can join as partner. Default design: the Worker
+   accepts the join only from a member whose verified Clerk email matches the household's
+   pending Clerk invitation; otherwise a plain refusal. No extra step for users.
+2. **WEB-023** — restore, delete, and abandoned-period cancellation belong to the
+   coordinator role (server-checked), not to Clerk `org:admin`. Update the copy that says
+   "requires a household administrator".
+3. **WEB-024** — restore validates archive aliases against the alias rules and the current
+   pairing.
+4. **WEB-025** — the deletion token belongs to the account that exported; only someone who
+   can delete sees the token message.
+5. **WEB-027** — a tab notices a newer private draft saved by another tab and reloads or
+   asks before overwriting.
+6. **WEB-028** — leftover "fictional partner" and closed-month wording.
+7. **WEB-029** — in-browser **Run self-test** (M17 equivalent).
+8. **WEB-030** — **Copy safe diagnostic report** (M18 equivalent).
+9. **WEB-031** — automated two-account acceptance suite (HC-01 to HC-10, plus the WEB-010
+   and WEB-012 reruns H4C-03, H4C-05, H5-03, and H5-04), runnable against local and
+   staging.
+10. **Extended checks** run by the agent and recorded in `docs/WEBAPP-HUMAN-TESTING.md`
+    section 1: a realistic month of about 130 fictional transactions for each person over
+    three months, month switching, restart, two tabs, blocked network, 390 px layout,
+    console sweep, and a full delete-then-restore. The container has only Chromium; the
+    owner's and partner's own browsers are covered by step 7b-6, so record which browsers
+    they use.
+
+Rules: no login bypass in the application. The suite creates and removes its fictional
+users only in the Clerk **Development** instance, through Clerk's Backend API, and keeps
+screenshots outside the repository. Every fix gets a test that fails without it.
+
+Exit criteria: all items above merged with tests; `npm run check`, `node test/run-tests.js`,
+and the suite pass locally; `docs/WEBAPP-BACKLOG.md` has no open item tagged
+**Must before pilot** except the acceptance items closed by 7a/7b evidence.
+
+### Batch 1 — Authenticated frontend-to-backend foundation (implemented, committed)
 
 Learning objective: see the full request path without mixing in a database or financial
 logic.
@@ -371,7 +452,7 @@ Finish in this order:
 Batch 1 is closed. Do not add D1, organizations, or financial fields to it retroactively;
 that work belongs to Batch 2.
 
-### Batch 2 — Household membership and an empty local database (implemented, unreviewed)
+### Batch 2 — Household membership and an empty local database (implemented, committed)
 
 Learning objective: distinguish authentication (who are you?) from authorization (which
 household may you access?) and persistence (what survives a reload?).
@@ -708,8 +789,8 @@ Testing delivered and dependency decision:
   The app produced no console errors. Clerk produced its expected development-key warning;
   the automation extension produced one unrelated extension-origin error.
 
-Owner decision on 2026-09-09: v1's keyword shortcuts are intentionally not part of the
-web-app version because the owner never used them. Normal keyboard focus, labels, native
+Owner decision on 2026-09-09, reaffirmed 2026-10-24: v1's shortcut keys are out of scope
+for the web app and need no further mention. Normal keyboard focus, labels, native
 controls, and activation remain required accessibility behavior.
 
 Owner decision on 2026-09-10: restore direct visual and information-hierarchy parity with
@@ -1022,14 +1103,14 @@ recovery with the concrete root cause fixed. Three smaller findings from that ch
    version, without restating the old and new settlement dollar amount in that sentence; the
    updated amount is already visible on screen. Left as is.
 
-### Batch 7a — Cloudflare account and fictional staging (proposed; blocked until WEB-019 owner acceptance passes)
+### Batch 7a — Cloudflare account and fictional staging (planned; runs in parallel with 6h; fictional data only)
 
 Learning objective: introduce a hosted environment without exposing real financial data.
 
-This is when a Cloudflare account first becomes necessary. Account creation, login, hosted
-database creation, remote migrations, secrets, and deployment are external state changes
-and require a new, explicit owner authorization. Reading this runbook or approving local
-code does **not** authorize those actions.
+This is when a Cloudflare account first becomes necessary. The owner authorized the whole
+pilot roadmap on 2026-10-24, including hosted database creation, remote migrations,
+secrets, and staging and production deployment by the agent. Paid plans, trials, domain
+purchases, and deleting resources still require a separate owner decision.
 
 #### What the services are and where they live
 
@@ -1063,30 +1144,53 @@ plan, an add-on, a domain purchase, or an automatic paid conversion. Do not star
 Free allowances and screens can change, so re-check the linked official pricing immediately
 before account creation and again before deployment.
 
-#### Part 1 — actions the owner performs after separately authorizing staging
+#### Part 1 — owner steps (about 20 minutes, no code)
 
-1. Open Cloudflare's official sign-up page, enter the email address that should own the
-   service, create a strong unique password, and select **Create account**. Open the
-   verification email and verify the address. A business-controlled mailbox is preferable
-   to an address that only one person can recover.
-2. In the Cloudflare dashboard, confirm the account is on **Workers Free**. Do not select an
-   upgrade, Workers Paid, or a trial. No custom domain is needed for staging.
-3. In the account profile, open **Authentication**, add an authenticator-app or security-key
-   MFA method, save the recovery codes somewhere separate from the computer, sign out, and
-   confirm sign-in and MFA work before creating resources.
-4. Create or open a free Clerk account. Confirm the workspace is on **Hobby** and create a
-   new application named clearly for fictional staging, such as `Partner Finance Settler –
-   fictional staging`. Keep it separate from any future production application and never
-   add real users or financial information.
-5. In that Clerk application's **Development** instance, enable Organizations. Use exactly
-   one fictional two-person organization for acceptance. Copy the `pk_test_...` publishable
-   key and `sk_test_...` secret only when the authorized setup session asks for them. Never
-   paste the secret into chat, documentation, screenshots, Git, or a `VITE_` variable.
+The agent works in a cloud container, so it cannot use `wrangler login` (a browser
+sign-in). Instead the owner creates a limited Cloudflare API token and stores it in the
+container's environment settings, the same way the Clerk keys were stored. Never paste a
+token, key, or password into chat, documentation, screenshots, or Git.
 
-Menu labels sometimes move. If a named screen is not visible, stop and use the current
-official documentation rather than guessing or enabling an adjacent product.
+1. **Create the account.** Open https://dash.cloudflare.com/sign-up, use an email address
+   you will keep, choose a strong unique password, and verify the email. If your domain is
+   already in a Cloudflare account, use that account instead.
+2. **Stay free.** In the dashboard, open **Workers & Pages**. If asked to choose a plan,
+   choose **Free**. Do not start a trial or add a payment method. Stop and tell the agent
+   if anything asks for one.
+3. **Turn on two-step sign-in.** Click the profile icon → **My Profile** →
+   **Authentication** → add an authenticator app. Save the recovery codes somewhere other
+   than this computer.
+4. **Copy your Account ID.** On the dashboard home, select your account; the **Account ID**
+   is shown on the right side of the overview page (or under **Workers & Pages** →
+   right-hand column). It is not secret.
+5. **Create the API token.** Profile icon → **My Profile** → **API Tokens** → **Create
+   Token** → use the **Edit Cloudflare Workers** template. Then:
+   - under **Permissions**, choose **+ Add more** and add **Account → D1 → Edit**;
+   - under **Account Resources**, choose **Include → your account**;
+   - under **Zone Resources**, choose **Include → Specific zone → your domain** (if the
+     domain is not in Cloudflare yet, choose **All zones from an account** for now);
+   - leave **Client IP Address Filtering** empty and set **TTL** to end after the pilot's
+     first month (for example 2026-12-31);
+   - **Continue to summary → Create Token**, then copy the token once. Cloudflare will
+     not show it again.
+6. **Store both values in this cloud environment.** In the Claude app, open the cloud
+   environment menu in the session's title bar → **Edit**. Under **Network secrets** (or
+   **Environment variables** if that section is not offered), add:
+   - `CLOUDFLARE_API_TOKEN` = the token from step 5;
+   - `CLOUDFLARE_ACCOUNT_ID` = the Account ID from step 4.
+7. **Allow the container to reach Cloudflare.** In the same **Edit** screen, under
+   **Network access → Allowed domains**, add `api.cloudflare.com`, `*.workers.dev`,
+   `*.cloudflare.com`, and your domain with a wildcard (for example `*.example.com`). Keep
+   the **Allow package managers** box ticked.
+8. **Start a new session** in the same environment, or tell the agent you are done. New
+   environment values reach a newly started session; this document carries everything the
+   new session needs. The agent confirms with `npx wrangler whoami` and stops if the
+   account name is wrong.
 
-#### Part 2 — repository preparation in a separately approved coding batch
+Staging reuses the existing Clerk **Development** instance (the one already holding only
+fictional test users), so no new Clerk application is needed for staging.
+
+#### Part 2 — repository preparation (agent, inside Batch 7a)
 
 Before any remote command, the coding session must make and test a small configuration
 batch. It will add explicit `staging` and `production` environments to
@@ -1099,11 +1203,10 @@ Do not deploy the current top-level configuration: its database ID is intentiona
 
 #### Part 3 — Cloudflare connection and resource creation
 
-Run these only from `webapp/`, only after the owner authorizes external staging actions:
+Run these only from `webapp/` (authorized by the owner on 2026-10-24):
 
-1. Run `npx wrangler login`. Wrangler opens Cloudflare in the browser. Read the requested
-   permissions, select the intended account, approve only if it is correct, and return to
-   the terminal. Expected result: Wrangler reports a successful login.
+1. Authentication comes from the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
+   environment values set in Part 1; there is no interactive login.
 2. Run `npx wrangler whoami`. Expected result: the intended account name appears. If it is
    the wrong account, stop and log out; do not create anything.
 3. Run `npx wrangler d1 create split-ledger-staging`. Expected result: Cloudflare creates
@@ -1128,9 +1231,11 @@ record access tokens or Clerk secrets there.
 
 1. Configure `VITE_CLERK_PUBLISHABLE_KEY` with the staging application's `pk_test_...`
    value in the approved staging environment. It is deliberately browser-visible.
-2. Run `npx wrangler secret put CLERK_SECRET_KEY --env staging`, paste the matching
-   `sk_test_...` value only into Wrangler's hidden prompt, and press Return. Expected result:
-   Wrangler confirms the encrypted staging secret was stored. Do not put it in a file.
+2. Store the Development `sk_test_...` secret as the staging Worker's encrypted
+   `CLERK_SECRET_KEY` by piping the existing environment value into
+   `npx wrangler secret put CLERK_SECRET_KEY --env staging`, without printing it. Expected
+   result: Wrangler confirms the encrypted staging secret was stored. Do not put it in a
+   file.
 3. Run the complete automated checks locally. Because this project uses Cloudflare's Vite
    plugin, select the staging environment at build/deploy time with `CLOUDFLARE_ENV=staging`
    as documented by Cloudflare; verify the command and generated target before approving
@@ -1147,11 +1252,12 @@ time; do not improvise a production command from this prose guide.
 
 #### Part 5 — hosted verification and recognizable failures
 
-Using fictional fixtures only, repeat authentication, invitation, same-household sharing,
-cross-household denial, replacement blocking, stale-version recovery, retry/idempotency,
-close/settle, archive export, deletion, restore, accessibility, narrow-layout, and console
-checks from `docs/WEBAPP-HUMAN-TESTING.md`. Human checks remain pending until the owner
-actually performs and records them; automation cannot mark them passed.
+Using fictional fixtures only, run the WEB-031 automated suite against the staging URL:
+authentication, invitation, same-household sharing, cross-household denial, replacement
+blocking, stale-version recovery, retry/idempotency, close/settle, archive export,
+deletion, restore, narrow-layout, and console checks from `docs/WEBAPP-HUMAN-TESTING.md`.
+Per the 2026-10-24 owner decision, these agent runs count as acceptance evidence; record
+them in section 1 of that guide.
 
 - A `401` means the session/token was absent or invalid; a `403` means the authenticated
   person or organization was not authorized. Neither should expose data.
@@ -1200,7 +1306,7 @@ Exit criteria: fictional two-account staging evidence passes, a staging export c
 restored, deployment and rollback are rehearsed, and no production resource contains real
 data.
 
-### Batch 7b — Production environment readiness (proposed)
+### Batch 7b — Production environment readiness (planned; after 6h and 7a pass)
 
 Learning objective: configure the real security and recovery boundary before a pilot.
 
@@ -1223,6 +1329,68 @@ Learning objective: configure the real security and recovery boundary before a p
    says it is automatic, with retention depending on the plan, so verify the current limit
    immediately before relying on it.
 
+#### Owner steps for production (about 30–40 minutes, no code)
+
+Pick the production address now, for example `split.<your-domain>`. The steps below call
+your domain `example.com`; replace it with yours.
+
+- **7b-1 — Domain in Cloudflare.** If `example.com` is not yet in your Cloudflare account:
+  dashboard → **Add a domain** → enter it → choose the **Free** plan → Cloudflare shows two
+  nameservers. At the company where you bought the domain, replace its nameservers with
+  those two. Wait until Cloudflare emails that the domain is active (minutes to hours). If
+  you cannot move nameservers, tell the agent; the alternative is adding records at your
+  current DNS provider, which the agent will spell out.
+- **7b-2 — Clerk Production instance.** In the Clerk dashboard, open the same application
+  → switch the instance selector at the top from **Development** to **Production** →
+  **Create production instance** → choose to start from the Development settings → enter
+  `example.com` as the domain. Clerk then lists several DNS records (usually CNAMEs such as
+  `clerk`, `accounts`, and email records).
+- **7b-3 — Add Clerk's DNS records.** In Cloudflare → your domain → **DNS → Records → Add
+  record**, add each record exactly as Clerk shows it, with **Proxy status** set to **DNS
+  only** (grey cloud). Back in Clerk, wait until every record shows verified and the
+  certificates are issued.
+- **7b-4 — Production settings and keys.** In the Clerk Production instance: turn on
+  **Organizations**; keep email-code and password sign-in as in Development; keep bot
+  protection on. Copy the **publishable key** (`pk_live_...`) into the cloud environment
+  settings as `VITE_CLERK_PUBLISHABLE_KEY_PRODUCTION` (it is not secret). Do **not** copy
+  the secret key anywhere yet: when the agent says the production Worker exists, open
+  Cloudflare → **Workers & Pages** → the production Worker → **Settings → Variables and
+  Secrets → Add → Secret**, name it `CLERK_SECRET_KEY`, and paste the `sk_live_...` value
+  there. That way the production secret never passes through the agent's container.
+- **7b-5 — Lock sign-up after both of you exist.** After step 7b-6, in Clerk Production →
+  **Configure → Restrictions**, set sign-up to **Restricted** (invitation only), and under
+  **Organizations settings** turn off members creating new organizations. The agent
+  verifies on staging first that an organization invitation still lets an invited person
+  join under these settings and adjusts this step if Clerk behaves differently.
+- **7b-6 — Owner spot-check with real accounts and fictional data (about 15 minutes each).**
+  On your own laptop: open the production address, sign up with your real email (this is
+  the human sign-up the automated run could not cover), create the household, set it up as
+  coordinator with your alias, and invite your partner's email. Your partner, on their own
+  laptop: open the invitation email, sign up, select the household, **Join as partner**.
+  Then, in Import → **Fictional samples**: you choose **Load fictional TD sample**, your
+  partner **Load fictional BMO sample** (both switch the month to July 2026 by themselves),
+  then **Parse and add**, decide every row 50/50, and **Submit shared projection**. You
+  close the month; compare the Settle amount on both screens. Each of you runs Rules & Files → **Run self-test** and
+  copies the **safe diagnostic report** into chat with the agent (it contains no names or
+  amounts). Finally you export closed archives and **Delete shared workflow history**, and
+  each of you uses **Delete this private browser draft**, so the pilot starts clean. Note
+  which browser each of you used.
+
+#### Agent steps for production
+
+1. Add a `production` environment to `webapp/wrangler.jsonc` with separate Worker and D1
+   names (`split-ledger-production`), a Custom Domain for the chosen subdomain, and no
+   shared IDs with staging or local.
+2. Add security headers and a content-security policy compatible with Clerk, rehearsed on
+   staging first.
+3. Create the production D1 database, apply the migrations already rehearsed on staging,
+   deploy, and ask the owner to paste the production secret (7b-4).
+4. Run unauthenticated production checks: the page loads over HTTPS on the custom domain,
+   headers are present, Clerk loads, `/api/*` returns `401` without a session, and no
+   console errors appear. Authenticated production checks are the owner spot-check (7b-6),
+   because the agent holds no production credentials.
+5. Write the operations runbook below in this document and fill in the go/no-go review.
+
 References:
 
 - [Cloudflare Worker Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/)
@@ -1234,7 +1402,7 @@ Exit criteria: a written go/no-go review confirms invite-only access, separate e
 tested recovery, privacy-safe operations, accepted retention/offline behavior, and no open
 must-have backlog item.
 
-### Batch 7c — Parallel pilot and decision (proposed)
+### Batch 7c — Parallel pilot and decision (planned; first month October 2026)
 
 Learning objective: measure whether hosting improves the real monthly job enough to justify
 its security and maintenance costs.
@@ -1250,39 +1418,37 @@ its security and maintenance costs.
 5. Make an explicit **keep**, **continue experiment**, **return to v1**, or **cut over**
    decision. Do not retire v1 automatically.
 
+**Monthly routine with minimal owner effort.**
+
+- After the month ends, each person, in their own browser: choose the month, paste each
+  card's statement in Import, decide every row in Review, **Submit shared projection**.
+- The owner (coordinator): open Settle, tick the bank check, **Close month and archive**,
+  keep the downloaded archive file, and transfer money outside the app.
+- Month 1 only: the owner compares the result with how the household normally works it out
+  (the success target is within $20). The agent never sees the amounts.
+- After each month the owner answers five questions in chat, recorded here without
+  financial values: minutes spent (each person), explicit decisions shown in Review,
+  whether anyone had to be chased, anything confusing, and confidence from 1 to 5.
+- Problems: the affected person copies the **safe diagnostic report** (WEB-030) into chat;
+  the agent works from that and status codes only, per the real-data rule.
+
 ### Copy-paste handover for the next implementation session
 
 ```text
-Start the local implementation of WEB-019, the approved two-person collaboration redesign.
+Continue the Split Ledger web pilot roadmap on branch mac-unpushed-work (never main).
 
-Objective: replace the organization-only, first-submit-slot workflow with two stable,
-server-authorized roles (coordinator and partner), then build the explicit monthly handover.
-The private ledger must remain in each person's browser. Only the coordinator closes.
+Read AGENTS.md and CLAUDE.md, then docs/WEBAPP.md → "Current status" and "Refined pilot
+roadmap — 2026-10-24", Batch 6h and Batch 7a, and docs/WEBAPP-BACKLOG.md items tagged
+"Must before pilot". The owner is a non-coding product manager who delegated building,
+deployment, and testing; ask only for the owner steps the roadmap lists.
 
-Read AGENTS.md and CLAUDE.md first. Then read only these canonical sections:
-- PRODUCT.md → “Approved web-service collaboration direction”
-- docs/WEBAPP.md → current status and “Approved collaboration model and implementation contract”
-- docs/WEBAPP-BACKLOG.md → WEB-019
-- docs/WEBAPP-HUMAN-TESTING.md → recorded evidence and HC-01 through HC-10
-
-Starting plan:
-1. Inspect the working tree and preserve all existing/uncommitted owner work.
-2. Run the legacy test and webapp check before editing.
-3. Inspect the current auth, workflow, D1 schema, API, UI, and related tests.
-4. Give me a brief exact file plan, important tradeoffs, and migration/compatibility risk.
-5. Then begin the first coherent slice: pairing domain + new ordered migration +
-   paired-participant authorization + tests. Continue into the next slice only if the
-   boundary remains clear and the complete gate stays green.
-
-Treat the full WEB-019 contract as approved scope. Ask only if implementation reveals a
-consequential product choice not settled there. Do not reduce this to an invitation-only
-change: organization membership is the tenant boundary, not financial authorization;
-roles are stable across months; third members see no financial workflow; browser owner text
-is not authoritative; and unsafe legacy or replacement cases fail closed.
-
-Do not edit applied migrations, delete local data, read or expose .env.local contents,
-commit, push, deploy, send invitations, or change Clerk/Cloudflare resources. No hosted
-Cloudflare resource exists and Batch 7 remains paused. Use fictional data only.
+1. Confirm webapp/.env.local exists without reading it; run node test/run-tests.js and
+   npm run check in webapp/.
+2. If CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are present, run npx wrangler whoami
+   and continue Batch 7a; otherwise point the owner to Batch 7a Part 1.
+3. Implement Batch 6h items with a failing-first test each; commit and push per item.
+4. Never read production shared records or real data. Use fictional data only.
+5. At the end, update "Current status", the test record, and the backlog.
 ```
 
 ## Files and commands introduced in Batch 1
@@ -1390,8 +1556,8 @@ surface area.
   `npx wrangler` command run outside those scripts is not covered by it.
 - Clerk enrollment is deliberately still open on the Development instance. Anyone who
   learns the development sign-up URL could create an account there. This is acceptable
-  only while the instance holds no real data, and must be closed before a production
-  pilot. Do not reuse the Development instance for real financial data.
+  only while the instance holds no real data. Production is locked to invitation-only in
+  Batch 7b step 7b-5. Do not reuse the Development instance for real financial data.
 - Organization id remains the tenant boundary, and since Batch 6e the server additionally
   requires one of the two paired participants on every financial route. This retires the
   code-level risk; the product-level risk stays open until the replacement two-account
@@ -1403,8 +1569,9 @@ surface area.
 - Browser-only private processing becomes harder as the React migration grows; parity and
   network-boundary tests are mandatory.
 - Dependencies add supply-chain and upgrade work that the single HTML version avoids.
-- Cloudflare's local toolchain is pinned to compatible patched releases; `npm audit` reports
-  zero known vulnerabilities as of 2026-09-11. Re-run it before staging and production.
+- Cloudflare's local toolchain is pinned to compatible patched releases. As of 2026-10-24,
+  `npm audit --omit=dev` reports zero vulnerabilities; the full audit reports issues only in
+  developer tooling. Re-run both before staging and production.
 - Shared workflow retention is now explicit: no automatic expiry, closed-archive export
   before deletion, no deletion while a period is open, and administrator-only restore or
   deletion. This still needs owner acceptance and production runbook verification before
@@ -1417,6 +1584,11 @@ surface area.
   independently rechecks administrator authorization on every request.
 - Production should remain an experiment until a parallel pilot demonstrates a concrete
   benefit over v1.
+- The one-week pilot target is tight: production depends on DNS and Clerk domain
+  verification, which can take hours. If 7b slips, keep the pilot date by settling October
+  with v1 and starting the web pilot with November; do not skip a gate.
+- Only Chromium is tested automatically. The owner's and partner's browsers are checked
+  once in step 7b-6.
 
 ## Approved collaboration model and implementation contract — 2026-09-12
 

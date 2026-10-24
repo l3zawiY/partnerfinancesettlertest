@@ -1,5 +1,12 @@
 # Web-app human acceptance guide
 
+> **Acceptance by the coding agent — owner decision 2026-10-24.** For the pilot, the owner
+> delegated these scenarios to the coding agent. The agent runs them automatically in real
+> browsers (the WEB-031 suite, locally and on staging) and records results in section 1;
+> those runs count as acceptance evidence. The owner and partner perform only the short
+> spot-check in `docs/WEBAPP.md` → Batch 7b, step 7b-6. Everything below remains the exact
+> scenario definition the suite follows, and stays usable by hand.
+
 > **Replacement acceptance active — 2026-09-12.** WEB-019 is implemented locally (Batch 6e in
 > `docs/WEBAPP.md`). Run the replacement two-account suite HC-01 through HC-10 below, plus the
 > reruns listed in section 8. The old H6-01 through H6-08 scenarios stay in section 6 as
@@ -779,7 +786,7 @@ controls displacing the product menu.
 
 Expected: the visible allocation always matches the chosen payer percentage; a custom 65%
 payer share says 35% to partner; ordinary keyboard activation works; the credit stays
-excluded and has no allocation controls. Keyword shortcuts are intentionally out of scope.
+excluded and has no allocation controls.
 
 Failure signals: “Excluded” on an undecided purchase, reversed percentages, controls on a
 credit, invisible keyboard focus, or filters changing financial state.

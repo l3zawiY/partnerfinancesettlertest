@@ -364,6 +364,61 @@ Record the run without copying account identifiers or financial content into Git
 Do not mark WEB-010, WEB-012, or WEB-013 complete unless every scenario mapped to that
 item passes or the item explicitly records an accepted exception.
 
+### Automated pre-run — 2026-10-24 (not owner acceptance)
+
+Run by the coding agent in a cloud container: Chromium + Playwright, three separate
+persistent browser profiles, Clerk's real Development service, local Worker and local D1.
+Accounts were fictional `+clerk_test` addresses created through the Clerk Backend API
+(Clerk's Cloudflare **Verify you are human** check stops automated sign-up; sign-in was not
+challenged), in a new household, **Fictional Household Gamma** (read "Gamma" wherever the
+steps say "Alpha"). The optional same-name check used **Fictional Household Beta**.
+Screenshots and archive files stayed outside the repository.
+
+| Field | Value |
+|---|---|
+| Date | 2026-10-24 |
+| Browser and width | Chromium (Playwright), 1400 × 1000; 390 × 844 for HC-10 step 6 |
+| Scenario IDs passed | HC-01, HC-02, HC-03, HC-05, HC-06, HC-07, HC-08; HC-04 and HC-10 after Batch 6f fixes |
+| Scenario IDs failed | HC-09 (against the guide's wording; WEB-026) |
+| Defects added to `docs/WEBAPP-BACKLOG.md` | WEB-022 to WEB-028 |
+
+Notes per scenario:
+
+- **HC-01 pass.** Email alias refused with "Aliases and household names cannot contain an
+  email address" and setup disabled; after setup and reload: Waiting for your partner, 1 of 2.
+- **HC-02 pass.** No invitation email was needed: right after B signed in, Clerk's in-app
+  **Choose an organization** step listed the household with **Join**. Both sides then showed
+  2 of 2 with matching roles, aliases, and headers; Beta showed none of Gamma's aliases.
+- **HC-03 pass.** C saw This household already has two participants, no tabs, amounts, or
+  email addresses. Direct API calls as C were refused (403 on workflow routes, 409 on join),
+  also after C was made a Clerk administrator.
+- **HC-04 pass after fix.** Roles stayed stable although B submitted first; Settle and the
+  archive matched ($10.00, `b_owes_a`, aliases in `people`). First attempt failed: **Close
+  month and archive** stayed disabled because the draft-match check compared the
+  server-relabeled `owner` (fixed in `0f14691`). Renaming First person in Setup changed nothing.
+- **HC-05 pass.** A saw B's submission without reload; both Settle screens: B pays A $21.54
+  ($89.54 / $68.00 / offset $21.54). Changing month shows a browser confirm, see WEB-026.
+- **HC-06 pass.** Replace → $29.54, withdraw blocked close, resubmit → $21.54; versions 3–5;
+  A was notified within 9–13 seconds each time. B's own screen read "You replaced their
+  submission" (fixed in `f0c0080`).
+- **HC-07 pass with observation.** Tab 2 updated itself to version 6; the forced conflict
+  showed review-needed with the private draft safe, and **Load latest shared status**
+  cleared it without applying the withdrawal. Tab 2's in-memory draft then overwrote tab 1's
+  decision on resubmit (WEB-027).
+- **HC-08 pass.** B had no close control and a direct close request returned 403; A closed
+  (with Setup name still "Someone Else"); both fresh archives were byte-identical with
+  `net` 21.54 and none of the forbidden strings.
+- **HC-09 fail (guide wording).** Sessions, pairing, July rows, and closed status survived a
+  full profile restart, and switching households leaked nothing. But opening August after
+  July erased July's private rows through the clean-workspace confirm, so "private rows
+  return for July and August" cannot hold (WEB-026).
+- **HC-10 pass after fixes.** Archive file: July and August only, no forbidden strings. B
+  could not restore or delete. A's delete was first refused because B's later export
+  cancelled A's token (WEB-025); after re-export, delete left 2 of 2 and drafts intact, and
+  restore returned both months with an identical archive. C still refused. 390 px: no
+  horizontal scroll. Two app-caused issues fixed: a 403 console error from Clerk invitations
+  on the partner's screens (`d35e743`) and the bare "Failed to fetch" warning (`9780545`).
+
 ## 2. Safety and preparation
 
 ### What physically runs where

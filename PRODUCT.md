@@ -30,8 +30,8 @@ The released v1 file-exchange workflow above remains unchanged. The experimental
 service may replace the manual file handover only if it makes the two-person relationship
 and responsibility clearer without moving either person's private ledger to the server.
 
-Implementation status: implemented locally on 2026-09-12 (Batch 6e in `docs/WEBAPP.md`),
-uncommitted, awaiting the replacement two-account acceptance. Two implementation rules were
+Implementation status: implemented on 2026-09-12 (Batch 6e in `docs/WEBAPP.md`), committed,
+with an automated two-account pre-run on 2026-10-24; awaiting the owner's acceptance decision. Two implementation rules were
 settled there: a shared alias may not contain an email address and the two aliases must
 differ, and the coordinator is always archive payer `a`.
 

@@ -3,10 +3,58 @@
 This is the canonical plan and continuation guide for the web-service experiment. Keep
 it current instead of creating session handoffs or a separate plan for every batch.
 
-## Current status — 2026-09-12
+## Current status — 2026-10-24
 
-**WEB-019, the two-person collaboration redesign, is implemented locally and uncommitted
-as Batch 6e (2026-09-12).** The server now binds exactly two verified accounts to the stable
+**Batch 6e is committed and pushed** on `mac-unpushed-work` (`f1766cb`), and an automated
+pre-run of the replacement acceptance HC-01 through HC-10 ran on 2026-10-24 in a cloud
+container's Chromium with Playwright, against Clerk's real Development service, the local
+Worker, and local D1. It used three Clerk test accounts (`+clerk_test` fictional addresses,
+created through the Clerk Backend API because Clerk's Cloudflare bot check blocks automated
+sign-up; sign-in itself was not challenged) and a new household, Fictional Household Gamma.
+This pre-run is evidence for the owner, not owner acceptance: the owner decides whether it
+counts or which steps to spot-check. Results and notes are in section 1 of
+`docs/WEBAPP-HUMAN-TESTING.md`.
+
+Outcome: HC-01, HC-02, HC-03, HC-05, HC-06, HC-07, HC-08 passed; HC-04 and HC-10 passed only
+after fixes made during the run (Batch 6f below); HC-09 failed against the guide's wording
+because the private draft keeps one month at a time (WEB-026, a product decision).
+
+**Batch 6f — HC pre-run fixes (committed 2026-10-24).**
+
+- `0f14691`: the coordinator could never close a month unless the local Setup name equalled
+  the server alias. The Worker relabels a stored submission's `owner` with the bound alias,
+  but the pre-close "Submitted projection matches this private draft" check compared
+  `owner` too. It now compares financial content only. Regression test in
+  `shared/preClose.test.ts`.
+- `f0c0080`: the actor's own screen read "You replaced their submission"; en-CA times
+  ending in "p.m." produced "p.m..". Tests in `src/ShareStatusScreen.test.tsx`.
+- `d35e743`: a partner's browser asked Clerk for pending organization invitations, which
+  Clerk refuses for members, leaving a 403 console error on every screen. Only
+  administrators now request that list.
+- `9780545`: a request that never reaches the Worker now says "Could not reach the Split
+  Ledger service. Your private draft in this browser is unchanged…" instead of the bare
+  "Failed to fetch". Test in `src/workflow/ApiWorkflowGateway.test.ts`.
+- `8b92375`: `.gitignore` now also ignores `.claude/`, `Claude artifacts/`, and
+  `/webapp/.dev.vars`.
+
+Web-app gate after Batch 6f: four TypeScript projects type-check; 99 pure/Worker/SQLite
+tests and 31 browser-like component tests pass; the production build succeeds; the legacy
+`node test/run-tests.js` gate remains 81/81. `npm audit --omit=dev` reports zero
+vulnerabilities; the full `npm audit` reports issues only in developer tooling.
+
+Open findings from the 2026-10-24 review and pre-run are WEB-022 through WEB-028 in
+`docs/WEBAPP-BACKLOG.md`. Invitation note: accepting B's and C's invitations needed no
+email; right after sign-in, Clerk's in-app **Choose an organization** step listed Fictional
+Household Gamma with **Join**.
+
+**Next step:** the owner reviews the pre-run evidence, decides WEB-026, and either accepts
+the pre-run or spot-checks steps by hand (in particular a real human sign-up, which the
+pre-run could not cover). Batch 7 stays paused until owner acceptance.
+
+## Status — 2026-09-12 (superseded by the status above)
+
+**WEB-019, the two-person collaboration redesign, was implemented locally as Batch 6e
+(2026-09-12)** and later committed as `f1766cb`. The server now binds exactly two verified accounts to the stable
 `coordinator` and `partner` roles per household, authorizes every shared workflow route
 against that pairing, labels submissions and archives with server-bound aliases, lets only
 the coordinator close, and gives Share / Status and Settle automatic and manual freshness
@@ -356,7 +404,7 @@ Main risk: confusing identity with data access. Every database query must be sco
 the verified organization on the server; a household ID sent by the browser is never
 sufficient authorization.
 
-### Batch 3 — Fictional shared-submission vertical slice (implemented, uncommitted)
+### Batch 3 — Fictional shared-submission vertical slice (implemented, committed)
 
 Learning objective: build one complete feature through UI, API, business logic, and D1.
 
@@ -408,7 +456,7 @@ edit" apart, because no version history is retained. That distinction, plus
 replace/withdraw/lock semantics, will be modeled visibly in Batch 5 and enforced by the
 real service in Batch 6.
 
-### Batch 4a — Import parsing engine, ported and proven against v1 (implemented, uncommitted)
+### Batch 4a — Import parsing engine, ported and proven against v1 (implemented, committed)
 
 Learning objective: migrate mature browser behavior without weakening privacy or silently
 changing results — starting with the highest-value, lowest-risk slice: the parser itself.
@@ -447,7 +495,7 @@ doing at some point, but the vm-based parity test already proves agreement again
 actual code, so this is a nice-to-have rather than a gap. Not yet committed, pending an
 explicit go-ahead.
 
-### Batch 4b — Dedup, rules, refund pairing, and a review screen (implemented, uncommitted)
+### Batch 4b — Dedup, rules, refund pairing, and a review screen (implemented, committed)
 
 Learning objective: the roadmap flagged Batch 4 as "likely the highest-risk batch" that
 "may be split... after inspection." Having now read the full 3,400-line file, that
@@ -517,7 +565,7 @@ matched charge's share). That is the same order v1 uses, just invoked more often
 UI event instead of only after an import — which is fine because both functions are
 already pure and cheap at the row counts this tool handles.
 
-### Batch 4c — Amazon matching, local persistence, export formats, and amount correction (implemented, uncommitted)
+### Batch 4c — Amazon matching, local persistence, export formats, and amount correction (implemented, committed)
 
 Learning objective: complete a recoverable private browser workflow while preserving
 v1's evidence, correction, and portable-file contracts without opening a path to the
@@ -564,7 +612,7 @@ interruptions, and retains v1 as the supported offline fallback.
 The frozen engine markers in `index.html` remain untouched throughout Batches 4a-4c — all
 three port from them, never edit them.
 
-### Batch 5 — Complete end-to-end UI with a local workflow adapter (implemented, uncommitted)
+### Batch 5 — Complete end-to-end UI with a local workflow adapter (implemented, committed)
 
 Learning objective: understand how product journeys become screens, components, states,
 and a typed boundary that a backend can later implement.
@@ -704,7 +752,7 @@ failure and concurrency-visible states explicitly, and carry those exact contrac
 Batch 6. Coding-agent verification does not replace owner acceptance; the owner should
 review the complete journey in a browser before treating Batch 5 as product-accepted.
 
-### Batch 6a–6c — Real partner workflow, integration, close, and recovery (implemented, uncommitted)
+### Batch 6a–6c — Real partner workflow, integration, close, and recovery (implemented, committed)
 
 Learning objective: understand how a trusted backend enforces the workflow that the UI
 can display but must not authorize by itself.
@@ -832,7 +880,7 @@ HC-10 are converted into an executable checklist.
   Missing keys fail closed; no development credential or local database may be reused for
   production.
 
-### Batch 6e — WEB-019 two-person collaboration model (implemented, uncommitted)
+### Batch 6e — WEB-019 two-person collaboration model (implemented, committed)
 
 Implemented on 2026-09-12 against the approved contract below, in the contract's five
 slices, with the complete gate green after each slice. Every change is local; nothing was

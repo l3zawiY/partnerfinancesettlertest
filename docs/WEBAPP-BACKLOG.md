@@ -90,10 +90,14 @@ Required outcome:
 Partner replacement, coordinator transfer, and lost-account recovery require a separate
 approved design. The first implementation must refuse unsafe rebinding rather than infer it.
 
-**Status 2026-09-12:** implemented locally and uncommitted as Batch 6e in `docs/WEBAPP.md`,
-with automated coverage for every bullet above. Remaining before this item closes: the
-owner's replacement acceptance HC-01 through HC-10 with two Development accounts, then a
-commit. Do not close WEB-005, WEB-012, or WEB-013 before that run.
+**Status 2026-09-12:** implemented locally as Batch 6e in `docs/WEBAPP.md`, with automated
+coverage for every bullet above; later committed as `f1766cb`.
+
+**Status 2026-10-24:** an automated pre-run of HC-01 through HC-10 (section 1 of
+`docs/WEBAPP-HUMAN-TESTING.md`) passed every scenario except HC-09, after the Batch 6f fixes.
+It is not owner acceptance. Remaining before this item closes: the owner's acceptance
+decision on the pre-run (or a manual spot-check) and a decision on WEB-026. Do not close
+WEB-005, WEB-012, or WEB-013 before then.
 
 *Noticed: 2026-09-12.*
 
@@ -127,6 +131,76 @@ testability and recovery control, not permission to weaken production deletion s
 Not retained in the WEB-019 batch; still open. HC-09 runs without it.
 
 *Noticed: 2026-09-11.*
+
+### WEB-022 — Let only the invited account claim the partner role
+
+While the partner slot is empty, any member of the Clerk organization can choose **Join as
+partner**, not only the account the coordinator invited. Bind the claim to the pending
+invitation (for example, the invited email's Clerk user) or require coordinator
+confirmation, and refuse others with a plain message. Add Worker tests for an uninvited
+member racing the invited one.
+
+*Noticed: 2026-10-24 (code review of `f1766cb`).*
+
+### WEB-023 — Tie shared-history administration to the coordinator role
+
+Delete, restore, and abandoned-period cancellation are gated on Clerk `org:admin`, not on
+the server-bound coordinator. The participant check still refuses a non-participant
+administrator (verified in the 2026-10-24 pre-run with Account C), but promoting the
+partner to Clerk administrator, or demoting the coordinator, would move these powers.
+Decide whether they belong to the coordinator only, then align the Worker, the
+capabilities route, and the "requires a household administrator" wording.
+
+*Noticed: 2026-10-24.*
+
+### WEB-024 — Validate restored archive aliases
+
+Restore accepts archives without checking `people.a` and `people.b` against the alias
+rules (no email address, distinct aliases) or against the current pairing. Reject or
+explain mismatches before writing. Add Worker tests.
+
+*Noticed: 2026-10-24.*
+
+### WEB-025 — Keep one participant's export from cancelling the other's deletion token
+
+Confirmed in the 2026-10-24 pre-run: after Account A downloaded closed archives, Account B
+downloaded them too, and A's **Delete shared workflow history** then failed with **Export
+again before deleting shared history.** Scope the deletion token to the account that
+exported. The partner also sees "The deletion token is valid for 15 minutes" although the
+partner cannot delete; show that line only to someone who can.
+
+*Noticed: 2026-10-24.*
+
+### WEB-026 — Decide how many months of private draft a browser keeps
+
+Product decision needed. Changing the header month asks **Start YYYY-MM with a clean
+monthly workspace? Names, cards, and rules stay.** Accepting erases the previous month's
+private rows and decisions; declining keeps the old month. HC-09 step 2 asks the tester to
+open Review for both July and August after a restart and expects both to return, which the
+current one-month draft cannot do. Either keep a private draft per month (storage and
+privacy-erase scope change) or rewrite HC-09 and the prompt so the loss is explicit and
+recoverable through **Download private session** first.
+
+*Noticed: 2026-10-24 (HC-09 pre-run).*
+
+### WEB-027 — Stop two tabs from silently overwriting each other's private draft
+
+In the HC-07 pre-run, tab 1 changed Fictional Hardware to 70/30 and replaced the
+submission; tab 2, opened earlier, kept 50/50 in memory and its later resubmission sent
+50/50, quietly reverting tab 1's private decision. Both tabs auto-save to the same browser
+storage, last writer wins. Detect a newer saved draft from another tab (a `storage` event)
+and ask before overwriting, or reload it.
+
+*Noticed: 2026-10-24.*
+
+### WEB-028 — Clean up leftover fictional-adapter and closed-month wording
+
+Small copy issues seen in the 2026-10-24 pre-run: the Settle check **Partner projection
+ready** says "The fictional partner submission is present" with a real paired partner; after
+an archive restore, a closed month's handover panel says "Fictional A has no current
+submission for this month". Replace with paired-participant wording.
+
+*Noticed: 2026-10-24.*
 
 ## Post-MVP evolutions
 

@@ -269,6 +269,126 @@ Not part of `npm run check` (it needs network and Clerk); document its command i
 
 *Noticed: 2026-10-24.*
 
+### WEB-032 — Apply one share to every purchase from a merchant
+
+v1 shows **Apply to group** on each merchant group in Review: one click sets the same
+share on every positive purchase of that merchant and re-pairs refunds. The web app has no
+equivalent, so a merchant with eight purchases needs eight clicks. Add the same control on
+merchant groups (presets 100/70/50/30/0), mark rows as manual decisions, keep credits
+without controls, and never overwrite another month. Parity-test against v1's behavior.
+
+**Priority:** Should before pilot (Batch 6h); the largest time saver for the JTBD target.
+
+*Noticed: 2026-10-24 (JTBD review).*
+
+### WEB-033 — Open the month that just ended by default
+
+The month control defaults to the current month in UTC. People settle after a month
+ends, and a Toronto evening on the last day is already the next month in UTC. Default to
+the previous calendar month during the first days of a month (proposed: days 1–15), in the
+browser's own time zone, and keep any month already being worked on.
+
+**Priority:** Should before pilot (Batch 6h).
+
+*Noticed: 2026-10-24 (JTBD review).*
+
+### WEB-034 — Ready-to-send "your turn" message
+
+After submitting, the person often has to tell the other one. Show a short, copyable
+message with the app address, for example "I submitted October 2026 in Split Ledger; your
+turn when you have 15 minutes", and after closing, "October is closed: B pays A $X" for
+the coordinator to send. No email service, no stored contact data; copying is the user's
+choice.
+
+**Priority:** Should before pilot (Batch 6h).
+
+*Noticed: 2026-10-24 (JTBD review).*
+
+### WEB-035 — Backup reminder after closing
+
+Remembered rules and the private ledger live only in this browser. After a month
+closes, remind the person once to **Download private session** (and say where to keep it),
+so a cleared browser or a new laptop does not lose the rules that make later months fast.
+
+**Priority:** Should before pilot (Batch 6h).
+
+*Noticed: 2026-10-24 (JTBD review).*
+
+### WEB-036 — Email nudges between the two participants
+
+Notify the other person by email when someone submits, and the coordinator when both
+submissions are ready. Emails carry no amounts, merchants, or aliases beyond the household
+name. Requires choosing an email service and a privacy review.
+
+**Priority:** Later (after the pilot; first candidate if chasing shows up).
+
+*Noticed: 2026-10-24 (JTBD review).*
+
+### WEB-037 — History of past settlements
+
+A screen listing closed months with the result line and the archive download, read from
+the existing closed archives. No private data.
+
+**Priority:** Later (after the pilot).
+
+*Noticed: 2026-10-24 (JTBD review).*
+
+### WEB-038 — Suggest remembering a merchant after repeated choices
+
+When the same merchant receives the same share several months in a row, offer to
+remember it. The person confirms; nothing is remembered automatically (PRODUCT decision
+"Remembering is deliberate").
+
+**Priority:** Later (after the pilot).
+
+*Noticed: 2026-10-24 (JTBD review).*
+
+### WEB-039 — Faster statement import
+
+Detect the bank format from the pasted text, remember each card's bank, and allow
+several cards in one pass, keeping the TD balance-column safety refusal.
+
+**Priority:** Later (after the pilot).
+
+*Noticed: 2026-10-24 (JTBD review).*
+
+### WEB-040 — Carry a balance when a transfer slips
+
+When a month's transfer is not made, carry it into the next settlement transparently
+(PRODUCT S3).
+
+**Priority:** Later.
+
+*Noticed: 2026-10-24 (JTBD review).*
+
+### WEB-041 — Shared note for an agreed unusual split
+
+Let a participant attach a short note to a shared item explaining a verbally agreed split
+(PRODUCT S4), within the shared allowlist.
+
+**Priority:** Later.
+
+*Noticed: 2026-10-24 (JTBD review).*
+
+### WEB-042 — Encrypted private backup across devices
+
+Back up the private draft and rules so a second device or a new laptop can restore them,
+without the service being able to read them (for example, encrypted in the browser with a
+key only the person holds). Needs a design that keeps the privacy boundary.
+
+**Priority:** Later (design first).
+
+*Noticed: 2026-10-24 (JTBD review).*
+
+### WEB-043 — Partner replacement, coordinator transfer, and account recovery
+
+These lifecycle operations currently fail closed and need support. Design and implement
+them before the household depends on the service long term.
+
+**Priority:** Later (before retiring v1).
+
+*Noticed: 2026-10-24 (JTBD review).*
+
 ## Post-MVP evolutions
 
 These ideas are deliberately outside the first production-ready release. They should not

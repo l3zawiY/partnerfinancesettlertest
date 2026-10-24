@@ -400,12 +400,32 @@ Scope (each item's detail lives in `docs/WEBAPP-BACKLOG.md`):
 9. **WEB-031** — automated two-account acceptance suite (HC-01 to HC-10, plus the WEB-010
    and WEB-012 reruns H4C-03, H4C-05, H5-03, and H5-04), runnable against local and
    staging.
-10. **Extended checks** run by the agent and recorded in `docs/WEBAPP-HUMAN-TESTING.md`
+10. **Time-saving items (Should, added 2026-10-24 after the JTBD review below):**
+    **WEB-032** apply one share to every purchase from a merchant (v1 parity, the largest
+    time saver), **WEB-033** open the month that just ended by default, in the user's own
+    time zone, **WEB-034** a ready-to-send "your turn" message after submitting or closing,
+    and **WEB-035** a backup reminder after closing so remembered rules are not lost with a
+    browser. If 6h runs late, drop these in reverse order and keep WEB-032.
+11. **Pre-staging preparation that needs no Cloudflare account:** `staging` and
+    `production` sections in `webapp/wrangler.jsonc` with placeholders and guarded deploy
+    scripts that refuse the wrong environment; a visible environment label (local,
+    staging, production); security headers and a Clerk-compatible content-security policy
+    tested locally; plain messages for a full free daily database allowance; the
+    operations runbook and the go/no-go template in this document; a one-page partner
+    guide in plain language; the diagnostic format in `docs/DATA-FORMATS.md`; the suite
+    command in `docs/TESTING.md`.
+12. **Extended checks** run by the agent and recorded in `docs/WEBAPP-HUMAN-TESTING.md`
     section 1: a realistic month of about 130 fictional transactions for each person over
-    three months, month switching, restart, two tabs, blocked network, 390 px layout,
-    console sweep, and a full delete-then-restore. The container has only Chromium; the
-    owner's and partner's own browsers are covered by step 7b-6, so record which browsers
-    they use.
+    three months; month switching, restart, two tabs, blocked network, server errors,
+    session expiry mid-month, and a month-end time-zone boundary (Toronto evening on the
+    last day of the month is already the next month in UTC); 390 px layout, an automated
+    accessibility scan, and a console sweep; a full delete-then-restore; a **v1 fallback
+    drill** (a month prepared in the web app is finished in `index.html` from the web
+    app's exported files, proving the fallback works); a security review of the branch
+    diff; `npm audit`; and, in the Clerk Development instance, whether invitation-only
+    sign-up still lets an organization invitation through (step 7b-5). The container has
+    only Chromium; the owner's and partner's own browsers are covered by step 7b-6, so
+    record which browsers they use.
 
 Rules: no login bypass in the application. The suite creates and removes its fictional
 users only in the Clerk **Development** instance, through Clerk's Backend API, and keeps
@@ -1102,6 +1122,48 @@ recovery with the concrete root cause fixed. Three smaller findings from that ch
 3. **Not a gap:** the change notice on a replace or withdraw names who changed what and the
    version, without restating the old and new settlement dollar amount in that sentence; the
    updated amount is already visible on screen. Left as is.
+
+### JTBD review of the roadmap — 2026-10-24
+
+The core job in `PRODUCT.md`: turn each person's bank paste into a trustworthy month,
+make ownership decisions fast, share only shared items, and produce one auditable
+settlement, with three months completed without chasing anyone, at most 15 minutes
+combined by month three, and at most 30 explicit decisions in steady state.
+
+| Part of the job | How v1 does it | Web app today | Gap or improvement |
+|---|---|---|---|
+| Get each card's month in | Paste per card; bank format chosen by hand | Same, parity-tested | Later: detect the bank format and remember each card's bank (WEB-039) |
+| Make ~90 ownership decisions fast | Presets, custom share, remembered rules, small-amount default, day/merchant grouping, **Apply to group** for a merchant | All of it except **Apply to group** | **WEB-032** before the pilot; later, offer to remember a merchant after the same choice repeats (WEB-038) |
+| Recall vague purchases | Day grouping, Amazon evidence | Same, plus clearer occupied-order labels | No gap |
+| Exchange only shared items | Partner downloads a file and sends it | Server handover with live status | Better than v1; the new risk is the account setup, covered by step 7b-6 |
+| Avoid chasing the slower person | Nothing (a known weakness) | Live status while the page is open | **WEB-034** "your turn" message before the pilot; later, email nudges (WEB-036) |
+| Close one auditable settlement | Settler closes and keeps archives | Coordinator closes; identical archive for both | No gap. Later: in-app history of past months (WEB-037) |
+| Keep the time savings month to month | Rules saved in the one HTML file's storage | Rules saved in the browser, per account and household | **WEB-035** backup reminder; later, an encrypted private backup across devices (WEB-042) |
+| Start the right month | User picks the month | Defaults to the current UTC month | **WEB-033**: settlement happens after month end, so default to the month that ended |
+| Self-check and support | Self-test and safe diagnostic | Missing | **WEB-029** and **WEB-030** before the pilot |
+
+The other reading, recorded: add no features before the first real month, so the pilot
+measures real friction and nothing new can break a week before real data. The roadmap
+keeps that spirit by making WEB-032 to WEB-035 droppable Should items and by keeping
+everything else after the pilot.
+
+### After the pilot — Batch 8 candidates (decide from pilot evidence)
+
+Order by what the pilot measures. Most likely first: fewer decisions and less chasing.
+
+1. **Less chasing:** email nudges when the other person submits or the month is ready to
+   close (WEB-036). Needs an email-sending service; no financial content in emails.
+2. **Fewer decisions:** suggest remembering a merchant after repeated identical choices,
+   still confirmed by the person (WEB-038); faster import (WEB-039); search (WEB-017).
+3. **Confidence and value:** history of past settlements from archives (WEB-037), then
+   spending insights (WEB-018, PRODUCT S1).
+4. **Real-life edge cases:** carry a balance when a month's transfer slips (WEB-040,
+   PRODUCT S3); a shared note for an agreed unusual split (WEB-041, PRODUCT S4);
+   multi-currency (PRODUCT S5).
+5. **Durability and lifecycle:** encrypted private backup across devices (WEB-042);
+   partner replacement, coordinator transfer, and lost-account recovery (WEB-043).
+6. **Decision gate:** keep, continue, return to v1, or cut over (Batch 7c), then decide
+   whether to retire v1.
 
 ### Batch 7a — Cloudflare account and fictional staging (planned; runs in parallel with 6h; fictional data only)
 

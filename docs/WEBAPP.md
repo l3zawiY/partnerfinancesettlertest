@@ -69,6 +69,16 @@ and WEB-028 in
 email; right after sign-in, Clerk's in-app **Choose an organization** step listed Fictional
 Household Gamma with **Join**.
 
+**Batch 6h progress (update as items land; details in commits and the backlog):**
+done — WEB-032 apply to merchant group; WEB-022 invited-partner check (migration
+`0006_partner_invitation.sql`: the coordinator's Split Ledger invitation reports Clerk's
+invitation id; join requires the caller's verified Clerk email to match; households that
+were coordinator-only before this change must re-send the invitation from the Invite partner
+panel); WEB-023 coordinator-only recovery; WEB-024 restore alias check; WEB-025
+coordinator-only deletion token; WEB-027 cross-tab draft adoption and deletion pause.
+Remaining — WEB-029, WEB-030, WEB-034, WEB-033, WEB-035, WEB-028, hosting preparation,
+WEB-031 suite, extended checks, docs and roadmap page refresh.
+
 **Next step:** follow the **Refined pilot roadmap — 2026-10-24** under Batch roadmap:
 Batch 6h (pre-pilot hardening, agent) and Batch 7a (fictional staging; the owner's
 Cloudflare setup steps are in 7a Part 1) run in parallel; Batch 7b (production) follows;

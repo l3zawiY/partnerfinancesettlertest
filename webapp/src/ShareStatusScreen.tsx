@@ -7,6 +7,11 @@ export function when(iso: string): string {
   return new Date(iso).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+/** Ends a sentence once; en-CA times already end in "a.m." or "p.m.". */
+export function endSentence(text: string): string {
+  return text.endsWith('.') ? text : text + '.'
+}
+
 function monthName(period: string): string { return new Date(period + '-01T12:00:00').toLocaleDateString('en-CA', { month: 'long', year: 'numeric' }) }
 
 const ACTION_TEXT: Record<WorkflowEvent['action'], string> = { submit: 'submitted', replace: 'replaced their submission', withdraw: 'withdrew their submission', close: 'closed the month', restore: 'restored the archive' }
@@ -17,7 +22,8 @@ export function describeEvent(workflow: PeriodWorkflow): string | null {
   const participants = workflow.participants
   if (!event || !participants) return null
   const who = event.actorRole === null ? 'A previous participant' : event.actorRole === participants.me.role ? 'You' : participants.partner?.alias || 'Your partner'
-  return who + ' ' + ACTION_TEXT[event.action] + ' (version ' + event.version + ', ' + when(event.at) + ').'
+  const action = who === 'You' ? ACTION_TEXT[event.action].replace('their submission', 'your submission') : ACTION_TEXT[event.action]
+  return who + ' ' + action + ' (version ' + event.version + ', ' + when(event.at) + ').'
 }
 
 /** Who is expected to act next, from the server's view of both submissions. */
@@ -67,9 +73,9 @@ export default function ShareStatusScreen(props: {
       <details className="panel shared-preview" open><summary><span><strong>Exact shared-data preview</strong><small>Entirely private transactions and supporting evidence are absent.</small></span><span className="summary-chevron" aria-hidden="true">›</span></summary><div className="preview-body"><p className="privacy-callout">Only date, merchant, category, amount, payer share, and an optional edited flag cross the workflow gateway. Card labels, raw descriptions, rules, unfinished decisions, products, order IDs, and Amazon decisions stay private.</p><div className="table-scroll"><table><thead><tr><th>Date</th><th>Merchant</th><th>Amount</th><th>Payer share</th></tr></thead><tbody>{projection.items.map(function (item) { return <tr key={item.date + item.merchant}><td>{item.date}</td><td>{item.merchant}</td><td>${item.amount.toFixed(2)}</td><td>{Math.round(item.share * 100)}%</td></tr> })}</tbody></table></div>{!projection.items.length ? <p className="empty">No shared rows in the current projection.</p> : null}</div></details>
     </main><aside className="share-rail"><section className="panel partner-card handover-card"><p className="eyebrow">Handover</p><h2>{handoverHeading}</h2>
       <p className="next-step"><strong>Next:</strong> {nextStep(workflow)}</p>
-      {workflow.partner ? <p>{partnerName}: version {workflow.partner.version}, submitted {when(workflow.partner.submittedAt)}.</p> : props.connected ? <p>{partnerName} has no current submission for this month.</p> : submitted ? <p>Your fictional submission is ready for the partner simulation.</p> : <p>Submit your shared projection first; the fictional partner response follows it.</p>}
+      {workflow.partner ? <p>{partnerName}: version {workflow.partner.version}, submitted {endSentence(when(workflow.partner.submittedAt))}</p> : props.connected ? <p>{partnerName} has no current submission for this month.</p> : submitted ? <p>Your fictional submission is ready for the partner simulation.</p> : <p>Submit your shared projection first; the fictional partner response follows it.</p>}
       {explanation ? <p className="fine-print">Latest change: {explanation}</p> : null}
-      {props.onCheckLatest ? <div className="button-row"><button className="btn ghost" onClick={props.onCheckLatest} disabled={props.checking}>{props.checking ? 'Checking…' : 'Check latest status'}</button><span className="fine-print">{props.lastChecked ? 'Last checked ' + when(props.lastChecked) + '. Checked automatically while this page is visible.' : 'Not checked yet.'}</span></div> : null}
+      {props.onCheckLatest ? <div className="button-row"><button className="btn ghost" onClick={props.onCheckLatest} disabled={props.checking}>{props.checking ? 'Checking…' : 'Check latest status'}</button><span className="fine-print">{props.lastChecked ? endSentence('Last checked ' + when(props.lastChecked)) + ' Checked automatically while this page is visible.' : 'Not checked yet.'}</span></div> : null}
       {props.onPartner ? <button className="btn primary continue-full" onClick={props.onPartner} disabled={!submitted || !!workflow.partner || locked}>Simulate fictional partner submission</button> : null}</section>{props.onStale ? <section className="panel simulation"><h2>Recovery demonstration</h2><p>Model a version changing while you review—the kind of response a real API may return.</p><button className="btn ghost continue-full" onClick={props.onStale} disabled={!workflow.mine || locked}>Simulate partner change (stale)</button></section> : null}<button className="continue-btn" onClick={props.onContinue} disabled={!workflow.mine || !workflow.partner}>Continue to Settle <span aria-hidden="true">›</span></button></aside></div>
   </section>
 }

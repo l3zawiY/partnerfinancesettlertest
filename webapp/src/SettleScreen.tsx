@@ -1,7 +1,7 @@
 import { buildMonthArchive, type MonthArchive } from '../shared/formats'
 import { canClose, preCloseChecks } from '../shared/preClose'
 import type { PeriodWorkflow } from '../shared/workflow'
-import { describeEvent, when } from './ShareStatusScreen'
+import { describeEvent, endSentence, when } from './ShareStatusScreen'
 import type { PrivateWorkspace } from './usePrivateWorkspace'
 import { downloadJson } from './usePrivateWorkspace'
 
@@ -57,7 +57,7 @@ export default function SettleScreen(props: { workspace: PrivateWorkspace; workf
           ? <><p>{props.connected ? 'The Worker rechecks your coordinator role, both current submissions, and the version, then creates the final archive. This does not send money.' : 'Closing finalizes this fictional record. It does not send money or confirm a bank transfer.'}</p><button className="btn primary continue-full" disabled={!ready || props.busy} onClick={props.onClose}>{workflow.status === 'retryable-error' ? 'Retry close safely' : props.busy ? 'Closing…' : 'Close month and archive'}</button>{props.onFailNextClose ? <button className="btn ghost continue-full" onClick={props.onFailNextClose} disabled={!ready}>Make next close fail (fictional)</button> : null}</>
           : <p>Only the coordinator, <strong>{coordinatorAlias}</strong>, can close this month. You can inspect both sides here and still replace or withdraw your own submission from Share / Status until the month is closed.</p>}
       {explanation ? <p className="fine-print">Latest change: {explanation}</p> : null}
-      {props.onCheckLatest ? <div className="button-row"><button className="btn ghost" onClick={props.onCheckLatest} disabled={props.checking}>{props.checking ? 'Checking…' : 'Check latest status'}</button><span className="fine-print">{props.lastChecked ? 'Last checked ' + when(props.lastChecked) + '.' : 'Not checked yet.'}</span></div> : null}
+      {props.onCheckLatest ? <div className="button-row"><button className="btn ghost" onClick={props.onCheckLatest} disabled={props.checking}>{props.checking ? 'Checking…' : 'Check latest status'}</button><span className="fine-print">{props.lastChecked ? endSentence('Last checked ' + when(props.lastChecked)) : 'Not checked yet.'}</span></div> : null}
     </section><section className="panel agreement-card"><h2>Agreement</h2><p>If the results disagree, review the period, people, versions, and asymmetric shares before proceeding.</p></section></aside></div>
   </section>
 }

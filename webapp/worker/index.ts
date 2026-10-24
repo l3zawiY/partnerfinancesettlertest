@@ -263,24 +263,26 @@ export function createWorker(
 
           if (url.pathname === '/api/workflows/export') {
             if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
-            return json(await exportClosedWorkflows(environment.DB, identity.householdId, now(), 'delete_' + randomId()))
+            // Only the coordinator can delete, so only the coordinator's export issues a deletion
+            // token; a partner export can no longer cancel the coordinator's pending one (WEB-025).
+            return json(await exportClosedWorkflows(environment.DB, identity.householdId, now(), me.role === 'coordinator' ? 'delete_' + randomId() : null))
           }
           if (url.pathname === '/api/workflows/capabilities') {
             if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405)
-            return json({ canAdministerSharedHistory: identity.organizationRole === 'org:admin' })
+            return json({ canAdministerSharedHistory: me.role === 'coordinator' })
           }
           if (url.pathname === '/api/workflows/restore') {
             if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
-            if (identity.organizationRole !== 'org:admin') return json({ error: 'Household administrator access required.' }, 403)
+            if (me.role !== 'coordinator') return json({ error: 'Only the coordinator, ' + (actor.partner && actor.partner.role === 'coordinator' ? actor.partner.alias : 'of this household') + ', can restore, cancel, or delete shared history.' }, 403)
             let body: unknown
             try { body = await readJson(request) } catch { return json({ error: 'Request body must be valid JSON.' }, 400) }
             if (!isWorkflowRestoreRequest(body)) return json({ error: 'Shared archive bundle is invalid.' }, 400)
-            const restoredPeriods = await restoreWorkflowHistory(environment.DB, identity.householdId, me, body.bundle, now(), randomId)
+            const restoredPeriods = await restoreWorkflowHistory(environment.DB, identity.householdId, actor, body.bundle, now(), randomId)
             return json({ restoredPeriods })
           }
           if (url.pathname === '/api/workflows') {
             if (request.method !== 'DELETE') return json({ error: 'Method not allowed.' }, 405)
-            if (identity.organizationRole !== 'org:admin') return json({ error: 'Household administrator access required.' }, 403)
+            if (me.role !== 'coordinator') return json({ error: 'Only the coordinator, ' + (actor.partner && actor.partner.role === 'coordinator' ? actor.partner.alias : 'of this household') + ', can restore, cancel, or delete shared history.' }, 403)
             let body: unknown
             try { body = await readJson(request) } catch { return json({ error: 'Request body must be valid JSON.' }, 400) }
             if (!isWorkflowDeleteRequest(body)) return json({ error: 'Shared-history deletion confirmation is invalid.' }, 400)
@@ -288,7 +290,7 @@ export function createWorker(
           }
           if (url.pathname === '/api/workflows/cancel-abandoned') {
             if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
-            if (identity.organizationRole !== 'org:admin') return json({ error: 'Household administrator access required.' }, 403)
+            if (me.role !== 'coordinator') return json({ error: 'Only the coordinator, ' + (actor.partner && actor.partner.role === 'coordinator' ? actor.partner.alias : 'of this household') + ', can restore, cancel, or delete shared history.' }, 403)
             let body: unknown
             try { body = await readJson(request) } catch { return json({ error: 'Request body must be valid JSON.' }, 400) }
             if (!isWorkflowCancelRequest(body)) return json({ error: 'Abandoned-period cancellation confirmation is invalid.' }, 400)

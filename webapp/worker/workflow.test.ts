@@ -285,33 +285,58 @@ describe('authoritative period workflow', function () {
     expect((await status('user_a', '2026-06')).status).toBe('draft')
   })
 
-  it('exports closed archives, requires an administrator participant for deletion, and restores without private state', async function () {
+  it('exports closed archives, lets only the coordinator delete or restore, and restores without private state', async function () {
     await submit('user_a', 'Fictional A', 'request_a1')
     await submit('user_b', 'Fictional B', 'request_b1')
     const current = await status('user_a')
     await member('user_a').fetch(request('/api/workflows/2026-07/close', 'POST', { expectedVersion: current.version, requestId: 'request_close' }), environment())
-    const exportedResponse = await member('user_b').fetch(request('/api/workflows/export', 'POST'), environment())
-    const exported = (await exportedResponse.json()) as WorkflowExportResponse
+    const coordinator = member('user_a')
+    const exported = (await (await coordinator.fetch(request('/api/workflows/export', 'POST'), environment())).json()) as WorkflowExportResponse
     expect(exported.bundle.archives).toHaveLength(1)
+    expect(exported.deletionToken).toMatch(/^delete_/)
     expect(JSON.stringify(exported.bundle)).not.toMatch(/user_|org_|card|amazon|raw|@/i)
+
+    // WEB-025: the partner's later export carries no token and cannot cancel the coordinator's.
+    const partnerExport = (await (await member('user_b').fetch(request('/api/workflows/export', 'POST'), environment())).json()) as WorkflowExportResponse
+    expect(partnerExport.deletionToken).toBeNull()
+    expect(partnerExport.bundle).toEqual({ ...exported.bundle, generated: partnerExport.bundle.generated })
+
+    // WEB-023: coordinator role decides, not the Clerk administrator role.
     const deletion = { deletionToken: exported.deletionToken, confirmation: 'DELETE SHARED HISTORY', requestId: 'request_delete' }
     expect((await member('user_b').fetch(request('/api/workflows', 'DELETE', deletion), environment())).status).toBe(403)
-    const admin = member('user_a')
-    expect((await admin.fetch(request('/api/workflows', 'DELETE', deletion), environment())).status).toBe(200)
+    const partnerAsAdmin = await member('user_b', HOUSEHOLD_A, 'org:admin').fetch(request('/api/workflows', 'DELETE', deletion), environment())
+    expect(partnerAsAdmin.status).toBe(403)
+    expect(((await partnerAsAdmin.json()) as { error: string }).error).toMatch(/Only the coordinator, Fictional A/)
+    expect((await member('user_b', HOUSEHOLD_A, 'org:admin').fetch(request('/api/workflows/restore', 'POST', { bundle: exported.bundle, requestId: 'request_restore_partner' }), environment())).status).toBe(403)
+    const coordinatorAsMember = member('user_a', HOUSEHOLD_A, 'org:member')
+    expect((await coordinatorAsMember.fetch(request('/api/workflows', 'DELETE', deletion), environment())).status).toBe(200)
+
     const restoreBundle = JSON.parse(JSON.stringify(exported.bundle)) as WorkflowExportResponse['bundle'] & { privateRows?: unknown[] }
     restoreBundle.privateRows = [{ raw: 'PRIVATE' }]
-    const unsafeRestore = await admin.fetch(request('/api/workflows/restore', 'POST', { bundle: restoreBundle, requestId: 'request_restore_unsafe' }), environment())
+    const unsafeRestore = await coordinator.fetch(request('/api/workflows/restore', 'POST', { bundle: restoreBundle, requestId: 'request_restore_unsafe' }), environment())
     expect(unsafeRestore.status).toBe(400)
-    const restore = await admin.fetch(request('/api/workflows/restore', 'POST', { bundle: exported.bundle, requestId: 'request_restore' }), environment())
+
+    // WEB-024: another household's archive, or an email-like alias, is refused before writing.
+    const foreign = JSON.parse(JSON.stringify(exported.bundle)) as WorkflowExportResponse['bundle']
+    foreign.archives[0]!.people = { a: 'Someone Else', b: 'Fictional B' }
+    const foreignRestore = await coordinator.fetch(request('/api/workflows/restore', 'POST', { bundle: foreign, requestId: 'request_restore_foreign' }), environment())
+    expect(foreignRestore.status).toBe(409)
+    expect(((await foreignRestore.json()) as { error: string }).error).toMatch(/different participants/)
+    const emailAlias = JSON.parse(JSON.stringify(exported.bundle)) as WorkflowExportResponse['bundle']
+    emailAlias.archives[0]!.people = { a: 'a@example.com', b: 'Fictional B' }
+    expect([400, 409]).toContain((await coordinator.fetch(request('/api/workflows/restore', 'POST', { bundle: emailAlias, requestId: 'request_restore_email' }), environment())).status)
+    expect((await status('user_a')).status).not.toBe('closed')
+
+    const restore = await coordinator.fetch(request('/api/workflows/restore', 'POST', { bundle: exported.bundle, requestId: 'request_restore' }), environment())
     expect(restore.status).toBe(200)
     const restored = await status('user_a')
     expect(restored.status).toBe('closed')
     expect(restored.archive).toEqual(exported.bundle.archives[0])
     expect(restored.mine).toBeNull()
     expect(restored.lastEvent).toMatchObject({ action: 'restore', actorRole: 'coordinator' })
-    const reexported = (await (await admin.fetch(request('/api/workflows/export', 'POST'), environment())).json()) as WorkflowExportResponse
+    const reexported = (await (await coordinator.fetch(request('/api/workflows/export', 'POST'), environment())).json()) as WorkflowExportResponse
     expect(JSON.stringify(reexported.bundle)).not.toMatch(/privateRows|PRIVATE/)
-    const repeated = await admin.fetch(request('/api/workflows/restore', 'POST', { bundle: exported.bundle, requestId: 'request_restore_retry' }), environment())
+    const repeated = await coordinator.fetch(request('/api/workflows/restore', 'POST', { bundle: exported.bundle, requestId: 'request_restore_retry' }), environment())
     expect(repeated.status).toBe(200)
   })
 

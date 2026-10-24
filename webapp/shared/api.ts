@@ -207,7 +207,8 @@ export interface WorkflowResponse { workflow: PeriodWorkflow }
 
 export interface WorkflowExportResponse {
   bundle: HouseholdArchiveBundle
-  deletionToken: string
+  /** Issued only to the coordinator, the one participant who can delete (WEB-025). */
+  deletionToken: string | null
   openPeriods: string[]
 }
 
@@ -247,7 +248,7 @@ export function isWorkflowResponse(value: unknown): value is WorkflowResponse {
 export function isWorkflowExportResponse(value: unknown): value is WorkflowExportResponse {
   if (!value || typeof value !== 'object') return false
   const response = value as Record<string, unknown>
-  return isHouseholdArchiveBundle(response.bundle) && isRequestId(response.deletionToken) &&
+  return isHouseholdArchiveBundle(response.bundle) && (response.deletionToken === null || isRequestId(response.deletionToken)) &&
     Array.isArray(response.openPeriods) && response.openPeriods.every(function (period) { return typeof period === 'string' && /^\d{4}-\d{2}$/.test(period) })
 }
 

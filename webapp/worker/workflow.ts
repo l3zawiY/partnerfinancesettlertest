@@ -1,5 +1,5 @@
 import { buildHouseholdArchiveBundle, buildMonthArchive, isMonthArchive, type HouseholdArchiveBundle, type SharedExport } from '../shared/formats'
-import type { ParticipantRole } from '../shared/pairing'
+import { isSafeAlias, sameLabel, type ParticipantRole } from '../shared/pairing'
 import { emptyWorkflow, isStrictSharedProjection, type PeriodWorkflow, type WorkflowAction, type WorkflowEvent, type WorkflowSubmission } from '../shared/workflow'
 import type { SqlDatabase, SqlRunResult } from './db'
 import type { VerifiedParticipant } from './pairing'
@@ -243,18 +243,20 @@ export async function closeWorkflow(input: { database: SqlDatabase; householdId:
   return workflow
 }
 
-export async function exportClosedWorkflows(database: SqlDatabase, householdId: string, now: string, token: string): Promise<{ bundle: HouseholdArchiveBundle; deletionToken: string; openPeriods: string[] }> {
+export async function exportClosedWorkflows(database: SqlDatabase, householdId: string, now: string, token: string | null): Promise<{ bundle: HouseholdArchiveBundle; deletionToken: string | null; openPeriods: string[] }> {
   const { results } = await database.prepare('SELECT period, status, archive_json FROM workflow_periods WHERE household_id = ? ORDER BY period').bind(householdId).all<{ period: string; status: string; archive_json: string | null }>()
   const archives = results.filter(function (row) { return row.status === 'closed' && row.archive_json }).map(function (row) {
     const archive: unknown = JSON.parse(row.archive_json || 'null')
     if (!isMonthArchive(archive)) throw new Error('Stored archive is invalid.')
     return archive
   })
-  const expires = new Date(Date.parse(now) + 15 * 60 * 1000).toISOString()
-  await database.batch([
-    database.prepare('DELETE FROM workflow_deletion_tokens WHERE household_id = ?').bind(householdId),
-    database.prepare('INSERT INTO workflow_deletion_tokens (token, household_id, expires_at, created_at) VALUES (?, ?, ?, ?)').bind(token, householdId, expires, now),
-  ])
+  if (token !== null) {
+    const expires = new Date(Date.parse(now) + 15 * 60 * 1000).toISOString()
+    await database.batch([
+      database.prepare('DELETE FROM workflow_deletion_tokens WHERE household_id = ?').bind(householdId),
+      database.prepare('INSERT INTO workflow_deletion_tokens (token, household_id, expires_at, created_at) VALUES (?, ?, ?, ?)').bind(token, householdId, expires, now),
+    ])
+  }
   return { bundle: buildHouseholdArchiveBundle(archives, now), deletionToken: token, openPeriods: results.filter(function (row) { return row.status !== 'closed' }).map(function (row) { return row.period }) }
 }
 
@@ -278,7 +280,17 @@ export async function deleteWorkflowHistory(database: SqlDatabase, householdId: 
   return Number(count?.total || 0)
 }
 
-export async function restoreWorkflowHistory(database: SqlDatabase, householdId: string, actor: VerifiedParticipant, bundle: HouseholdArchiveBundle, now: string, id: () => string): Promise<number> {
+export async function restoreWorkflowHistory(database: SqlDatabase, householdId: string, workflowActor: WorkflowActor, bundle: HouseholdArchiveBundle, now: string, id: () => string): Promise<number> {
+  const actor = workflowActor.me
+  // WEB-024: only archives of this household's two participants can be restored. Archive
+  // payer a is always the coordinator and b the partner; aliases must also be safe labels.
+  const coordinator = actor.role === 'coordinator' ? actor : workflowActor.partner
+  const partner = actor.role === 'partner' ? actor : workflowActor.partner
+  if (!coordinator || !partner || coordinator.role !== 'coordinator' || partner.role !== 'partner') throw new WorkflowConflictError('Both participants must be paired before archives can be restored.')
+  for (const archive of bundle.archives) {
+    if (!isSafeAlias(archive.people.a) || !isSafeAlias(archive.people.b)) throw new WorkflowConflictError('The archive for ' + archive.period + ' has participant names that are not valid aliases, so nothing was restored.')
+    if (!sameLabel(archive.people.a, coordinator.alias) || !sameLabel(archive.people.b, partner.alias)) throw new WorkflowConflictError('The archive for ' + archive.period + ' belongs to different participants than this household\'s ' + coordinator.alias + ' and ' + partner.alias + ', so nothing was restored.')
+  }
   const archives = bundle.archives.map(function (archive) {
     const asItem = function (item: (typeof archive.items)[number]) { return { date: item.date, merchant: item.merchant, category: item.category, amount: item.amount, share: item.shareOfPayer } }
     return buildMonthArchive({ toolVersion: archive.toolVersion, period: archive.period, closed: archive.closed, people: archive.people, mine: archive.items.filter(function (item) { return item.payer === 'a' }).map(asItem), theirs: archive.items.filter(function (item) { return item.payer === 'b' }).map(asItem) })

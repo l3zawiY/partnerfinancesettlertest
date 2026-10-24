@@ -73,7 +73,8 @@ export interface WorkflowGateway {
 
 export interface WorkflowExportReceipt {
   bundle: HouseholdArchiveBundle
-  deletionToken: string
+  /** Null for the partner, who cannot delete shared history. */
+  deletionToken: string | null
   openPeriods: string[]
 }
 

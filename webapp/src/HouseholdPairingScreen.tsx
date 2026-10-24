@@ -111,7 +111,7 @@ export default function HouseholdPairingScreen(props: {
         <h1 id="pairing-title">{isCoordinator ? 'Waiting for your partner' : 'You are invited to pair with ' + (pairing.coordinator?.alias || 'the coordinator')}</h1>
         <PairingSummary pairing={pairing} />
         {isCoordinator ? <>{props.invitations ? <InvitePanel invitations={props.invitations} /> : <p>Invite your partner from the household members page in the sign-in service, then wait for them to choose <strong>Join as partner</strong>.</p>}</> : null}
-        {viewer?.kind === 'member' && viewer.canJoinAsPartner ? <><p><strong>{pairing.coordinator?.alias}</strong> set up the household <strong>{pairing.householdName}</strong> and is waiting for a partner. Confirm this is the household you were invited to before joining.</p><p className="fine-print">{PRIVACY_TEXT}</p><JoinForm pairing={pairing} busy={props.busy} onJoin={props.onJoin} /></> : null}
+        {viewer?.kind === 'member' && viewer.canJoinAsPartner ? <><p><strong>{pairing.coordinator?.alias}</strong> set up the household <strong>{pairing.householdName}</strong> and is waiting for a partner. Confirm this is the household you were invited to before joining. Only the person {pairing.coordinator?.alias} invited as partner from Split Ledger can join; other household members are refused.</p><p className="fine-print">{PRIVACY_TEXT}</p><JoinForm pairing={pairing} busy={props.busy} onJoin={props.onJoin} /></> : null}
       </> : null}
 
       {pairing?.state === 'paired' ? <>

@@ -91,6 +91,19 @@ export function isInitializeHouseholdRequest(value: unknown): value is Initializ
     isSafeHouseholdName(request.householdName) && isSafeAlias(request.alias)
 }
 
+export interface PartnerInvitationRequest { invitationId: string; requestId: string }
+
+/** A Clerk organization invitation id; opaque, never an email address. */
+export function isInvitationId(value: unknown): value is string {
+  return typeof value === 'string' && /^orginv_[A-Za-z0-9]{8,64}$/.test(value)
+}
+
+export function isPartnerInvitationRequest(value: unknown): value is PartnerInvitationRequest {
+  if (!value || typeof value !== 'object') return false
+  const request = value as Record<string, unknown>
+  return onlyKeys(request, ['invitationId', 'requestId']) && isRequestId(request.requestId) && isInvitationId(request.invitationId)
+}
+
 export function isJoinHouseholdRequest(value: unknown): value is JoinHouseholdRequest {
   if (!value || typeof value !== 'object') return false
   const request = value as Record<string, unknown>
@@ -164,4 +177,6 @@ export interface PairingGateway {
   getPairing(): Promise<HouseholdPairing>
   initialize(householdName: string, alias: string): Promise<HouseholdPairing>
   joinAsPartner(alias: string): Promise<HouseholdPairing>
+  /** Tells the server which Clerk invitation is the partner invitation (WEB-022). */
+  recordPartnerInvitation(invitationId: string): Promise<HouseholdPairing>
 }

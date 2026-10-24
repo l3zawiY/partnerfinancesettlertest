@@ -3,6 +3,7 @@ import type { WorkflowExportResponse, WorkflowResponse } from '../shared/api'
 import type { SharedExport } from '../shared/formats'
 import { buildHouseholdArchiveBundle, buildMonthArchive } from '../shared/formats'
 import { createWorker, type WorkerEnvironment } from './index'
+import { FIXTURE_PARTNER_INVITATION, fixtureDirectory } from './testing/fixtureDirectory'
 import { createTestDatabase, type TestDatabase } from './testing/sqliteDatabase'
 
 const HOUSEHOLD_A = 'org_fixture_household_a'
@@ -18,13 +19,18 @@ function environment(): WorkerEnvironment {
   return { VITE_CLERK_PUBLISHABLE_KEY: 'pk_test_fixture', CLERK_SECRET_KEY: 'sk_test_fixture', ASSETS: { fetch: async () => new Response('fixture asset') }, DB: database }
 }
 
+const DIRECTORY = fixtureDirectory({
+  invitations: { [FIXTURE_PARTNER_INVITATION]: { organizationId: HOUSEHOLD_A, emailAddress: 'fictional-b@example.test', status: 'pending' } },
+  emails: { user_b: ['fictional-b@example.test'] },
+})
+
 /**
  * Fixture identities. `user_a` is the organization administrator who becomes the stable
  * coordinator; `user_b` is the invited partner; `user_admin` is a third organization
  * member who also happens to be an administrator and must still be refused financially.
  */
 function member(userId: string, householdId: string | null = HOUSEHOLD_A, organizationRole: string | null = userId === 'user_a' || userId === 'user_admin' ? 'org:admin' : 'org:member') {
-  return createWorker(async () => ({ userId, householdId, organizationRole }), function () { return NOW }, function () { sequence += 1; return 'fixture_id_' + sequence })
+  return createWorker(async () => ({ userId, householdId, organizationRole }), function () { return NOW }, function () { sequence += 1; return 'fixture_id_' + sequence }, DIRECTORY)
 }
 
 function projection(owner: string, amount = 100, period = '2026-07'): SharedExport {
@@ -40,6 +46,8 @@ async function fresh(): Promise<void> { database.close(); database = createTestD
 async function pair(): Promise<void> {
   const initialized = await member('user_a').fetch(request('/api/household/pairing/initialize', 'POST', { householdName: 'Fictional Household', alias: 'Fictional A', requestId: 'request_pair_init' }), environment())
   if (initialized.status !== 200) throw new Error('Fixture pairing failed to initialize: ' + initialized.status)
+  const invited = await member('user_a').fetch(request('/api/household/pairing/partner-invitation', 'POST', { invitationId: FIXTURE_PARTNER_INVITATION, requestId: 'request_pair_invite' }), environment())
+  if (invited.status !== 200) throw new Error('Fixture pairing failed to record the invitation: ' + invited.status)
   const joined = await member('user_b').fetch(request('/api/household/pairing/join', 'POST', { alias: 'Fictional B', requestId: 'request_pair_join' }), environment())
   if (joined.status !== 200) throw new Error('Fixture pairing failed to join: ' + joined.status)
 }

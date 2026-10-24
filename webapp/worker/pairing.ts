@@ -161,3 +161,44 @@ export async function pairedCounterpart(database: SqlDatabase, householdId: stri
   const other = rows.find(function (row) { return row.user_id !== participant.userId })
   return other ? { userId: other.user_id, role: other.role, alias: other.alias, slot: ROLE_SLOT[other.role] } : null
 }
+
+/**
+ * WEB-022: the coordinator records which Clerk invitation is the partner invitation. The
+ * caller has already confirmed with Clerk that the invitation belongs to this household.
+ */
+export async function recordPartnerInvitation(input: { database: SqlDatabase; householdId: string; userId: string; organizationRole: string | null | undefined; invitationId: string; now: string }): Promise<HouseholdPairing> {
+  const rows = await participantRows(input.database, input.householdId)
+  const mine = rows.find(function (row) { return row.user_id === input.userId })
+  if (mine?.role !== 'coordinator') throw new PairingForbiddenError('Only the coordinator can invite the partner.')
+  if (rows.some(function (row) { return row.role === 'partner' })) throw new PairingConflictError('This household already has two Split Ledger participants.')
+  await input.database.batch([
+    input.database.prepare('INSERT INTO household_partner_invitations (household_id, invitation_id, recorded_by, recorded_at) VALUES (?, ?, ?, ?) ON CONFLICT (household_id) DO UPDATE SET invitation_id = excluded.invitation_id, recorded_by = excluded.recorded_by, recorded_at = excluded.recorded_at').bind(input.householdId, input.invitationId, input.userId, input.now),
+  ])
+  return readPairing(input.database, input.householdId, input.userId, input.organizationRole)
+}
+
+export async function partnerInvitationId(database: SqlDatabase, householdId: string): Promise<string | null> {
+  const row = await database.prepare('SELECT invitation_id FROM household_partner_invitations WHERE household_id = ?').bind(householdId).first<{ invitation_id: string }>()
+  return row ? row.invitation_id : null
+}
+
+/**
+ * WEB-022: refuses "Join as partner" unless the caller's verified email matches the
+ * recorded partner invitation. Emails are compared in memory and never stored.
+ */
+export async function assertInvitedPartner(input: {
+  database: SqlDatabase; householdId: string; userId: string
+  invitation: (invitationId: string) => Promise<{ emailAddress: string; status: string } | null>
+  verifiedEmails: () => Promise<string[]>
+}): Promise<void> {
+  const rows = await participantRows(input.database, input.householdId)
+  // Already the partner (an idempotent retry) or the role is taken: joinAsPartner answers.
+  if (rows.some(function (row) { return row.role === 'partner' })) return
+  if (rows.some(function (row) { return row.user_id === input.userId })) return
+  const invitationId = await partnerInvitationId(input.database, input.householdId)
+  if (!invitationId) throw new PairingForbiddenError('No partner invitation is recorded for this household yet. Ask the coordinator to invite you from Split Ledger\'s Invite partner panel.')
+  const invitation = await input.invitation(invitationId)
+  if (!invitation || invitation.status === 'revoked') throw new PairingForbiddenError('The partner invitation for this household is no longer valid. Ask the coordinator to invite you again from Split Ledger.')
+  const emails = await input.verifiedEmails()
+  if (!emails.includes(invitation.emailAddress.toLowerCase())) throw new PairingForbiddenError('The partner invitation for this household was sent to a different email address. Only the invited person can join as partner.')
+}

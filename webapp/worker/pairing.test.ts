@@ -13,6 +13,7 @@ import {
   readPairing,
   requireParticipant,
 } from './pairing'
+import { fixtureDirectory } from './testing/fixtureDirectory'
 import { createTestDatabase, type TestDatabase } from './testing/sqliteDatabase'
 
 const HOUSEHOLD_A = 'org_fixture_household_a'
@@ -221,8 +222,19 @@ describe('pairing routes', function () {
   function environment(): WorkerEnvironment {
     return { VITE_CLERK_PUBLISHABLE_KEY: 'pk_test_fixture', CLERK_SECRET_KEY: 'sk_test_fixture', ASSETS: { fetch: async () => new Response('fixture asset') }, DB: database }
   }
+  const directory = fixtureDirectory({
+    invitations: {
+      orginv_fixturepartner01: { organizationId: HOUSEHOLD_A, emailAddress: 'Fictional-Partner@example.test', status: 'pending' },
+      orginv_fixtureother0001: { organizationId: HOUSEHOLD_B, emailAddress: 'fictional-partner@example.test', status: 'pending' },
+      orginv_fixturerevoked01: { organizationId: HOUSEHOLD_A, emailAddress: 'fictional-partner@example.test', status: 'revoked' },
+    },
+    emails: { user_partner: ['fictional-partner@example.test'], user_member: ['fictional-member@example.test'], user_third: ['fictional-third@example.test'] },
+  })
   function as(userId: string, organizationRole: string | null = 'org:member', householdId: string | null = HOUSEHOLD_A) {
-    return createWorker(async () => ({ userId, householdId, organizationRole }), function () { return NOW })
+    return createWorker(async () => ({ userId, householdId, organizationRole }), function () { return NOW }, undefined, directory)
+  }
+  function invite(invitationId: string, userId = 'user_admin', organizationRole: string | null = 'org:admin') {
+    return as(userId, organizationRole).fetch(request('/api/household/pairing/partner-invitation', 'POST', { invitationId, requestId: 'request_invite_' + invitationId }), environment())
   }
   function request(path: string, method = 'GET', body?: unknown) {
     return new Request('https://split-ledger.example' + path, { method, headers: body === undefined ? undefined : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) })
@@ -257,6 +269,8 @@ describe('pairing routes', function () {
     const invited = await pairingOf(await as('user_partner').fetch(request('/api/household/pairing'), environment()))
     expect(invited.viewer).toEqual({ kind: 'member', canInitialize: false, canJoinAsPartner: true })
     expect(invited.coordinator?.alias).toBe('Fictional A')
+    expect((await as('user_partner').fetch(request('/api/household/pairing/join', 'POST', { alias: 'Fictional B', requestId: 'request_join_0' }), environment())).status).toBe(403)
+    expect((await invite('orginv_fixturepartner01')).status).toBe(200)
     expect((await as('user_partner').fetch(request('/api/household/pairing/join', 'POST', { alias: 'fictional a', requestId: 'request_join_1' }), environment())).status).toBe(400)
     expect((await as('user_admin', 'org:admin').fetch(request('/api/household/pairing/join', 'POST', { alias: 'Fictional A2', requestId: 'request_join_1' }), environment())).status).toBe(403)
     const joined = await as('user_partner').fetch(request('/api/household/pairing/join', 'POST', { alias: 'Fictional B', requestId: 'request_join_1' }), environment())
@@ -281,5 +295,36 @@ describe('pairing routes', function () {
     for (const view of [partnerView, coordinatorView, thirdView]) {
       expect(JSON.stringify(view)).not.toMatch(/user_|org_|@|householdId|userId/)
     }
+  })
+
+  it('lets only the invited account claim the partner role (WEB-022)', async function () {
+    const initialize = { householdName: 'Fictional Household', alias: 'Fictional A', requestId: 'request_init_1' }
+    expect((await as('user_admin', 'org:admin').fetch(request('/api/household/pairing/initialize', 'POST', initialize), environment())).status).toBe(200)
+    const join = function (userId: string, alias: string) { return as(userId).fetch(request('/api/household/pairing/join', 'POST', { alias, requestId: 'request_join_' + userId }), environment()) }
+    const errorOf = async function (response: Response) { return ((await response.json()) as { error: string }).error }
+
+    const noInvitation = await join('user_partner', 'Fictional B')
+    expect(noInvitation.status).toBe(403)
+    expect(await errorOf(noInvitation)).toMatch(/No partner invitation is recorded/)
+
+    expect((await invite('orginv_fixturepartner01', 'user_member', 'org:member')).status).toBe(403)
+    expect((await invite('orginv_fixtureother0001')).status).toBe(400)
+    expect((await invite('orginv_fixturerevoked01')).status).toBe(400)
+    expect((await as('user_admin', 'org:admin').fetch(request('/api/household/pairing/partner-invitation', 'POST', { invitationId: 'person@example.com', requestId: 'request_bad' }), environment())).status).toBe(400)
+    expect((await invite('orginv_fixturepartner01')).status).toBe(200)
+    expect(JSON.stringify(await database.prepare('SELECT * FROM household_partner_invitations').all())).not.toMatch(/@/)
+
+    const wrongPerson = await join('user_member', 'Fictional M')
+    expect(wrongPerson.status).toBe(403)
+    expect(await errorOf(wrongPerson)).toMatch(/different email address/)
+    const noEmails = await join('user_unknown', 'Fictional U')
+    expect(noEmails.status).toBe(403)
+
+    const invited = await join('user_partner', 'Fictional B')
+    expect(invited.status).toBe(200)
+    expect((await pairingOf(invited)).state).toBe('paired')
+    expect((await join('user_partner', 'Fictional B')).status).toBe(200)
+    expect((await join('user_third', 'Fictional C')).status).toBe(409)
+    expect((await invite('orginv_fixturepartner01')).status).toBe(409)
   })
 })

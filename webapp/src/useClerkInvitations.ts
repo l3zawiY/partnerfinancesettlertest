@@ -7,7 +7,7 @@ import type { InvitationSurface } from './HouseholdPairingScreen'
  * address is sent to Clerk by the browser and never to the Split Ledger Worker; pending
  * invitations are read back from Clerk, not stored here.
  */
-export function useClerkInvitations(): InvitationSurface | undefined {
+export function useClerkInvitations(onPartnerInvited?: (invitationId: string) => Promise<void>): InvitationSurface | undefined {
   // Clerk lets only administrators list invitations; a member's request is refused with 403.
   const { membership } = useOrganization()
   const canListInvitations = membership?.role === 'org:admin'
@@ -16,11 +16,13 @@ export function useClerkInvitations(): InvitationSurface | undefined {
     if (!organization) return undefined
     return {
       async invite(emailAddress: string) {
-        await organization.inviteMember({ emailAddress, role: 'org:member' })
+        const invitation = await organization.inviteMember({ emailAddress, role: 'org:member' })
+        // The server must know which invitation is the partner's; only the opaque id is sent.
+        if (onPartnerInvited) await onPartnerInvited(invitation.id)
         if (invitations?.revalidate) await invitations.revalidate()
       },
       pending: (invitations?.data || []).map(function (invitation) { return { id: invitation.id, emailAddress: invitation.emailAddress, status: invitation.status } }),
       async refresh() { if (invitations?.revalidate) await invitations.revalidate() },
     }
-  }, [organization, invitations])
+  }, [organization, invitations, onPartnerInvited])
 }

@@ -29,6 +29,11 @@ describe('ApiPairingGateway', function () {
     const [joinPath, joinInit] = fetchMock.mock.calls[1] as unknown as [string, RequestInit]
     expect(joinPath).toBe('/api/household/pairing/join')
     expect(JSON.parse(String(joinInit.body))).toEqual({ alias: 'Fictional B', requestId: 'request_fixture' })
+
+    await gateway.recordPartnerInvitation('orginv_fixturepartner01')
+    const [invitePath, inviteInit] = fetchMock.mock.calls[2] as unknown as [string, RequestInit]
+    expect(invitePath).toBe('/api/household/pairing/partner-invitation')
+    expect(JSON.parse(String(inviteInit.body))).toEqual({ invitationId: 'orginv_fixturepartner01', requestId: 'request_fixture' })
     for (const call of fetchMock.mock.calls as unknown as [string, RequestInit][]) {
       expect(String(call[1]?.body ?? '')).not.toMatch(/@|householdId|orgId|role|userId|email/i)
     }

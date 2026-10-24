@@ -24,6 +24,7 @@ const MIGRATIONS = [
   fileURLToPath(new URL('../../migrations/0003_period_workflows.sql', import.meta.url)),
   fileURLToPath(new URL('../../migrations/0004_workflow_hardening.sql', import.meta.url)),
   fileURLToPath(new URL('../../migrations/0005_household_pairing.sql', import.meta.url)),
+  fileURLToPath(new URL('../../migrations/0006_partner_invitation.sql', import.meta.url)),
 ]
 
 class SqliteStatement implements SqlStatement {

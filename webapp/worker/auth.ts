@@ -51,3 +51,29 @@ export const verifyClerkIdentity: IdentityVerifier = async (request, environment
 
   return { userId: auth.userId, householdId: auth.orgId ?? null, organizationRole: auth.orgRole ?? null }
 }
+
+/** What the Worker needs to read from Clerk to check a partner invitation (WEB-022). */
+export interface ClerkDirectory {
+  /** The invitation in this organization, or null when it does not exist there. */
+  organizationInvitation(environment: ClerkEnvironment, organizationId: string, invitationId: string): Promise<{ emailAddress: string; status: string } | null>
+  /** The account's verified email addresses, lowercased. */
+  verifiedEmails(environment: ClerkEnvironment, userId: string): Promise<string[]>
+}
+
+export const clerkDirectory: ClerkDirectory = {
+  async organizationInvitation(environment, organizationId, invitationId) {
+    const clerk = createClerkClient(clerkClientOptions(environment))
+    try {
+      const invitation = await clerk.organizations.getOrganizationInvitation({ organizationId, invitationId })
+      return invitation.organizationId === organizationId ? { emailAddress: invitation.emailAddress, status: invitation.status ?? 'unknown' } : null
+    } catch (error) {
+      if (error && typeof error === 'object' && 'status' in error && (error as { status: number }).status === 404) return null
+      throw error
+    }
+  },
+  async verifiedEmails(environment, userId) {
+    const clerk = createClerkClient(clerkClientOptions(environment))
+    const user = await clerk.users.getUser(userId)
+    return user.emailAddresses.filter(function (address) { return address.verification?.status === 'verified' }).map(function (address) { return address.emailAddress.toLowerCase() })
+  },
+}

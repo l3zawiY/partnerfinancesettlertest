@@ -10,8 +10,10 @@ import type {
   WorkflowResponse,
 } from '../shared/api'
 import { isWorkflowCancelRequest, isWorkflowDeleteRequest, isWorkflowMutationRequest, isWorkflowRestoreRequest, isWorkflowSubmissionRequest } from '../shared/api'
-import { isInitializeHouseholdRequest, isJoinHouseholdRequest, type HouseholdPairingResponse } from '../shared/pairing'
+import { isInitializeHouseholdRequest, isJoinHouseholdRequest, isPartnerInvitationRequest, type HouseholdPairingResponse } from '../shared/pairing'
 import {
+  clerkDirectory,
+  type ClerkDirectory,
   type ClerkEnvironment,
   type IdentityVerifier,
   verifyClerkIdentity,
@@ -22,8 +24,10 @@ import {
   type SqlDatabase,
 } from './db'
 import {
+  assertInvitedPartner,
   initializeHousehold,
   joinAsPartner,
+  recordPartnerInvitation,
   pairedCounterpart,
   PairingConflictError,
   PairingForbiddenError,
@@ -95,6 +99,7 @@ export function createWorker(
   verifyIdentity: IdentityVerifier,
   now = function () { return new Date().toISOString() },
   randomId: () => string = function () { return crypto.randomUUID() },
+  directory: ClerkDirectory = clerkDirectory,
 ) {
   return {
     async fetch(request: Request, environment: WorkerEnvironment): Promise<Response> {
@@ -153,7 +158,7 @@ export function createWorker(
 
       // Stable two-person pairing. Authentication proves the person; the active
       // organization is the tenant; these routes create or read the financial roles.
-      const pairingRoute = url.pathname.match(/^\/api\/household\/pairing(?:\/(initialize|join))?$/)
+      const pairingRoute = url.pathname.match(/^\/api\/household\/pairing(?:\/(initialize|join|partner-invitation))?$/)
       if (pairingRoute) {
         let identity
         try { identity = await verifyIdentity(request, environment) }
@@ -175,7 +180,27 @@ export function createWorker(
             if (!isInitializeHouseholdRequest(body)) return json({ error: 'Household setup is invalid. Provide a short household name and alias with no email address.' }, 400)
             return json({ pairing: await initializeHousehold({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, organizationRole: identity.organizationRole, householdName: body.householdName, alias: body.alias, now: now() }) })
           }
+          if (action === 'partner-invitation') {
+            if (!isPartnerInvitationRequest(body)) return json({ error: 'Partner invitation is invalid.' }, 400)
+            let invitation
+            try { invitation = await directory.organizationInvitation(environment, identity.householdId, body.invitationId) }
+            catch { return json({ error: 'Authentication service unavailable.' }, 503) }
+            if (!invitation || invitation.status !== 'pending') return json({ error: 'That invitation is not a pending invitation for this household.' }, 400)
+            return json({ pairing: await recordPartnerInvitation({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, organizationRole: identity.organizationRole, invitationId: body.invitationId, now: now() }) })
+          }
           if (!isJoinHouseholdRequest(body)) return json({ error: 'Partner join is invalid. Provide a short alias with no email address.' }, 400)
+          const householdId = identity.householdId
+          const userId = identity.userId
+          try {
+            await assertInvitedPartner({
+              database: environment.DB, householdId, userId,
+              invitation: function (invitationId) { return directory.organizationInvitation(environment, householdId, invitationId) },
+              verifiedEmails: function () { return directory.verifiedEmails(environment, userId) },
+            })
+          } catch (error) {
+            if (error instanceof PairingForbiddenError) throw error
+            return json({ error: 'Authentication service unavailable.' }, 503)
+          }
           return json({ pairing: await joinAsPartner({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, organizationRole: identity.organizationRole, alias: body.alias, now: now() }) })
         } catch (error) {
           if (error instanceof PairingForbiddenError) return json({ error: error.message }, 403)

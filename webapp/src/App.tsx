@@ -11,8 +11,8 @@ import { ApiWorkflowGateway } from './workflow/ApiWorkflowGateway'
 
 type Connection = 'checking' | 'ready' | 'no-household' | 'error'
 
-function PairingWithClerkInvitations(props: { pairing: HouseholdPairing | null; error: string | null; busy: boolean; onInitialize: (householdName: string, alias: string) => void; onJoin: (alias: string) => void; onRefresh: () => void }) {
-  const invitations = useClerkInvitations()
+function PairingWithClerkInvitations(props: { pairing: HouseholdPairing | null; error: string | null; busy: boolean; onInitialize: (householdName: string, alias: string) => void; onJoin: (alias: string) => void; onRefresh: () => void; onPartnerInvited: (invitationId: string) => Promise<void> }) {
+  const invitations = useClerkInvitations(props.onPartnerInvited)
   return <HouseholdPairingScreen {...props} invitations={invitations} />
 }
 
@@ -59,6 +59,12 @@ function SignedInApplication() {
       .finally(function () { setPairingBusy(false) })
   }, [])
 
+  const recordPartnerInvitation = useCallback(async function (invitationId: string) {
+    if (!pairingGateway) return
+    try { setPairing(await pairingGateway.recordPartnerInvitation(invitationId)) }
+    catch (error) { throw new Error('Clerk sent the invitation, but Split Ledger could not record it as the partner invitation (' + (error instanceof Error ? error.message : 'unknown error') + '). Send the invitation again.') }
+  }, [pairingGateway])
+
   useEffect(function () {
     if (connection !== 'ready' || !pairingGateway) return
     void runPairing(function () { return pairingGateway.getPairing() })
@@ -74,7 +80,7 @@ function SignedInApplication() {
         ? <div className="signed-out-card"><p className="eyebrow">{connection === 'checking' ? 'Checking access' : 'Household access'}</p><h1>{connection === 'checking' ? 'Checking access…' : connection === 'no-household' ? 'Select or join a household' : 'Connection unavailable'}</h1><p>{connection === 'error' ? 'The local Worker did not answer. Restart the development server and reload.' : 'Choose the intended household in the switcher above.'}</p></div>
         : pairedParticipant && pairingGateway
           ? <Workspace key={userId + orgId} scopeKey={draftStorageKey(userId, orgId)} gateway={gateway} administration={gateway} connected householdReady pairing={pairedParticipant} onRefreshPairing={() => runPairing(function () { return pairingGateway.getPairing() })} />
-          : <PairingWithClerkInvitations pairing={pairing} error={pairingError} busy={pairingBusy} onInitialize={(householdName, alias) => void runPairing(function () { return pairingGateway!.initialize(householdName, alias) })} onJoin={(alias) => void runPairing(function () { return pairingGateway!.joinAsPartner(alias) })} onRefresh={() => void runPairing(function () { return pairingGateway!.getPairing() })} />}
+          : <PairingWithClerkInvitations pairing={pairing} error={pairingError} busy={pairingBusy} onInitialize={(householdName, alias) => void runPairing(function () { return pairingGateway!.initialize(householdName, alias) })} onJoin={(alias) => void runPairing(function () { return pairingGateway!.joinAsPartner(alias) })} onRefresh={() => void runPairing(function () { return pairingGateway!.getPairing() })} onPartnerInvited={recordPartnerInvitation} />}
   </>
 }
 

@@ -1512,6 +1512,42 @@ Exit criteria: a written go/no-go review confirms invite-only access, separate e
 tested recovery, privacy-safe operations, accepted retention/offline behavior, and no open
 must-have backlog item.
 
+#### Operations runbook (hosted environments)
+
+Commands run from `webapp/`; every hosted command goes through `scripts/deploy-guard.mjs`.
+
+| Task | Staging | Production |
+|---|---|---|
+| Check access | `npx wrangler whoami` | same |
+| Apply database changes | `npm run db:migrate:staging` | `CONFIRM_PRODUCTION=yes npm run db:migrate:production`, only after the same migration ran on staging |
+| Deploy | `npm run deploy:staging` | `CONFIRM_PRODUCTION=yes npm run deploy:production`, only after the WEB-031 suite passed on staging |
+| Roll back the app | Cloudflare → Workers & Pages → the Worker → **Deployments** → previous version → **Rollback** | same |
+| Export shared archives | Coordinator: Rules & Files → **Download closed shared archives** | same, before every deploy and migration |
+| Restore shared archives | Coordinator: Rules & Files → **Restore closed shared archives** | same |
+| Database recovery | D1 Time Travel to a point before the incident (check the current retention first) | same; then compare with the latest exported archives |
+| Rotate the Clerk secret | Clerk → API keys → roll; then `wrangler secret put CLERK_SECRET_KEY --env staging` | Clerk Production → API keys → roll; owner pastes the new value in Cloudflare → Worker → Settings → Variables and Secrets |
+| Revoke a lost laptop | Clerk → Users → the person → sessions → revoke; the person deletes the private draft on any laptop they still have | same |
+| Incident note | UTC time, environment, route, status code, diagnostic report if offered. Never tokens, ids, bodies, merchants, or amounts | same |
+
+A code rollback never reverses a database migration; migrations only add, so the previous
+app version keeps working against the newer schema. If a migration itself fails, Wrangler
+rolls back that file; stop and investigate before retrying.
+
+#### Go / no-go review template (fill in before real data)
+
+| Gate | Evidence | Result |
+|---|---|---|
+| No open **Must before pilot** item in `docs/WEBAPP-BACKLOG.md` | link to backlog state | |
+| WEB-031 suite passed on staging (HC-01 to HC-10, H4C-03, H4C-05, H5-03, H5-04) | test record date | |
+| Staging export restores; rollback rehearsed | operations note | |
+| Production: custom domain over HTTPS, security headers present, `/api/*` returns 401 signed out, no console errors | check output | |
+| Clerk Production: Organizations on, sign-up invitation-only after both accounts exist, members cannot create organizations | owner confirmation | |
+| Owner spot-check 7b-6 passed on both laptops, self-test passed on both, fictional data wiped | owner's two diagnostics | |
+| v1 fallback drill passed | test record | |
+| Real-data rule for the agent acknowledged | this document | |
+
+Decision: **go** / **no-go**, date, and what would have to change for a no-go to become go.
+
 ### Batch 7c — Parallel pilot and decision (planned; first month October 2026)
 
 Learning objective: measure whether hosting improves the real monthly job enough to justify
@@ -1541,6 +1577,7 @@ its security and maintenance costs.
   whether anyone had to be chased, anything confusing, and confidence from 1 to 5.
 - Problems: the affected person copies the **safe diagnostic report** (WEB-030) into chat;
   the agent works from that and status codes only, per the real-data rule.
+- The partner's one-page guide is `docs/PARTNER-GUIDE.md`.
 
 ### Copy-paste handover for the next implementation session
 

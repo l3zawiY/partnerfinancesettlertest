@@ -405,7 +405,7 @@ gate moves every later step.
 
 | Step | What | Who | Owner time | Gate to continue |
 |---|---|---|---|---|
-| 6h | Fix the must-have backlog items, add self-test, diagnostic, and an automated acceptance suite; run extended tests locally | Agent | none | Gate green, suite green, must items closed |
+| 6h ✓ | Fix the must-have backlog items, add self-test, diagnostic, and an automated acceptance suite; run extended tests locally (done 2026-10-24) | Agent | none | Gate green, suite green, must items closed |
 | 7a-owner | Cloudflare account, MFA, API token, two environment settings, network allowlist (7a Part 1) | Owner | ~20 min, D0–D1 | Agent confirms it can reach Cloudflare with the token |
 | 7a | Staging configuration, hosted database, deploy, full automated suite against staging, rollback rehearsal | Agent | none | 7a exit criteria |
 | 7b-owner | Domain DNS, Clerk Production instance, production secret pasted into Cloudflare (7b steps 7b-1 to 7b-4) | Owner | ~30–40 min, D2–D3 | Clerk shows the domain verified |
@@ -421,7 +421,7 @@ privacy-safe diagnostic from WEB-030 that a participant chooses to paste. Any pr
 database command that reads rows is forbidden; migrations are applied only after a staging
 rehearsal of the same files.
 
-### Batch 6h — Pre-pilot hardening (planned; agent; runs in parallel with 7a)
+### Batch 6h — Pre-pilot hardening (done and verified locally 2026-10-24)
 
 Learning objective: close the defects found in review and the pre-run, and turn the
 pre-run into a repeatable automated suite, before any real account or data exists.
@@ -1612,20 +1612,29 @@ its security and maintenance costs.
 ### Copy-paste handover for the next implementation session
 
 ```text
-Continue the Split Ledger web pilot roadmap on branch mac-unpushed-work (never main).
+Continue the Split Ledger web pilot on branch mac-unpushed-work (never main).
 
 Read AGENTS.md and CLAUDE.md, then docs/WEBAPP.md → "Current status" and "Refined pilot
-roadmap — 2026-10-24", Batch 6h and Batch 7a, and docs/WEBAPP-BACKLOG.md items tagged
-"Must before pilot". The owner is a non-coding product manager who delegated building,
-deployment, and testing; ask only for the owner steps the roadmap lists.
+roadmap — 2026-10-24", Batch 7a and 7b, and docs/WEBAPP-BACKLOG.md. The owner is a
+non-coding product manager who delegated building, deployment, and testing to the agent;
+ask only for the owner steps the roadmap lists. Batch 6h is done.
 
-1. Confirm webapp/.env.local exists without reading it; run node test/run-tests.js and
-   npm run check in webapp/.
+1. Confirm webapp/.env.local exists without reading it (recreate it from the
+   VITE_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY environment values if missing, without
+   printing them). Run node test/run-tests.js and, in webapp/, npm ci && npm run check;
+   then npm run db:migrate:local and npm run dev (local only, never --remote).
 2. If CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are present, run npx wrangler whoami
-   and continue Batch 7a; otherwise point the owner to Batch 7a Part 1.
-3. Implement Batch 6h items with a failing-first test each; commit and push per item.
-4. Never read production shared records or real data. Use fictional data only.
-5. At the end, update "Current status", the test record, and the backlog.
+   and do Batch 7a Parts 2–6: create split-ledger-staging, put its id in the staging block
+   of webapp/wrangler.jsonc, npm run db:migrate:staging, pipe CLERK_SECRET_KEY into
+   wrangler secret put --env staging, npm run deploy:staging, then run
+   node e2e/acceptance.mjs --base <staging URL> and rehearse a rollback. Otherwise point
+   the owner to Batch 7a Part 1.
+3. Then Batch 7b (owner steps 7b-1 to 7b-5, agent steps), the owner spot-check 7b-6, and
+   the go/no-go template.
+4. Never read production shared records or real data; never print keys. Fictional data
+   only. Clerk Development holds fictional test users and households from earlier runs;
+   the suite creates and removes its own.
+5. Commit and push per item; update "Current status", the test record, and the backlog.
 ```
 
 ## Files and commands introduced in Batch 1

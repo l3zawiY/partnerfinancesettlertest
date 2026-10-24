@@ -123,7 +123,7 @@ coordinator-only deletion tokens, cross-tab draft adoption, Apply to group, the 
 month in two time zones, the your-turn message, the backup reminder, environment labels,
 security headers, plain storage messages, the in-browser self-test (`shared/selfTest.ts`,
 v1's T assertions on v1's own fictional statements), and the safe diagnostic. After Batch
-6h the gate reports 109 pure/Worker tests and 42 browser-like tests.
+6h the gate reports 109 pure/Worker tests and 43 browser-like tests.
 
 ### Two-account acceptance suite (WEB-031)
 

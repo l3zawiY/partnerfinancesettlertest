@@ -126,7 +126,7 @@ try {
   await scenario('HC-04', 'Stable roles independent of submission order', async function () {
     await setMonth(B, '2026-08')
     await importStatement(B, 'Other / generic paste', fixture('F-H', 1))
-    await tab(B, 'Review'); await B.getByRole('button', { name: 'Merchant' }).click()
+    await tab(B, 'Review'); await B.getByRole('button', { name: 'Merchant', exact: true }).click()
     await B.getByRole('button', { name: 'Apply 50/50 to every Sample Bakery purchase' }).click(); await B.waitForTimeout(400)
     await tab(B, 'Share / Status'); await B.getByRole('button', { name: 'Submit shared projection' }).click(); await B.waitForTimeout(2000)
     r.check('partner waits for coordinator', /Waiting for Fictional A/.test(await B.innerText('body')))

@@ -96,8 +96,9 @@ coverage for every bullet above; later committed as `f1766cb`.
 **Status 2026-10-24:** an automated pre-run of HC-01 through HC-10 (section 1 of
 `docs/WEBAPP-HUMAN-TESTING.md`) passed every scenario except HC-09, after the Batch 6f fixes.
 It is not owner acceptance. Remaining before this item closes: the owner's acceptance
-decision on the pre-run (or a manual spot-check) and a decision on WEB-026. Do not close
-WEB-005, WEB-012, or WEB-013 before then.
+decision on the pre-run (or a manual spot-check). WEB-026 (one private draft per month) was
+decided and completed the same day as Batch 6g in `docs/WEBAPP.md`. Do not close WEB-005,
+WEB-012, or WEB-013 before then.
 
 *Noticed: 2026-09-12.*
 
@@ -170,18 +171,6 @@ exported. The partner also sees "The deletion token is valid for 15 minutes" alt
 partner cannot delete; show that line only to someone who can.
 
 *Noticed: 2026-10-24.*
-
-### WEB-026 — Decide how many months of private draft a browser keeps
-
-Product decision needed. Changing the header month asks **Start YYYY-MM with a clean
-monthly workspace? Names, cards, and rules stay.** Accepting erases the previous month's
-private rows and decisions; declining keeps the old month. HC-09 step 2 asks the tester to
-open Review for both July and August after a restart and expects both to return, which the
-current one-month draft cannot do. Either keep a private draft per month (storage and
-privacy-erase scope change) or rewrite HC-09 and the prompt so the loss is explicit and
-recoverable through **Download private session** first.
-
-*Noticed: 2026-10-24 (HC-09 pre-run).*
 
 ### WEB-027 — Stop two tabs from silently overwriting each other's private draft
 

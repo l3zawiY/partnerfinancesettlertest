@@ -5,6 +5,7 @@ import {
   createSessionSnapshot,
   deleteScopedPrivateDraft,
   draftStorageKey,
+  monthDraftKey,
   emptyAmazonContext,
   readSession,
   type PrivateSessionState,
@@ -38,11 +39,14 @@ function fixtureState(): PrivateSessionState {
 }
 
 describe('private session persistence', () => {
-  it('deletes only the exact product scope key', function () {
+  it('deletes the exact product scope and its month drafts, and nothing else', function () {
+    const scope = draftStorageKey('user_a', 'org_a')
+    const stored = [scope, monthDraftKey(scope, '2026-07'), monthDraftKey(scope, '2026-08'), draftStorageKey('user_a', 'org_ab'), monthDraftKey(draftStorageKey('user_b', 'org_a'), '2026-07'), 'unrelated-owner-data']
     const removed: string[] = []
-    deleteScopedPrivateDraft({ removeItem: function (key) { removed.push(key) } }, draftStorageKey('user_a', 'org_a'))
-    expect(removed).toEqual(['splitledger.webapp.v1.user_a.org_a'])
-    expect(function () { deleteScopedPrivateDraft({ removeItem: function () {} }, 'unrelated') }).toThrow()
+    const storage = { length: stored.length, key: function (index: number) { return stored[index] ?? null }, removeItem: function (key: string) { removed.push(key) } }
+    deleteScopedPrivateDraft(storage, scope)
+    expect(removed).toEqual(['splitledger.webapp.v1.user_a.org_a', 'splitledger.webapp.v1.user_a.org_a.month.2026-07', 'splitledger.webapp.v1.user_a.org_a.month.2026-08'])
+    expect(function () { deleteScopedPrivateDraft(storage, 'unrelated') }).toThrow()
   })
   it('round-trips current state in split-ledger-session/v3', () => {
     const state = fixtureState()

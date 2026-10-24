@@ -35,6 +35,11 @@ with an automated two-account pre-run on 2026-10-24; awaiting the owner's accept
 settled there: a shared alias may not contain an email address and the two aliases must
 differ, and the coordinator is always archive payer `a`.
 
+Owner decision, 2026-10-24: each browser keeps a separate private draft per month for each
+account and household, so changing the month never erases private work; names, cards, and
+rules stay shared across months, and deleting the private draft erases every month in that
+scope.
+
 The web service separates three concepts that must never be treated as interchangeable:
 
 1. **Account identity:** Clerk authenticates one person and supplies a verified user id.

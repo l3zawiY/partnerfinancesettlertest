@@ -12,7 +12,7 @@ import { buildSharedExport } from '../shared/formats'
 import { mergeImport } from '../shared/importMerge'
 import { toLedgerRow, type LedgerRow } from '../shared/refunds'
 import { applyRules, countOccurrences, rememberRule, removeRule, type MerchantRule } from '../shared/rules'
-import { createSessionSnapshot, deleteScopedPrivateDraft, emptyAmazonContext, readSession, WEBAPP_TOOL_VERSION, type PrivateSessionState } from '../shared/session'
+import { createSessionSnapshot, deleteScopedPrivateDraft, emptyAmazonContext, monthDraftKey, readSession, WEBAPP_TOOL_VERSION, type PrivateSessionState } from '../shared/session'
 
 export interface MergeSummary {
   added: number
@@ -115,7 +115,9 @@ export function usePrivateWorkspace(scopeKey: string) {
     if (!hydrated) return
     const timer = window.setTimeout(function () {
       try {
-        window.localStorage.setItem(scopeKey, JSON.stringify(createSessionSnapshot(sessionState())))
+        const snapshot = JSON.stringify(createSessionSnapshot(sessionState()))
+        window.localStorage.setItem(scopeKey, snapshot)
+        window.localStorage.setItem(monthDraftKey(scopeKey, period), snapshot)
         setMessage('Private draft auto-saved in this browser.')
       } catch { setMessage('Auto-save is unavailable; download a private session file to keep this work.') }
     }, 150)
@@ -124,8 +126,18 @@ export function usePrivateWorkspace(scopeKey: string) {
 
   function setPeriod(next: string): void {
     if (!/^\d{4}-\d{2}$/.test(next) || next === period) return
-    if (ledger.length && !window.confirm('Start ' + next + ' with a clean monthly workspace? Names, cards, and rules stay.')) return
-    setPeriodState(next); setLedger([]); setRanges([]); setBlocks([]); setAmazonContext(emptyAmazonContext()); setConfirmedTotals(false); setSummary(null)
+    // Keep the month being left and reopen the next month's own draft; names, cards, and rules are shared.
+    let restored: PrivateSessionState | null = null
+    try {
+      if (hydrated) window.localStorage.setItem(monthDraftKey(scopeKey, period), JSON.stringify(createSessionSnapshot(sessionState())))
+      const raw = window.localStorage.getItem(monthDraftKey(scopeKey, next))
+      restored = raw ? readSession(JSON.parse(raw)) : null
+    } catch { setMessage('Browser storage could not be read; use a private session download as backup.') }
+    setPeriodState(next)
+    setLedger(restored ? applyRules(countOccurrences(restored.txns), rules, threshold, defaultUnknown) : [])
+    setRanges(restored ? restored.ranges : []); setBlocks(restored ? restored.blocks : [])
+    setAmazonContext(restored ? restored.amazonContext : emptyAmazonContext())
+    setConfirmedTotals(restored ? restored.confirmedTotals === true : false); setSummary(null)
   }
 
   function parse(): boolean {
@@ -218,7 +230,7 @@ export function usePrivateWorkspace(scopeKey: string) {
     setKnownCards(['TD Visa']); setCard('TD Visa'); setNames(['Me', 'Partner']); setMeIndex(0)
     setThresholdState(0); setDefaultUnknownState(1); setExcludePatterns(EXCLUDE_DEFAULT)
     setText(''); setAmazonText(''); setConfirmedTotals(false); setSummary(null); setParseError(null)
-    setMessage('This account-and-household private draft was deleted from this browser. Auto-save is paused until reload.')
+    setMessage('Every month\'s private draft for this account and household was deleted from this browser. Auto-save is paused until reload.')
   }
 
   const posted = ledger.filter(function (row) { return row.amount > 0 && !row.pending })

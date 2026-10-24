@@ -17,7 +17,8 @@ counts or which steps to spot-check. Results and notes are in section 1 of
 
 Outcome: HC-01, HC-02, HC-03, HC-05, HC-06, HC-07, HC-08 passed; HC-04 and HC-10 passed only
 after fixes made during the run (Batch 6f below); HC-09 failed against the guide's wording
-because the private draft keeps one month at a time (WEB-026, a product decision).
+because the private draft kept one month at a time. The owner then chose one private draft
+per month (Batch 6g below), and HC-09's month persistence passed on a live rerun.
 
 **Batch 6f — HC pre-run fixes (committed 2026-10-24).**
 
@@ -42,14 +43,35 @@ tests and 31 browser-like component tests pass; the production build succeeds; t
 `node test/run-tests.js` gate remains 81/81. `npm audit --omit=dev` reports zero
 vulnerabilities; the full `npm audit` reports issues only in developer tooling.
 
-Open findings from the 2026-10-24 review and pre-run are WEB-022 through WEB-028 in
+**Batch 6g — one private draft per month (owner decision 2026-10-24, closes WEB-026).**
+The pre-run showed that changing the header month asked **Start YYYY-MM with a clean
+monthly workspace?** and erased the previous month's private rows. The owner chose to keep
+every month instead. Now, in `src/usePrivateWorkspace.ts`, auto-save also writes the
+current month to its own browser key, `<account-and-household scope key>.month.YYYY-MM`
+(`monthDraftKey` in `shared/session.ts`). Changing the month saves the month being left and
+reopens the next month's rows, decisions, coverage, Amazon context, and totals
+acknowledgement, with no confirmation; names, cards, rules, and settings stay shared and
+current rules are re-applied to the reopened rows. The existing scope key keeps the latest
+month, so a draft saved before this change still loads and starts filling month keys on its
+first auto-save. **Delete this private browser draft** now removes the scope key and every
+month key in that scope, and nothing else (Rules & Files copy updated). Nothing about
+private data reaches the Worker. Tests: `shared/session.test.ts` (exact deletion scope,
+including look-alike keys) and `src/Workspace.test.tsx` (July → August → July → August with
+rows kept and no confirmation; month keys erased by deletion). Live rerun in Chromium:
+July and August rows survived a full browser-profile restart, a July decision survived a
+round trip through August, no confirmation appeared, and deletion left no scope keys.
+Gate after Batch 6g: 99 + 32 tests, four type checks, build, and 81/81 legacy assertions.
+Known limit unchanged: two tabs can still overwrite each other's draft (WEB-027).
+
+Open findings from the 2026-10-24 review and pre-run are WEB-022 through WEB-025, WEB-027,
+and WEB-028 in
 `docs/WEBAPP-BACKLOG.md`. Invitation note: accepting B's and C's invitations needed no
 email; right after sign-in, Clerk's in-app **Choose an organization** step listed Fictional
 Household Gamma with **Join**.
 
-**Next step:** the owner reviews the pre-run evidence, decides WEB-026, and either accepts
+**Next step:** the owner reviews the pre-run evidence and either accepts
 the pre-run or spot-checks steps by hand (in particular a real human sign-up, which the
-pre-run could not cover). Batch 7 stays paused until owner acceptance.
+pre-run could not cover, and HC-09 with the per-month draft). Batch 7 stays paused until owner acceptance.
 
 ## Status — 2026-09-12 (superseded by the status above)
 

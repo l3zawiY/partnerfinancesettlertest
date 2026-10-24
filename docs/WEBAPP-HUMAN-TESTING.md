@@ -149,8 +149,8 @@ anything.
 
 ### HC-04 — Stable roles independent of submission order
 
-1. Account B: in the month control in the header choose August 2026 (2026-08). If asked to
-   start August with a clean monthly workspace, confirm; names, cards, and rules stay.
+1. Account B: in the month control in the header choose August 2026 (2026-08). Each month
+   keeps its own private draft, so this never erases July's rows and asks no question.
 2. Account B: Import. Bank Other / generic paste, any fictional card label. Choose Copy
    Account B August statement on this page, paste it into Statement text, choose Parse and
    add. Review: choose 50/50 for Sample Bakery. Share / Status: choose Submit shared
@@ -379,8 +379,8 @@ Screenshots and archive files stayed outside the repository.
 | Date | 2026-10-24 |
 | Browser and width | Chromium (Playwright), 1400 × 1000; 390 × 844 for HC-10 step 6 |
 | Scenario IDs passed | HC-01, HC-02, HC-03, HC-05, HC-06, HC-07, HC-08; HC-04 and HC-10 after Batch 6f fixes |
-| Scenario IDs failed | HC-09 (against the guide's wording; WEB-026) |
-| Defects added to `docs/WEBAPP-BACKLOG.md` | WEB-022 to WEB-028 |
+| Scenario IDs failed | HC-09 on the first run (one-month draft); passed on rerun after Batch 6g |
+| Defects added to `docs/WEBAPP-BACKLOG.md` | WEB-022 to WEB-028 (WEB-026 completed the same day) |
 
 Notes per scenario:
 
@@ -397,7 +397,8 @@ Notes per scenario:
   month and archive** stayed disabled because the draft-match check compared the
   server-relabeled `owner` (fixed in `0f14691`). Renaming First person in Setup changed nothing.
 - **HC-05 pass.** A saw B's submission without reload; both Settle screens: B pays A $21.54
-  ($89.54 / $68.00 / offset $21.54). Changing month shows a browser confirm, see WEB-026.
+  ($89.54 / $68.00 / offset $21.54). Changing month then showed a browser confirm that
+  erased the other month's rows; removed in Batch 6g.
 - **HC-06 pass.** Replace → $29.54, withdraw blocked close, resubmit → $21.54; versions 3–5;
   A was notified within 9–13 seconds each time. B's own screen read "You replaced their
   submission" (fixed in `f0c0080`).
@@ -411,7 +412,9 @@ Notes per scenario:
 - **HC-09 fail (guide wording).** Sessions, pairing, July rows, and closed status survived a
   full profile restart, and switching households leaked nothing. But opening August after
   July erased July's private rows through the clean-workspace confirm, so "private rows
-  return for July and August" cannot hold (WEB-026).
+  return for July and August" could not hold. **Rerun after Batch 6g (one private draft per
+  month, owner decision):** July and August rows both returned after a full profile restart,
+  a July decision survived a round trip through August, and no confirmation appeared.
 - **HC-10 pass after fixes.** Archive file: July and August only, no forbidden strings. B
   could not restore or delete. A's delete was first refused because B's later export
   cancelled A's token (WEB-025); after re-export, delete left 2 of 2 and drafts intact, and

@@ -52,9 +52,21 @@ export function draftStorageKey(userId: string, organizationId: string | null): 
   )
 }
 
-export function deleteScopedPrivateDraft(storage: { removeItem(key: string): void }, exactScopeKey: string): void {
+/** Each month's private draft is kept under its own key inside the account-and-household scope. */
+export function monthDraftKey(scopeKey: string, period: string): string {
+  return scopeKey + '.month.' + period
+}
+
+/** Removes the scope's current draft and every month draft in it, and nothing else. */
+export function deleteScopedPrivateDraft(storage: { readonly length: number; key(index: number): string | null; removeItem(key: string): void }, exactScopeKey: string): void {
   if (!exactScopeKey.startsWith('splitledger.webapp.v1.')) throw new Error('Refusing to delete an unrelated browser-storage key.')
-  storage.removeItem(exactScopeKey)
+  const monthPrefix = monthDraftKey(exactScopeKey, '')
+  const keys: string[] = []
+  for (let index = 0; index < storage.length; index++) {
+    const key = storage.key(index)
+    if (key === exactScopeKey || (key && key.startsWith(monthPrefix))) keys.push(key)
+  }
+  keys.forEach(function (key) { storage.removeItem(key) })
 }
 
 export function createSessionSnapshot(state: PrivateSessionState): PrivateSessionFile {

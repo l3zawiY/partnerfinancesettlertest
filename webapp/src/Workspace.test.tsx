@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SubmissionCommand } from '../shared/workflow'
@@ -128,10 +128,40 @@ describe('complete fictional workspace', function () {
     await user.click(screen.getByRole('button', { name: 'Rules & Files' }))
     expect(await screen.findByText(/Restore, abandoned-period cancellation, and deletion require a household administrator/)).toBeVisible()
     expect(screen.getByLabelText('Restore closed shared archives')).toBeDisabled()
+    window.localStorage.setItem(scopeKey + '.month.2026-07', '{}')
     await user.type(screen.getByLabelText('Type DELETE PRIVATE DRAFT'), 'DELETE PRIVATE DRAFT')
     await user.click(screen.getByRole('button', { name: 'Delete this private browser draft' }))
     expect(window.localStorage.getItem(scopeKey)).toBeNull()
+    expect(window.localStorage.getItem(scopeKey + '.month.2026-07')).toBeNull()
     expect(window.localStorage.getItem('unrelated-owner-data')).toBe('keep')
     expect(screen.getByText(/Auto-save is paused until reload/)).toBeVisible()
+  })
+
+  it('keeps each month\'s private draft when the month changes, without a confirmation', async function () {
+    const user = userEvent.setup()
+    const confirm = vi.spyOn(window, 'confirm')
+    const gateway = new LocalWorkflowGateway('per-month-workflow-test')
+    render(<Workspace scopeKey="splitledger.webapp.v1.user_m.org_m" gateway={gateway} administration={gateway} connected />)
+    const month = screen.getByLabelText('Header reconciliation month')
+    async function importLine(line: string) {
+      await user.click(screen.getByRole('tab', { name: 'Import' }))
+      await user.selectOptions(screen.getByLabelText('Supported bank'), 'Other / generic paste')
+      fireEvent.change(screen.getByLabelText('Statement text'), { target: { value: line } })
+      await user.click(screen.getByRole('button', { name: 'Parse and add' }))
+      await user.click(screen.getByRole('tab', { name: 'Review' }))
+    }
+    fireEvent.change(month, { target: { value: '2026-07' } })
+    await importLine('2026-07-12 FICTIONAL HARDWARE $80.00')
+    expect(screen.getByText('Fictional Hardware')).toBeVisible()
+    fireEvent.change(month, { target: { value: '2026-08' } })
+    await importLine('2026-08-05 SAMPLE BAKERY $10.00')
+    expect(screen.getByText('Sample Bakery')).toBeVisible()
+    expect(screen.queryByText('Fictional Hardware')).not.toBeInTheDocument()
+    fireEvent.change(month, { target: { value: '2026-07' } })
+    expect(await screen.findByText('Fictional Hardware')).toBeVisible()
+    expect(screen.queryByText('Sample Bakery')).not.toBeInTheDocument()
+    fireEvent.change(month, { target: { value: '2026-08' } })
+    expect(await screen.findByText('Sample Bakery')).toBeVisible()
+    expect(confirm).not.toHaveBeenCalled()
   })
 })

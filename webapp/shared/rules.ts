@@ -116,3 +116,14 @@ export function countOccurrences<T extends { key: string; occurrences: number }>
     return { ...t, occurrences: counts[t.key] as number }
   })
 }
+
+/**
+ * v1's "Apply to group": one share for every purchase of a merchant group (same canonical
+ * key) in this month's ledger. Credits keep inheriting through refund pairing; the
+ * decisions become manual, so rules and the threshold never overwrite them.
+ */
+export function decideMerchantGroup(txns: LedgerRow[], key: string, share: number): LedgerRow[] {
+  return pairRefunds(txns.map(function (t) {
+    return t.key === key && t.amount > 0 ? { ...t, share, decided: true, auto: false } : t
+  }))
+}

@@ -172,6 +172,11 @@ details[open] > summary .summary-chevron { transform: rotate(90deg); }
 .ledger-group h2 { display: flex; align-items: center; min-height: 38px; margin: 0; border-bottom: 1px solid var(--hairline); background: #f9fbf7; padding: 8px 16px; color: #738176; font-size: 12px; font-weight: 600; }
 .ledger-group h2 span::before { content: "⌄"; margin-right: 8px; color: #8a978d; }
 .ledger-group h2 small { margin-left: auto; color: var(--ink-faint); font-weight: 400; }
+.group-apply { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-left: 12px; }
+.ledger-group h2 .group-apply::before { content: none; }
+.group-apply em { margin-right: 3px; color: #8a978d; font-size: 10px; font-style: normal; font-weight: 500; }
+.group-apply button { border: 1px solid var(--hairline); border-radius: 6px; background: #fff; padding: 3px 7px; color: #66756b; font-size: 11px; font-weight: 500; cursor: pointer; }
+.group-apply button:hover, .group-apply button:focus-visible { background: var(--accent-pale, #eef5e8); border-color: #bfd3ad; }
 .txn { align-items: center; border-bottom: 1px solid var(--hairline); background: var(--card); padding: 14px 16px; }
 .txn:last-child { border-bottom: 0; }
 .txn.undecided { background: #fffdf8; }

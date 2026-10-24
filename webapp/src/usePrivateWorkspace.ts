@@ -11,7 +11,7 @@ import { balanceViolations, EXCLUDE_DEFAULT, parsePaste, type CoverageRange, typ
 import { buildSharedExport } from '../shared/formats'
 import { mergeImport } from '../shared/importMerge'
 import { toLedgerRow, type LedgerRow } from '../shared/refunds'
-import { applyRules, countOccurrences, rememberRule, removeRule, type MerchantRule } from '../shared/rules'
+import { applyRules, countOccurrences, decideMerchantGroup, rememberRule, removeRule, type MerchantRule } from '../shared/rules'
 import { createSessionSnapshot, deleteScopedPrivateDraft, emptyAmazonContext, monthDraftKey, readSession, WEBAPP_TOOL_VERSION, type PrivateSessionState } from '../shared/session'
 
 export interface MergeSummary {
@@ -165,6 +165,10 @@ export function usePrivateWorkspace(scopeKey: string) {
     setLedger(applyRules(decided, nextRules, threshold, defaultUnknown)); setConfirmedTotals(false)
   }
 
+  function decideGroup(key: string, share: number): void {
+    setLedger(applyRules(decideMerchantGroup(ledger, key, share), rules, threshold, defaultUnknown)); setConfirmedTotals(false)
+  }
+
   function forgetRule(rule: MerchantRule): void {
     const next = removeRule(rules, rule); setRules(next); setLedger(applyRules(ledger, next, threshold, defaultUnknown))
   }
@@ -241,7 +245,7 @@ export function usePrivateWorkspace(scopeKey: string) {
     defaultUnknown, setDefaultUnknown, excludePatterns, setExcludePatterns, amazonText, setAmazonText,
     amazonContext, setAmazonContext, amazonMatches, message, groupBy, setGroupBy, onlyUndecided,
     setOnlyUndecided, confirmedTotals, setConfirmedTotals, postedCount: posted.length, undecidedCount,
-    parse, decide, forgetRule, reapplyRules, correctAmount, parseAmazon, setAmazonDecision, confirmAmazon,
+    parse, decide, decideGroup, forgetRule, reapplyRules, correctAmount, parseAmazon, setAmazonDecision, confirmAmazon,
     projection, saveSession, loadSession, saveShared, erasePrivateDraft,
   }
 }

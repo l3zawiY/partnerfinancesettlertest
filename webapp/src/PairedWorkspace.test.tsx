@@ -46,6 +46,9 @@ describe('paired two-person workspace', function () {
     expect(await screen.findByRole('heading', { name: 'Waiting for Fictional A' })).toBeVisible()
     expect(screen.getByText(/Waiting for Fictional A to submit\./)).toBeVisible()
     expect(screen.getByText(/Version 1 · submitted/)).toBeVisible()
+    expect(screen.getByText(/^I submitted July 2026 in Split Ledger\. Your turn when you have 15 minutes: http/)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Copy message' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Email' }).getAttribute('href')).toMatch(/^mailto:\?subject=Split%20Ledger%3A%20your%20turn%20for%20July%202026&body=I%20submitted/)
 
     server.submit('coordinator', fictionalPartnerProjection('2026-07'), null, 'submit')
     await user.click(screen.getByRole('button', { name: 'Check latest status' }))
@@ -53,6 +56,7 @@ describe('paired two-person workspace', function () {
     expect(screen.getByText(/Shared status updated while you were here\. Fictional A submitted \(version 2/)).toBeVisible()
     expect(screen.getByText(/Fictional A: version 2, submitted/)).toBeVisible()
     expect(screen.getByText(/Fictional A reviews the settlement and closes the month/)).toBeVisible()
+    expect(screen.getByText(/Both sides are in, so you can review and close it/)).toBeVisible()
     expect(screen.getByText(/Last checked/)).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Continue to Settle' }))
@@ -69,6 +73,7 @@ describe('paired two-person workspace', function () {
     expect(screen.getByText('Your submission as Fictional A')).toBeVisible()
     expect(screen.getByText(/Fictional B: version 1, submitted/)).toBeVisible()
     expect(screen.getByText(/You review the settlement and close the month/)).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Copy message' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Continue to Settle' }))
     expect(screen.getByRole('heading', { name: 'Fictional B pays Fictional A $16.79' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Close month and archive' })).toBeInTheDocument()

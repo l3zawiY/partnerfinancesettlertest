@@ -429,6 +429,38 @@ Notes per scenario:
   horizontal scroll. Two app-caused issues fixed: a 403 console error from Clerk invitations
   on the partner's screens (`d35e743`) and the bare "Failed to fetch" warning (`9780545`).
 
+### WEB-031 suite and extended checks — 2026-10-24 (agent acceptance runs, local)
+
+| Field | Value |
+|---|---|
+| Date | 2026-10-24 |
+| Browser and width | Chromium (Playwright), 1400 × 1000; 390 × 844 in HC-10 |
+| Scenario IDs passed | HC-01 to HC-10, H4C-03, H4C-05, H5-03, H5-04 (in HC-05 and HC-07); console clean |
+| Scenario IDs failed | none in the final run |
+| Defects added to `docs/WEBAPP-BACKLOG.md` | WEB-045, WEB-046, WEB-047 |
+
+- **Suite:** `webapp/e2e/acceptance.mjs`, final run 14 scenarios and 73 checks passing with
+  fresh fictional users and household, removed afterwards. Earlier runs failed only on test
+  script issues (fixture block selection, a hidden input, an expired dev server).
+- **Volume:** 200 fictional purchases a month for each person (40 merchants, repeats) over
+  three months: import about 2 s, deciding all rows with 37–39 Apply to group clicks about
+  4 s, submit about 1 s; storage grows about 200 KB a month per person (WEB-045). Each
+  archive matched an exact integer recalculation row by row and in total.
+- **v1 fallback drill:** a month imported in the web app, exported as the coordinator's
+  private session and the partner's shared file, was finished in `index.html` with the same
+  result ("Fictional D owes Fictional E $32.72"). The first attempt failed because exported
+  files used the local name "Me"; fixed by labelling exports with server aliases.
+- **Other checks:** Toronto time zone opens the expected month; signing out in another tab
+  shows the sign-in screen and keeps the private draft; a 500 HTML error shows a plain
+  message; a blocked network shows "Could not reach the Split Ledger service"; no page-level
+  horizontal scroll at 390 px; the production build under its content-security policy signs
+  in, loads the sign-up anti-bot frame, and logs no policy violation of ours.
+- **Accessibility scan (WCAG A/AA):** a progress-bar role and a missing label were fixed;
+  small grey label contrast remains (WEB-046).
+- **Live WEB-022 check against Clerk Development:** a member invited only through Clerk was
+  refused ("sent to a different email address"); the person invited from Split Ledger
+  joined.
+
 ## 2. Safety and preparation
 
 ### What physically runs where

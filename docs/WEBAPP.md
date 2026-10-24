@@ -69,20 +69,50 @@ and WEB-028 in
 email; right after sign-in, Clerk's in-app **Choose an organization** step listed Fictional
 Household Gamma with **Join**.
 
-**Batch 6h progress (update as items land; details in commits and the backlog):**
-done — WEB-032 apply to merchant group; WEB-022 invited-partner check (migration
-`0006_partner_invitation.sql`: the coordinator's Split Ledger invitation reports Clerk's
-invitation id; join requires the caller's verified Clerk email to match; households that
-were coordinator-only before this change must re-send the invitation from the Invite partner
-panel); WEB-023 coordinator-only recovery; WEB-024 restore alias check; WEB-025
-coordinator-only deletion token; WEB-027 cross-tab draft adoption and deletion pause.
-Remaining — WEB-029, WEB-030, WEB-034, WEB-033, WEB-035, WEB-028, hosting preparation,
-WEB-031 suite, extended checks, docs and roadmap page refresh.
+**Batch 6h — pre-pilot hardening: built and verified locally on 2026-10-24** (one commit
+per item on `mac-unpushed-work`; details in the commits):
 
-**Next step:** follow the **Refined pilot roadmap — 2026-10-24** under Batch roadmap:
-Batch 6h (pre-pilot hardening, agent) and Batch 7a (fictional staging; the owner's
-Cloudflare setup steps are in 7a Part 1) run in parallel; Batch 7b (production) follows;
-the real pilot (Batch 7c) targets the October 2026 month, starting about 2026-10-31.
+- WEB-032 Apply to group on merchant groups (v1 parity). WEB-022 only the invited account
+  joins as partner: migration `0006_partner_invitation.sql`; the coordinator's Split Ledger
+  invitation reports Clerk's opaque invitation id; join requires the caller's verified
+  Clerk email to match; a household that was coordinator-only before this change must
+  re-send its invitation from the Invite partner panel. WEB-023 restore, delete, and
+  cancellation belong to the coordinator role. WEB-024 restore checks archive aliases.
+  WEB-025 only the coordinator's export issues a deletion token. WEB-027 tabs adopt a
+  newer draft from another tab and stop after a deletion there.
+- WEB-029 Run self-test (35 checks: v1's assertions on v1's fictional statements plus web
+  checks). WEB-030 Copy safe diagnostic report (format in `docs/DATA-FORMATS.md`).
+- WEB-034 ready-to-send "your turn" and "month closed" messages (Copy, Share, Email; the app
+  sends nothing). WEB-033 the month that just ended opens by default, in local time.
+  WEB-035 backup reminder after closing. WEB-028 environment labels from `VITE_DEPLOYMENT`
+  ("Private pilot" in production, "fictional data only" elsewhere) and neutral wording.
+- Hosting preparation without an account: `staging` and `production` environments in
+  `webapp/wrangler.jsonc` (placeholders until 7a/7b), `scripts/deploy-guard.mjs` and
+  `build/db:migrate/deploy:<env>` npm scripts, `securityHeaders.ts` emitting a Clerk-aware
+  content-security policy and other headers into the build, plain 503 messages including
+  the D1 free daily limit, the operations runbook and go/no-go template (Batch 7b), and
+  `docs/PARTNER-GUIDE.md`.
+- WEB-031 automated suite `webapp/e2e/acceptance.mjs` (command in `docs/TESTING.md`).
+- Found and fixed by the extended checks: exported files now carry server aliases, without
+  which the v1 fallback refused the partner's file; Review progress bar role and an
+  unlabelled text box (accessibility scan).
+
+Evidence (recorded in `docs/WEBAPP-HUMAN-TESTING.md` section 1): the WEB-031 suite passed
+locally, 14 scenarios and 73 checks; a volume run of 200 fictional transactions a month for
+each person over three months matched an exact integer recalculation to the cent; the v1
+fallback drill settled identically to the web app; time-zone, sign-out-in-another-tab,
+server-error, blocked-network, 390 px, and security-header checks passed. Gate: 109
+pure/Worker tests and 43 browser-like tests, four type checks, build, 81/81 legacy
+assertions. New backlog items from the checks: WEB-045 (storage growth), WEB-046 (label
+contrast, an owner visual decision), WEB-047 (tooling upgrade once fixes are two weeks
+old).
+
+**Next step:** Batch 7a. It waits only for the owner's Cloudflare steps (7a Part 1:
+account, API token, two environment values, network allowlist, then a new session). The
+agent then creates the staging database, records its id in `webapp/wrangler.jsonc`, runs
+`npm run db:migrate:staging` and `npm run deploy:staging`, runs the WEB-031 suite against the
+staging address, and rehearses a rollback. Batch 7b (production) follows; the real pilot
+(Batch 7c) targets the October 2026 month, starting about 2026-10-31.
 
 ## Status — 2026-09-12 (superseded by the status above)
 

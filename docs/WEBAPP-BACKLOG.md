@@ -4,7 +4,8 @@ Unresolved work for the `webapp/` experiment only. Items about the released sing
 `index.html` application belong in `docs/BACKLOG.md`. Completed engineering items are
 removed and recorded in `docs/WEBAPP.md`; stable ids are never reused.
 
-Every item carries a **Priority** line: **Must before pilot** (blocks real data, per the
+Batch 6h items (WEB-022 to WEB-035) were completed on 2026-10-24 and are recorded in
+`docs/WEBAPP.md`. Every item carries a **Priority** line: **Must before pilot** (blocks real data, per the
 refined pilot roadmap of 2026-10-24 in `docs/WEBAPP.md`), **Should** (scheduled but not
 blocking), or **Later**. Batch 7b's go/no-go requires no open Must item.
 
@@ -105,6 +106,11 @@ approved design. The first implementation must refuse unsafe rebinding rather th
 **Status 2026-09-12:** implemented locally as Batch 6e in `docs/WEBAPP.md`, with automated
 coverage for every bullet above; later committed as `f1766cb`.
 
+**Status 2026-10-24 (later):** the committed WEB-031 suite passed every scenario locally
+(14 scenarios, 73 checks, including HC-09 after the per-month draft). Per the owner's
+decision these runs count as acceptance; the items close after the same suite passes on
+staging (Batch 7a) and the owner spot-check 7b-6.
+
 **Status 2026-10-24:** an automated pre-run of HC-01 through HC-10 (section 1 of
 `docs/WEBAPP-HUMAN-TESTING.md`) passed every scenario except HC-09, after the Batch 6f fixes.
 It is not owner acceptance. Remaining before this item closes: the owner's acceptance
@@ -151,172 +157,42 @@ Not retained in the WEB-019 batch; still open. HC-09 runs without it.
 
 *Noticed: 2026-09-11.*
 
-### WEB-022 — Let only the invited account claim the partner role
+### WEB-045 — Keep browser storage bounded as months accumulate
 
-While the partner slot is empty, any member of the Clerk organization can choose **Join as
-partner**, not only the account the coordinator invited. Bind the claim to the pending
-invitation (for example, the invited email's Clerk user) or require coordinator
-confirmation, and refuse others with a plain message. Add Worker tests for an uninvited
-member racing the invited one.
+The 2026-10-24 volume check (200 fictional transactions a month for each person) measured
+about 200 KB of browser storage per saved month and person, and month drafts are never
+pruned. Browsers allow roughly 5 MB per site, so this lasts about two years. Offer to
+remove private drafts of closed months older than a chosen age (after a backup download),
+and warn before storage is nearly full; auto-save already reports when it fails.
 
-**Priority:** Must before pilot (Batch 6h).
-
-*Noticed: 2026-10-24 (code review of `f1766cb`).*
-
-### WEB-023 — Tie shared-history administration to the coordinator role
-
-Delete, restore, and abandoned-period cancellation are gated on Clerk `org:admin`, not on
-the server-bound coordinator. The participant check still refuses a non-participant
-administrator (verified in the 2026-10-24 pre-run with Account C), but promoting the
-partner to Clerk administrator, or demoting the coordinator, would move these powers.
-Decide whether they belong to the coordinator only, then align the Worker, the
-capabilities route, and the "requires a household administrator" wording.
-
-**Priority:** Must before pilot (Batch 6h).
+**Priority:** Later (before the second pilot year).
 
 *Noticed: 2026-10-24.*
 
-### WEB-024 — Validate restored archive aliases
+### WEB-046 — Raise contrast of small grey labels
 
-Restore accepts archives without checking `people.a` and `people.b` against the alias
-rules (no email address, distinct aliases) or against the current pairing. Reject or
-explain mismatches before writing. Add Worker tests.
+An automated WCAG A/AA scan on 2026-10-24 found only colour-contrast failures: the small
+uppercase eyebrow labels (`#75916e`) and faint fine print (`--ink-faint` `#88958c`) on the
+pale background are below 4.5:1. They come from the accepted v1 look, so changing them is
+an owner visual decision; darkening both by one step (for example `#5f7a58`) would pass.
 
-**Priority:** Must before pilot (Batch 6h).
-
-*Noticed: 2026-10-24.*
-
-### WEB-025 — Keep one participant's export from cancelling the other's deletion token
-
-Confirmed in the 2026-10-24 pre-run: after Account A downloaded closed archives, Account B
-downloaded them too, and A's **Delete shared workflow history** then failed with **Export
-again before deleting shared history.** Scope the deletion token to the account that
-exported. The partner also sees "The deletion token is valid for 15 minutes" although the
-partner cannot delete; show that line only to someone who can.
-
-**Priority:** Must before pilot (Batch 6h).
+**Priority:** Should (after the pilot, or earlier if either person finds labels hard to read).
 
 *Noticed: 2026-10-24.*
 
-### WEB-027 — Stop two tabs from silently overwriting each other's private draft
+### WEB-047 — Upgrade build and deploy tooling once fixes have aged
 
-In the HC-07 pre-run, tab 1 changed Fictional Hardware to 70/30 and replaced the
-submission; tab 2, opened earlier, kept 50/50 in memory and its later resubmission sent
-50/50, quietly reverting tab 1's private decision. Both tabs auto-save to the same browser
-storage, last writer wins. Detect a newer saved draft from another tab (a `storage` event)
-and ask before overwriting, or reload it.
+`npm audit --omit=dev` reports zero vulnerabilities in what the browser receives. The full
+audit reports nine issues in developer tools only (Vite, Vitest, and the Cloudflare plugin's
+Wrangler, Miniflare, undici, sharp). Fixed versions exist (`vite@8.3.5`, `vitest@5.0.5`,
+`@cloudflare/vite-plugin@1.65.0` with `wrangler@4.152.0`), but on 2026-10-24 they were
+3, 9, and 1 days old and the plugin depends on a beta Miniflare. Upgrade once each is at
+least two weeks old and not depending on a beta, then run `npm run check`, the WEB-031
+suite, and a staging deploy.
 
-**Priority:** Must before pilot (Batch 6h).
-
-*Noticed: 2026-10-24.*
-
-### WEB-028 — Clean up leftover fictional-adapter and closed-month wording
-
-Small copy issues seen in the 2026-10-24 pre-run: the Settle check **Partner projection
-ready** says "The fictional partner submission is present" with a real paired partner; after
-an archive restore, a closed month's handover panel says "Fictional A has no current
-submission for this month". Replace with paired-participant wording.
-
-**Priority:** Should, in Batch 6h (small).
+**Priority:** Should (around 2026-11-07; before any production redeploy after that).
 
 *Noticed: 2026-10-24.*
-
-### WEB-029 — In-browser self-test (web equivalent of v1 M17)
-
-v1 has **Run self-test** in Rules & Files: it runs the calculation engine on built-in
-fictional data inside the user's own browser and reports pass/fail, proving that this
-computer and this copy of the app calculate correctly. It is not user testing. Add the same
-to the web app: run the shared parsing, refund, rule, settlement (including half-cent
-rounding), and projection-allowlist logic on built-in fictional fixtures, with no network
-request and no storage write, and show the pass count and any failure in plain language.
-Reuse the existing parity fixtures. Used by both participants in owner spot-check 7b-6 and
-before each pilot month after a deploy.
-
-**Priority:** Must before pilot (Batch 6h).
-
-*Noticed: 2026-10-24.*
-
-### WEB-030 — Copy safe diagnostic report (web equivalent of v1 M18)
-
-v1 has **Copy safe diagnostic report**: a short text a user can paste into a support
-conversation that describes the app and browser state without any personal or financial
-content. Add the web version, following `split-ledger-diagnostic/v1` in
-`docs/DATA-FORMATS.md` (extend that section rather than invent a new format): app version
-and build, environment (local, staging, production), browser family, storage
-availability, number of saved private months, counts of rows by state, rule and card
-counts, self-test totals, pairing state as connected count and own role, and the last
-workflow API status codes. Never include aliases, household name, emails, Clerk ids,
-periods, dates, merchants, amounts, card labels, raw text, or URLs. During the pilot this is
-the agent's only window into a participant's problem.
-
-**Priority:** Must before pilot (Batch 6h).
-
-*Noticed: 2026-10-24.*
-
-### WEB-031 — Automated two-account acceptance suite
-
-Turn the 2026-10-24 Playwright pre-run into a committed, repeatable suite under `webapp/`
-that runs HC-01 to HC-10 and the reruns H4C-03, H4C-05, H5-03, and H5-04 against a
-configurable base URL (local or staging). It creates three fictional `+clerk_test` users
-through Clerk's Backend API in the **Development** instance only, uses separate browser
-profiles, saves screenshots and archives outside the repository, prints a pass/fail table,
-and removes its fictional users and household at the end. No login bypass in the
-application; the suite refuses to run against a production URL or with a `sk_live_` key.
-Not part of `npm run check` (it needs network and Clerk); document its command in
-`docs/TESTING.md`.
-
-**Priority:** Must before pilot (Batch 6h); run before every staging and production deploy.
-
-*Noticed: 2026-10-24.*
-
-### WEB-032 — Apply one share to every purchase from a merchant
-
-v1 shows **Apply to group** on each merchant group in Review: one click sets the same
-share on every positive purchase of that merchant and re-pairs refunds. The web app has no
-equivalent, so a merchant with eight purchases needs eight clicks. Add the same control on
-merchant groups (presets 100/70/50/30/0), mark rows as manual decisions, keep credits
-without controls, and never overwrite another month. Parity-test against v1's behavior.
-
-**Priority:** Must before pilot (Batch 6h). The owner uses Apply to group a lot (2026-10-24).
-
-*Noticed: 2026-10-24 (JTBD review).*
-
-### WEB-033 — Open the month that just ended by default
-
-The month control defaults to the current month in UTC. People settle after a month
-ends, and a Toronto evening on the last day is already the next month in UTC. Default to
-the previous calendar month during the first days of a month (proposed: days 1–15), in the
-browser's own time zone, and keep any month already being worked on.
-
-**Priority:** Should before pilot (Batch 6h).
-
-*Noticed: 2026-10-24 (JTBD review).*
-
-### WEB-034 — Ready-to-send "your turn" message
-
-After submitting, the person often has to tell the other one, and the owner confirmed
-chasing happens. Show a short ready-made message with the app address, for example "I
-submitted October 2026 in Split Ledger. Your turn when you have 15 minutes: <address>",
-and after closing, "October 2026 is closed in Split Ledger: B pays A $X." Delivery is the
-person's choice, with three buttons: **Copy** (paste into WhatsApp, SMS, Teams), **Share**
-(the Windows share panel through the browser's share feature, shown only where
-available), and **Email** (opens a pre-filled draft in the person's mail program, no
-recipient stored). The app sends nothing and stores no contact data; automatic
-notifications are WEB-036.
-
-**Priority:** Should before pilot (Batch 6h); the owner wants it in the MVP.
-
-*Noticed: 2026-10-24 (JTBD review).*
-
-### WEB-035 — Backup reminder after closing
-
-Remembered rules and the private ledger live only in this browser. After a month
-closes, remind the person once to **Download private session** (and say where to keep it),
-so a cleared browser or a new laptop does not lose the rules that make later months fast.
-
-**Priority:** Should before pilot (Batch 6h).
-
-*Noticed: 2026-10-24 (JTBD review).*
 
 ### WEB-036 — Email nudges between the two participants
 

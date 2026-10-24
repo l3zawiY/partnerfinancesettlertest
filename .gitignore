@@ -17,3 +17,8 @@ split-*-archive.json
 
 # OS / editor cruft
 .DS_Store
+
+# Local assistant files and Worker secrets — never commit
+.claude/
+Claude artifacts/
+/webapp/.dev.vars

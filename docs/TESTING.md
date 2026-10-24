@@ -116,6 +116,37 @@ Apply the local database schema once with `npm run db:migrate:local` before usin
 every repository edit batch. Real credentials and financial data are never required for
 automated verification.
 
+Batch 6h (2026-10-24) adds migration `0006_partner_invitation.sql` (apply it the same
+way) and coverage for the invited-partner check with a fictional Clerk directory
+(`worker/testing/fixtureDirectory.ts`), coordinator-only recovery, restore alias checks,
+coordinator-only deletion tokens, cross-tab draft adoption, Apply to group, the default
+month in two time zones, the your-turn message, the backup reminder, environment labels,
+security headers, plain storage messages, the in-browser self-test (`shared/selfTest.ts`,
+v1's T assertions on v1's own fictional statements), and the safe diagnostic. After Batch
+6h the gate reports 109 pure/Worker tests and 42 browser-like tests.
+
+### Two-account acceptance suite (WEB-031)
+
+A real-browser suite runs HC-01 to HC-10 and the reruns H4C-03, H4C-05, H5-03, and H5-04
+against a running app with real Clerk Development sign-in. It is not part of
+`npm run check`, because it needs the network, Clerk, and Playwright. From `webapp/`, with
+the app running (`npm run dev`, or a staging address):
+
+```bash
+CLERK_SECRET_KEY=sk_test_... node e2e/acceptance.mjs                      # local
+CLERK_SECRET_KEY=sk_test_... node e2e/acceptance.mjs --base https://split-ledger-staging.<account>.workers.dev
+```
+
+It creates three fresh fictional `+clerk_test` users and a fresh household through Clerk's
+Backend API, signs in through the real screens (code 424242 for new-device checks), reads
+the fictional statements from `docs/WEBAPP-HUMAN-TESTING.md`, prints a pass/fail line per
+scenario, writes screenshots, downloaded archives, `results.json`, and `summary.txt` to a
+temporary folder outside the repository, and deletes its users and household at the end
+(`--keep` leaves them for inspection). It refuses a live Clerk key and any address other
+than localhost or `*.workers.dev`. Playwright comes from the project if installed,
+otherwise from the machine-wide install (pre-installed in the cloud container). It
+contains no login bypass.
+
 ## Release smoke test
 
 ### Import and month boundaries

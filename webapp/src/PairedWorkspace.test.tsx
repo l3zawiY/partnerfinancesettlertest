@@ -187,4 +187,21 @@ describe('paired two-person workspace', function () {
     await user.click(screen.getByRole('button', { name: 'Download private session' }))
     expect(screen.getByText(/Private backup downloaded for this month/)).toBeVisible()
   })
+
+  it('exports files labelled with the server aliases so the v1 fallback recognises both people', async function () {
+    const user = userEvent.setup()
+    const blobs: Blob[] = []
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(function (blob: Blob) { blobs.push(blob); return 'blob:fictional' }) })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {})
+    const server = new PairedFixtureServer(CLOCK)
+    render(<Workspace scopeKey="paired-export-identity" gateway={server.as('partner')} connected pairing={FIXTURE_PAIRING} now={CLOCK} statusCheckIntervalMs={60_000} />)
+    await user.click(screen.getByRole('button', { name: 'Rules & Files' }))
+    await user.click(screen.getByRole('button', { name: 'Download shared file' }))
+    await user.click(screen.getByRole('button', { name: 'Download private session' }))
+    const [shared, session] = await Promise.all(blobs.map(function (blob) { return blob.text().then(JSON.parse) }))
+    expect(shared.owner).toBe('Fictional B')
+    expect(session.names).toEqual(['Fictional B', 'Fictional A'])
+    expect(session.meIndex).toBe(0)
+  })
 })

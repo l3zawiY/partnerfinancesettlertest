@@ -78,6 +78,9 @@ export function usePrivateWorkspace(scopeKey: string) {
   const lastSaved = useRef<string | null>(null)
   const [tabNotice, setTabNotice] = useState<string | null>(null)
   const [backedUpPeriods, setBackedUpPeriods] = useState<string[]>([])
+  // Server-bound aliases once the household is paired. Exported files carry them so the v1
+  // fallback recognises who is who; the local Setup names stay a display preference.
+  const [identity, setIdentity] = useState<{ me: string; partner: string } | null>(null)
 
   const amazonMatches = useMemo(function () {
     return matchAmazonOrders(ledger, amazonContext.orders)
@@ -257,10 +260,10 @@ export function usePrivateWorkspace(scopeKey: string) {
   }
 
   function projection() {
-    return buildSharedExport({ toolVersion: WEBAPP_TOOL_VERSION, period, owner: (names[meIndex] || 'Me').trim() || 'Me', txns: ledger })
+    return buildSharedExport({ toolVersion: WEBAPP_TOOL_VERSION, period, owner: identity ? identity.me : (names[meIndex] || 'Me').trim() || 'Me', txns: ledger })
   }
 
-  function saveSession(): void { downloadJson('split-session-' + period + '.json', createSessionSnapshot(sessionState())); setBackedUpPeriods(function (done) { return done.includes(period) ? done : done.concat(period) }) }
+  function saveSession(): void { const state = sessionState(); downloadJson('split-session-' + period + '.json', createSessionSnapshot(identity ? { ...state, names: [identity.me, identity.partner], meIndex: 0 } : state)); setBackedUpPeriods(function (done) { return done.includes(period) ? done : done.concat(period) }) }
   async function loadSession(file: File): Promise<void> {
     try { const loaded = readSession(JSON.parse(await file.text())); if (!loaded) throw new Error(); loadState(loaded); setMessage('Private session loaded and auto-save resumed.') }
     catch { setMessage('That file is not a readable Split Ledger private session; nothing changed.') }
@@ -290,7 +293,7 @@ export function usePrivateWorkspace(scopeKey: string) {
     defaultUnknown, setDefaultUnknown, excludePatterns, setExcludePatterns, amazonText, setAmazonText,
     amazonContext, setAmazonContext, amazonMatches, message, groupBy, setGroupBy, onlyUndecided,
     setOnlyUndecided, confirmedTotals, setConfirmedTotals, postedCount: posted.length, undecidedCount,
-    scopeKey, backedUp: backedUpPeriods.includes(period), tabNotice, dismissTabNotice: function () { setTabNotice(null) },
+    setIdentity, scopeKey, backedUp: backedUpPeriods.includes(period), tabNotice, dismissTabNotice: function () { setTabNotice(null) },
     parse, decide, decideGroup, forgetRule, reapplyRules, correctAmount, parseAmazon, setAmazonDecision, confirmAmazon,
     projection, saveSession, loadSession, saveShared, erasePrivateDraft,
   }

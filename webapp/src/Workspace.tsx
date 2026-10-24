@@ -136,6 +136,9 @@ export default function Workspace(props: { scopeKey: string; gateway: WorkflowGa
   // The same helper feeds every screen that greets the person by name, so none of them can
   // drift back to a typed name once the household is paired.
   const { me, partner } = viewerAliases(props.pairing, workspace.names, workspace.meIndex)
+  const pairedMe = props.pairing?.state === 'paired' && props.pairing.viewer.kind === 'participant' ? me : null
+  const setIdentity = workspace.setIdentity
+  useEffect(function () { setIdentity(pairedMe ? { me: pairedMe, partner } : null) }, [pairedMe, partner, setIdentity])
   const viewer = props.pairing?.viewer.kind === 'participant' ? props.pairing.viewer : null
   return <>
     <header className="masthead"><div className="mast-inner">

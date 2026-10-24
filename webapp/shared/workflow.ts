@@ -186,10 +186,13 @@ export function emptyWorkflow(period: string): PeriodWorkflow {
   return { period, status: 'draft', version: 0, mine: null, partner: null }
 }
 
-/** generated is audit metadata; all financial and identifying projection content must match. */
+/**
+ * generated is audit metadata, and owner is relabeled by the Worker with the server-bound
+ * alias on submit, so a local display name never matches it. All financial content must match.
+ */
 export function sameProjectionContent(a: SharedExport, b: SharedExport): boolean {
   const withoutGenerated = function (value: SharedExport) {
-    return { format: value.format, toolVersion: value.toolVersion, period: value.period, owner: value.owner, items: value.items, totals: value.totals }
+    return { format: value.format, toolVersion: value.toolVersion, period: value.period, items: value.items, totals: value.totals }
   }
   return JSON.stringify(withoutGenerated(a)) === JSON.stringify(withoutGenerated(b))
 }

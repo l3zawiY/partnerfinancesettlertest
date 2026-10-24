@@ -277,7 +277,7 @@ equivalent, so a merchant with eight purchases needs eight clicks. Add the same 
 merchant groups (presets 100/70/50/30/0), mark rows as manual decisions, keep credits
 without controls, and never overwrite another month. Parity-test against v1's behavior.
 
-**Priority:** Should before pilot (Batch 6h); the largest time saver for the JTBD target.
+**Priority:** Must before pilot (Batch 6h). The owner uses Apply to group a lot (2026-10-24).
 
 *Noticed: 2026-10-24 (JTBD review).*
 
@@ -294,13 +294,17 @@ browser's own time zone, and keep any month already being worked on.
 
 ### WEB-034 — Ready-to-send "your turn" message
 
-After submitting, the person often has to tell the other one. Show a short, copyable
-message with the app address, for example "I submitted October 2026 in Split Ledger; your
-turn when you have 15 minutes", and after closing, "October is closed: B pays A $X" for
-the coordinator to send. No email service, no stored contact data; copying is the user's
-choice.
+After submitting, the person often has to tell the other one, and the owner confirmed
+chasing happens. Show a short ready-made message with the app address, for example "I
+submitted October 2026 in Split Ledger. Your turn when you have 15 minutes: <address>",
+and after closing, "October 2026 is closed in Split Ledger: B pays A $X." Delivery is the
+person's choice, with three buttons: **Copy** (paste into WhatsApp, SMS, Teams), **Share**
+(the Windows share panel through the browser's share feature, shown only where
+available), and **Email** (opens a pre-filled draft in the person's mail program, no
+recipient stored). The app sends nothing and stores no contact data; automatic
+notifications are WEB-036.
 
-**Priority:** Should before pilot (Batch 6h).
+**Priority:** Should before pilot (Batch 6h); the owner wants it in the MVP.
 
 *Noticed: 2026-10-24 (JTBD review).*
 
@@ -388,6 +392,20 @@ them before the household depends on the service long term.
 **Priority:** Later (before retiring v1).
 
 *Noticed: 2026-10-24 (JTBD review).*
+
+### WEB-044 — Uber and Amazon evidence with less manual work
+
+From the 2026-10-24 spike in `docs/WEBAPP.md`: first an "Uber context" paste box with a
+parser and the existing private evidence display (trips and Uber Eats orders, exact-total
+pairing, tolerance for tips), then a "Split Ledger helper" Chrome extension that collects
+the visible Amazon orders and Uber trips for the chosen month from the person's own
+signed-in pages and produces the same normalized text. Evidence never chooses a split;
+nothing leaves the browser. Decide extension distribution (developer mode versus an
+unlisted Web Store listing with a one-time fee) and read Amazon's and Uber's terms first.
+
+**Priority:** Later (first after-pilot candidate for recall time).
+
+*Noticed: 2026-10-24.*
 
 ## Post-MVP evolutions
 

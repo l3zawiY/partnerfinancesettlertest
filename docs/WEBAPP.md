@@ -353,6 +353,12 @@ Priority order approved on 2026-09-10:
 - v1 shortcut keys stay out of scope.
 - v1's built-in self-test (M17) and safe diagnostic (M18) get web equivalents, WEB-029 and
   WEB-030, in Batch 6h.
+- Owner answers, same day: each person has roughly **200 transactions a month**; a
+  realistic target is **15–20 minutes each**, because recalling Uber and Amazon purchases
+  still takes "archaeology"; both use **Windows with Chrome** on desktops; **Apply to
+  group is used a lot** (WEB-032 becomes Must before pilot); chasing does happen (WEB-034
+  stays a Should the owner wants before the pilot). Extended checks use about 200
+  fictional transactions per person.
 
 **Who does what, in order.** "D0" is 2026-10-24. Days are targets, not promises; a failed
 gate moves every later step.
@@ -400,12 +406,12 @@ Scope (each item's detail lives in `docs/WEBAPP-BACKLOG.md`):
 9. **WEB-031** — automated two-account acceptance suite (HC-01 to HC-10, plus the WEB-010
    and WEB-012 reruns H4C-03, H4C-05, H5-03, and H5-04), runnable against local and
    staging.
-10. **Time-saving items (Should, added 2026-10-24 after the JTBD review below):**
-    **WEB-032** apply one share to every purchase from a merchant (v1 parity, the largest
-    time saver), **WEB-033** open the month that just ended by default, in the user's own
+10. **Time-saving items (added 2026-10-24 after the JTBD review below):**
+    **WEB-032** apply one share to every purchase from a merchant (Must: v1 parity, used a
+    lot by the owner), **WEB-033** open the month that just ended by default, in the user's own
     time zone, **WEB-034** a ready-to-send "your turn" message after submitting or closing,
     and **WEB-035** a backup reminder after closing so remembered rules are not lost with a
-    browser. If 6h runs late, drop these in reverse order and keep WEB-032.
+    browser. If 6h runs late, drop WEB-035, then WEB-033; keep WEB-032 and WEB-034.
 11. **Pre-staging preparation that needs no Cloudflare account:** `staging` and
     `production` sections in `webapp/wrangler.jsonc` with placeholders and guarded deploy
     scripts that refuse the wrong environment; a visible environment label (local,
@@ -415,7 +421,7 @@ Scope (each item's detail lives in `docs/WEBAPP-BACKLOG.md`):
     guide in plain language; the diagnostic format in `docs/DATA-FORMATS.md`; the suite
     command in `docs/TESTING.md`.
 12. **Extended checks** run by the agent and recorded in `docs/WEBAPP-HUMAN-TESTING.md`
-    section 1: a realistic month of about 130 fictional transactions for each person over
+    section 1: a realistic month of about 200 fictional transactions for each person over
     three months; month switching, restart, two tabs, blocked network, server errors,
     session expiry mid-month, and a month-end time-zone boundary (Toronto evening on the
     last day of the month is already the next month in UTC); 390 px layout, an automated
@@ -1153,8 +1159,10 @@ Order by what the pilot measures. Most likely first: fewer decisions and less ch
 
 1. **Less chasing:** email nudges when the other person submits or the month is ready to
    close (WEB-036). Needs an email-sending service; no financial content in emails.
-2. **Fewer decisions:** suggest remembering a merchant after repeated identical choices,
-   still confirmed by the person (WEB-038); faster import (WEB-039); search (WEB-017).
+2. **Less recall work and fewer decisions:** Uber evidence by paste, then a helper
+   extension (WEB-044, see the spike above); suggest remembering a merchant after repeated
+   identical choices, still confirmed by the person (WEB-038); faster import (WEB-039);
+   search (WEB-017).
 3. **Confidence and value:** history of past settlements from archives (WEB-037), then
    spending insights (WEB-018, PRODUCT S1).
 4. **Real-life edge cases:** carry a balance when a month's transfer slips (WEB-040,
@@ -1164,6 +1172,36 @@ Order by what the pilot measures. Most likely first: fewer decisions and less ch
    partner replacement, coordinator transfer, and lost-account recovery (WEB-043).
 6. **Decision gate:** keep, continue, return to v1, or cut over (Batch 7c), then decide
    whether to retire v1.
+
+### Spike — less "archaeology" for Uber and Amazon (2026-10-24, after the pilot)
+
+Problem: recalling what an Uber or Amazon charge was is the slowest part of Review. v1 and
+the web app already accept pasted Amazon **Your Orders** text as private evidence (S6);
+Uber has nothing. Constraint: keep everything in the person's own browser, as little
+rework as possible, desktop Chrome on Windows.
+
+Options considered (facts checked 2026-10-24; re-check before building):
+
+| Option | Effort | Fit | Notes |
+|---|---|---|---|
+| Official Amazon or Uber APIs | High | Poor | No consumer order API for Amazon; Uber's rider history access is not open to small apps |
+| Data-export requests (Amazon "Request your data", Uber "Download your data") | Low build | Poor monthly | Arrive hours to about two weeks later as file bundles; fine for a one-off backfill, too slow monthly. Amazon's old one-click order CSV report was discontinued in 2023 per user reports |
+| Email receipts read through Gmail | High | Medium | Google's mail-reading permission needs a security review for production apps; adds a third party to private data |
+| **A. Paste Uber trips like Amazon orders** | Low | Good | Open your Uber trips (and Uber Eats orders) page, select all, copy, paste into an "Uber context" box. New parser plus the existing evidence display. No new software to install |
+| **B. "Split Ledger helper" Chrome extension** | Medium | Best experience | On your own signed-in Amazon and Uber pages, one click collects the visible orders or trips for the chosen month and produces the same normalized text as option A (copy button), later optionally sending it straight to the Split Ledger tab. Runs only in your browser; no server sees it |
+
+Recommendation: build **A first, then B on top of it**. B's output feeds the same parser
+and evidence display as A, so nothing is rebuilt. Uber charges are easy to pair because a
+trip's total usually equals the card charge exactly; Uber Eats and tips need tolerance
+rules, like Amazon's split orders. Keep the principle that evidence never chooses a split.
+
+Open questions before B: Chrome 134+ only runs an unpacked (self-installed) extension
+while **developer mode** stays on, which shows a warning; the alternative is an unlisted
+Chrome Web Store listing, which needs a one-time developer registration fee (owner
+decision). Pages change layout without notice, so the extension needs a self-check and a
+fallback to option A. Reading your own pages in your own browser is lower risk than server
+scraping, but Amazon's and Uber's terms on automated tools must be read before building.
+Tracked as WEB-044.
 
 ### Batch 7a — Cloudflare account and fictional staging (planned; runs in parallel with 6h; fictional data only)
 

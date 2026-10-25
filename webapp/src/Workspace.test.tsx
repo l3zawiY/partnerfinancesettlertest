@@ -137,6 +137,24 @@ describe('complete fictional workspace', function () {
     expect(screen.getByText(/Auto-save is paused until reload/)).toBeVisible()
   })
 
+  it('keeps the load confirmation visible after the auto-save that follows it', async function () {
+    const user = userEvent.setup()
+    const scopeKey = 'fictional-load-notice'
+    render(<Workspace scopeKey={scopeKey} gateway={new LocalWorkflowGateway('load-notice-test')} />)
+    await waitFor(function () { expect(window.localStorage.getItem(scopeKey)).not.toBeNull() })
+    const emptySession = window.localStorage.getItem(scopeKey)!
+    await user.click(screen.getByRole('tab', { name: 'Import' }))
+    await user.click(screen.getByRole('button', { name: 'Load fictional TD sample' }))
+    await user.click(screen.getByRole('button', { name: 'Parse and add' }))
+    expect(await screen.findByText(/Added 3/)).toBeVisible()
+    await waitFor(function () { expect(window.localStorage.getItem(scopeKey)).not.toBe(emptySession) })
+    await user.click(screen.getByRole('button', { name: 'Rules & Files' }))
+    await user.upload(screen.getByLabelText('Load private session'), new File([emptySession], 'session.json', { type: 'application/json' }))
+    await waitFor(function () { expect(window.localStorage.getItem(scopeKey)).toBe(emptySession) })
+    await new Promise(function (resolve) { setTimeout(resolve, 300) })
+    expect(screen.getByText('Private session loaded and auto-save resumed.')).toBeVisible()
+  })
+
   it('keeps each month\'s private draft when the month changes, without a confirmation', async function () {
     const user = userEvent.setup()
     const confirm = vi.spyOn(window, 'confirm')

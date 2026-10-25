@@ -76,6 +76,8 @@ export function usePrivateWorkspace(scopeKey: string) {
   const [confirmedTotals, setConfirmedTotals] = useState(false)
   // The last draft text this tab wrote or adopted; another tab's newer save replaces it (WEB-027).
   const lastSaved = useRef<string | null>(null)
+  // A load confirmation must survive the auto-save it triggers 150 ms later.
+  const keepNotice = useRef(false)
   const [tabNotice, setTabNotice] = useState<string | null>(null)
   const [backedUpPeriods, setBackedUpPeriods] = useState<string[]>([])
   // Server-bound aliases once the household is paired. Exported files carry them so the v1
@@ -136,7 +138,8 @@ export function usePrivateWorkspace(scopeKey: string) {
         lastSaved.current = snapshot
         window.localStorage.setItem(scopeKey, snapshot)
         window.localStorage.setItem(monthDraftKey(scopeKey, period), snapshot)
-        setMessage('Private draft auto-saved in this browser.')
+        if (keepNotice.current) keepNotice.current = false
+        else setMessage('Private draft auto-saved in this browser.')
       } catch { setMessage('Auto-save is unavailable; download a private session file to keep this work.') }
     }, 150)
     return function () { window.clearTimeout(timer) }
@@ -265,7 +268,7 @@ export function usePrivateWorkspace(scopeKey: string) {
 
   function saveSession(): void { const state = sessionState(); downloadJson('split-session-' + period + '.json', createSessionSnapshot(identity ? { ...state, names: [identity.me, identity.partner], meIndex: 0 } : state)); setBackedUpPeriods(function (done) { return done.includes(period) ? done : done.concat(period) }) }
   async function loadSession(file: File): Promise<void> {
-    try { const loaded = readSession(JSON.parse(await file.text())); if (!loaded) throw new Error(); loadState(loaded); setMessage('Private session loaded and auto-save resumed.') }
+    try { const loaded = readSession(JSON.parse(await file.text())); if (!loaded) throw new Error(); loadState(loaded); keepNotice.current = true; setMessage('Private session loaded and auto-save resumed.') }
     catch { setMessage('That file is not a readable Split Ledger private session; nothing changed.') }
   }
   function saveShared(): void { const value = projection(); downloadJson('split-' + period + '-' + safeFilePart(value.owner) + '.json', value) }

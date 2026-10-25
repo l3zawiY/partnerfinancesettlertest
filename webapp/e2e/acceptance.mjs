@@ -332,7 +332,8 @@ try {
     r.check('shared file is the allowlisted projection only', /"format": ?"split-ledger\/v1"/.test(shared) && !/"raw"|"card"|originalAmount|amazonContext|products|orderId|decisions/.test(shared))
     const file = join(outDir, run + '-session.json'); (await import('node:fs')).writeFileSync(file, session)
     await page.getByLabel('Load private session').setInputFiles(file); await page.waitForTimeout(1500)
-    r.check('loading the session restores the draft', /Private session loaded/.test(await page.innerText('body')))
+    const notice = await page.locator('.settings-section .fine-print').first().innerText().catch(function () { return '(no notice)' })
+    r.check('loading the session restores the draft', /Private session loaded/.test(await page.innerText('body')), notice)
   })
 
   await scenario('H5-03', 'Remember and remove a rule from a clean state', async function () {

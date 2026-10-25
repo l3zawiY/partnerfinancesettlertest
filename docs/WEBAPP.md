@@ -3,7 +3,46 @@
 This is the canonical plan and continuation guide for the web-service experiment. Keep
 it current instead of creating session handoffs or a separate plan for every batch.
 
-## Current status — 2026-10-24
+## Current status — 2026-10-25
+
+**Batch 7a is done: fictional staging is live and passed the full WEB-031 suite** (2026-10-25,
+on `mac-unpushed-work`). Staging address:
+https://split-ledger-staging.hydrapeak8.workers.dev (fictional data only; Clerk
+Development sign-in). The owner completed 7a Part 1; `npx wrangler whoami` showed the
+account **"Hydrapeak8@gmail.com's Account"**, which the owner should confirm is the
+intended Cloudflare account. The staging D1 database `split-ledger-staging` was created,
+all six migrations applied remotely, the Development secret stored as an encrypted Worker
+secret, and the Worker deployed. Staging operations record and evidence are under Batch 7a
+below and in section 1 of `docs/WEBAPP-HUMAN-TESTING.md`.
+
+The first hosted runs found three defects, each fixed with its own commit:
+
+- `64a75b5`: the Worker reads the Clerk publishable key at runtime, which only
+  `.env.local` supplied locally, so every hosted API call answered 503. The staging and
+  production deploy scripts now pass it as a plain Worker variable (`--var`). Production
+  would have failed the same way.
+- `82b8daf`: the content-security policy blocked Clerk's logo fetch from `img.clerk.com`
+  (`connect-src`), logging a violation on every sign-in screen.
+- `296f2f5`: **Load private session** showed its confirmation for only 150 ms before
+  auto-save replaced it, so a person could not tell the load worked (H4C-05). Regression
+  test in `src/Workspace.test.tsx`.
+
+The final run passed 14 scenarios and 73 checks with no console errors. Export, deletion,
+and restore of closed archives passed on staging (HC-10). A rollback to the previous
+Worker version and back was rehearsed. Gate after Batch 7a: 109 pure/Worker tests and 44
+browser-like tests, four type checks, build, 81/81 legacy assertions.
+
+Backlog: WEB-010, WEB-012, WEB-013, and WEB-020 closed (their closing condition was the
+WEB-031 suite on staging). WEB-005 and WEB-019 still wait on the owner spot-check 7b-6.
+
+The owner's domain is **tallywithus.com** (not yet added to Cloudflare as of 2026-10-25).
+The production subdomain is still the owner's choice.
+
+**Next step:** Batch 7b. Owner steps 7b-1 (add tallywithus.com to Cloudflare and switch
+its nameservers) to 7b-4, then the agent's production steps, the spot-check 7b-6, and the
+go/no-go review.
+
+## Status — 2026-10-24 (superseded by the status above)
 
 **Batch 6e is committed and pushed** on `mac-unpushed-work` (`f1766cb`), and an automated
 pre-run of the replacement acceptance HC-01 through HC-10 ran on 2026-10-24 in a cloud
@@ -107,7 +146,7 @@ assertions. New backlog items from the checks: WEB-045 (storage growth), WEB-046
 contrast, an owner visual decision), WEB-047 (tooling upgrade once fixes are two weeks
 old).
 
-**Next step:** Batch 7a. It waits only for the owner's Cloudflare steps (7a Part 1:
+**Next step (done 2026-10-25):** Batch 7a. It waited only for the owner's Cloudflare steps (7a Part 1:
 account, API token, two environment values, network allowlist, then a new session). The
 agent then creates the staging database, records its id in `webapp/wrangler.jsonc`, runs
 `npm run db:migrate:staging` and `npm run deploy:staging`, runs the WEB-031 suite against the
@@ -406,8 +445,8 @@ gate moves every later step.
 | Step | What | Who | Owner time | Gate to continue |
 |---|---|---|---|---|
 | 6h ✓ | Fix the must-have backlog items, add self-test, diagnostic, and an automated acceptance suite; run extended tests locally (done 2026-10-24) | Agent | none | Gate green, suite green, must items closed |
-| 7a-owner | Cloudflare account, MFA, API token, two environment settings, network allowlist (7a Part 1) | Owner | ~20 min, D0–D1 | Agent confirms it can reach Cloudflare with the token |
-| 7a | Staging configuration, hosted database, deploy, full automated suite against staging, rollback rehearsal | Agent | none | 7a exit criteria |
+| 7a-owner ✓ | Cloudflare account, MFA, API token, two environment settings, network allowlist (7a Part 1) | Owner | ~20 min, D0–D1 | Agent confirms it can reach Cloudflare with the token |
+| 7a ✓ | Staging configuration, hosted database, deploy, full automated suite against staging, rollback rehearsal (done 2026-10-25) | Agent | none | 7a exit criteria |
 | 7b-owner | Domain DNS, Clerk Production instance, production secret pasted into Cloudflare (7b steps 7b-1 to 7b-4) | Owner | ~30–40 min, D2–D3 | Clerk shows the domain verified |
 | 7b | Production configuration, security headers, runbook, deploy, unauthenticated production checks | Agent | none | 7b checks green |
 | 7b-6 | Owner spot-check with real accounts and fictional data, partner joins | Owner + partner | ~15 min each, D4 | Both see the same fictional result; self-test passes on both laptops |
@@ -1243,7 +1282,7 @@ fallback to option A. Reading your own pages in your own browser is lower risk t
 scraping, but Amazon's and Uber's terms on automated tools must be read before building.
 Tracked as WEB-044.
 
-### Batch 7a — Cloudflare account and fictional staging (planned; runs in parallel with 6h; fictional data only)
+### Batch 7a — Cloudflare account and fictional staging (done 2026-10-25; fictional data only)
 
 Learning objective: introduce a hosted environment without exposing real financial data.
 
@@ -1446,6 +1485,34 @@ Exit criteria: fictional two-account staging evidence passes, a staging export c
 restored, deployment and rollback are rehearsed, and no production resource contains real
 data.
 
+#### Staging operations record (2026-10-25)
+
+All criteria above are met; no production resource exists yet.
+
+| Item | Value (none is secret) |
+|---|---|
+| Cloudflare account | "Hydrapeak8@gmail.com's Account", Workers Free |
+| Worker | `split-ledger-staging`, https://split-ledger-staging.hydrapeak8.workers.dev |
+| D1 database | `split-ledger-staging`, id `cb8833cb-8ec4-4053-8536-47e1338bbc26`, region ENAM |
+| Migrations applied | `0001` to `0006`, all reported success |
+| Worker secret | `CLERK_SECRET_KEY` (Clerk Development), stored with `wrangler secret put` from the environment value, never printed |
+| Worker variable | `VITE_CLERK_PUBLISHABLE_KEY` (Development, browser-visible), set by `npm run deploy:staging` |
+| Current version | `6083ba04-4386-4ca9-bc94-252ad7e43f6e` (commit `296f2f5`) |
+
+- **Hosted checks:** signed out, `/api/me`, `/api/household`, and `/api/workflows` answer
+  `401`; a made-up token also gets `401`. Security headers are present. A live log tail
+  (`wrangler tail`) during those requests showed no log lines and no exceptions; the Worker
+  writes no logs. D1 after three full suite runs: 176 kB, 712 rows written and about 4,000
+  read in 24 hours, far below the free daily allowance.
+- **Rollback rehearsal:** `npx wrangler rollback 6d711d48-ef85-4191-af3a-bc4b9538a608 --env
+  staging -m "..."` served the previous app bundle within seconds, and the API still answered
+  `401` (the secret and variable belong to each version). Rolling forward with the same
+  command and `6083ba04-…` restored the current bundle. `npx wrangler deployments list --env
+  staging` shows the history. The dashboard path (Workers & Pages → Worker → Deployments)
+  does the same.
+- **Not checked by the agent:** the Cloudflare dashboard's metric pages (it has no
+  dashboard sign-in). The CLI counts above come from the same source.
+
 ### Batch 7b — Production environment readiness (planned; after 6h and 7a pass)
 
 Learning objective: configure the real security and recovery boundary before a pilot.
@@ -1472,7 +1539,7 @@ Learning objective: configure the real security and recovery boundary before a p
 #### Owner steps for production (about 30–40 minutes, no code)
 
 Pick the production address now, for example `split.<your-domain>`. The steps below call
-your domain `example.com`; replace it with yours.
+your domain `example.com`; replace it with yours. The owner's domain is `tallywithus.com`.
 
 - **7b-1 — Domain in Cloudflare.** If `example.com` is not yet in your Cloudflare account:
   dashboard → **Add a domain** → enter it → choose the **Free** plan → Cloudflare shows two
@@ -1551,7 +1618,7 @@ Commands run from `webapp/`; every hosted command goes through `scripts/deploy-g
 | Check access | `npx wrangler whoami` | same |
 | Apply database changes | `npm run db:migrate:staging` | `CONFIRM_PRODUCTION=yes npm run db:migrate:production`, only after the same migration ran on staging |
 | Deploy | `npm run deploy:staging` | `CONFIRM_PRODUCTION=yes npm run deploy:production`, only after the WEB-031 suite passed on staging |
-| Roll back the app | Cloudflare → Workers & Pages → the Worker → **Deployments** → previous version → **Rollback** | same |
+| Roll back the app | `npx wrangler deployments list --env staging`, then `npx wrangler rollback <previous version id> --env staging -m "reason"` (rehearsed 2026-10-25), or Cloudflare → Workers & Pages → the Worker → **Deployments** → previous version → **Rollback** | same with `--env production` |
 | Export shared archives | Coordinator: Rules & Files → **Download closed shared archives** | same, before every deploy and migration |
 | Restore shared archives | Coordinator: Rules & Files → **Restore closed shared archives** | same |
 | Database recovery | D1 Time Travel to a point before the incident (check the current retention first) | same; then compare with the latest exported archives |
@@ -1568,8 +1635,8 @@ rolls back that file; stop and investigate before retrying.
 | Gate | Evidence | Result |
 |---|---|---|
 | No open **Must before pilot** item in `docs/WEBAPP-BACKLOG.md` | link to backlog state | |
-| WEB-031 suite passed on staging (HC-01 to HC-10, H4C-03, H4C-05, H5-03, H5-04) | test record date | |
-| Staging export restores; rollback rehearsed | operations note | |
+| WEB-031 suite passed on staging (HC-01 to HC-10, H4C-03, H4C-05, H5-03, H5-04) | `docs/WEBAPP-HUMAN-TESTING.md` section 1, 2026-10-25 | pass |
+| Staging export restores; rollback rehearsed | Batch 7a staging operations record, 2026-10-25 | pass |
 | Production: custom domain over HTTPS, security headers present, `/api/*` returns 401 signed out, no console errors | check output | |
 | Clerk Production: Organizations on, sign-up invitation-only after both accounts exist, members cannot create organizations | owner confirmation | |
 | Owner spot-check 7b-6 passed on both laptops, self-test passed on both, fictional data wiped | owner's two diagnostics | |
@@ -1614,26 +1681,26 @@ its security and maintenance costs.
 ```text
 Continue the Split Ledger web pilot on branch mac-unpushed-work (never main).
 
-Read AGENTS.md and CLAUDE.md, then docs/WEBAPP.md → "Current status" and "Refined pilot
-roadmap — 2026-10-24", Batch 7a and 7b, and docs/WEBAPP-BACKLOG.md. The owner is a
-non-coding product manager who delegated building, deployment, and testing to the agent;
-ask only for the owner steps the roadmap lists. Batch 6h is done.
+Read AGENTS.md and CLAUDE.md, then docs/WEBAPP.md → "Current status", "Refined pilot
+roadmap — 2026-10-24", Batch 7a's staging operations record, and Batch 7b, and
+docs/WEBAPP-BACKLOG.md. The owner is a non-coding product manager who delegated building,
+deployment, and testing to the agent; ask only for the owner steps the roadmap lists.
+Batch 7a is done (staging https://split-ledger-staging.hydrapeak8.workers.dev). The
+owner's domain is tallywithus.com.
 
 1. Confirm webapp/.env.local exists without reading it (recreate it from the
    VITE_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY environment values if missing, without
-   printing them). Run node test/run-tests.js and, in webapp/, npm ci && npm run check;
-   then npm run db:migrate:local and npm run dev (local only, never --remote).
-2. If CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are present, run npx wrangler whoami
-   and do Batch 7a Parts 2–6: create split-ledger-staging, put its id in the staging block
-   of webapp/wrangler.jsonc, npm run db:migrate:staging, pipe CLERK_SECRET_KEY into
-   wrangler secret put --env staging, npm run deploy:staging, then run
-   node e2e/acceptance.mjs --base <staging URL> and rehearse a rollback. Otherwise point
-   the owner to Batch 7a Part 1.
-3. Then Batch 7b (owner steps 7b-1 to 7b-5, agent steps), the owner spot-check 7b-6, and
-   the go/no-go template.
+   printing them). Run node test/run-tests.js and, in webapp/, npm ci && npm run check.
+2. Check CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are present (never print them),
+   run npx wrangler whoami, and check whether tallywithus.com is an active zone. Ask the
+   owner for the production subdomain and for 7b-1 to 7b-4 if not done.
+3. Batch 7b agent steps: verify 7b-5's restricted sign-up plus invitation on staging first,
+   create split-ledger-production, set its id and the custom domain in the production
+   block of webapp/wrangler.jsonc, CONFIRM_PRODUCTION=yes npm run db:migrate:production and
+   deploy:production, have the owner paste the production secret (7b-4), run the
+   unauthenticated production checks, then the owner spot-check 7b-6 and the go/no-go.
 4. Never read production shared records or real data; never print keys. Fictional data
-   only. Clerk Development holds fictional test users and households from earlier runs;
-   the suite creates and removes its own.
+   only on staging; the suite creates and removes its own Clerk users and household.
 5. Commit and push per item; update "Current status", the test record, and the backlog.
 ```
 

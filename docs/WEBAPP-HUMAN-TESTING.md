@@ -461,6 +461,30 @@ Notes per scenario:
   refused ("sent to a different email address"); the person invited from Split Ledger
   joined.
 
+### WEB-031 suite on fictional staging — 2026-10-25 (agent acceptance runs, hosted)
+
+| Field | Value |
+|---|---|
+| Date | 2026-10-25 |
+| Address | https://split-ledger-staging.hydrapeak8.workers.dev (Cloudflare Worker and D1, Clerk Development) |
+| Browser and width | Chromium (Playwright), 1400 × 1000; 390 × 844 in HC-10 |
+| Scenario IDs passed | HC-01 to HC-10, H4C-03, H4C-05, H5-03, H5-04 (in HC-05 and HC-07); console clean |
+| Scenario IDs failed | none in the final run |
+| Defects added to `docs/WEBAPP-BACKLOG.md` | none; three found and fixed the same day (below) |
+
+- **Final run:** 14 scenarios and 73 checks passing, with three fresh fictional
+  `+clerk_test` users and a fresh fictional household, removed afterwards. HC-10 covers
+  archive export, coordinator deletion, and restore on the hosted database.
+- **Before the final run:** every hosted API call first answered 503 because the Worker
+  had no Clerk publishable key (fixed in the deploy scripts). Run 1 then passed 12 of 14:
+  the console check failed on a content-security policy violation for `img.clerk.com`, and
+  H4C-05 missed the **Private session loaded** confirmation. Run 2, with the policy fixed,
+  showed the notice had been replaced by "Private draft auto-saved in this browser."; that
+  was fixed and covered by a component test. Run 3 passed everything.
+- **Hosted checks:** signed-out API calls return 401; security headers present; a live log
+  tail showed no log lines or exceptions; rollback to the previous version and back
+  rehearsed (details in `docs/WEBAPP.md` → Batch 7a → staging operations record).
+
 ## 2. Safety and preparation
 
 ### What physically runs where

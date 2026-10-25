@@ -5,7 +5,8 @@ Unresolved work for the `webapp/` experiment only. Items about the released sing
 removed and recorded in `docs/WEBAPP.md`; stable ids are never reused.
 
 Batch 6h items (WEB-022 to WEB-035) were completed on 2026-10-24 and are recorded in
-`docs/WEBAPP.md`. Every item carries a **Priority** line: **Must before pilot** (blocks real data, per the
+`docs/WEBAPP.md`. WEB-010, WEB-012, WEB-013, and WEB-020 closed on 2026-10-25 when the WEB-031
+suite passed on staging (Batch 7a in `docs/WEBAPP.md`). Every item carries a **Priority** line: **Must before pilot** (blocks real data, per the
 refined pilot roadmap of 2026-10-24 in `docs/WEBAPP.md`), **Should** (scheduled but not
 blocking), or **Later**. Batch 7b's go/no-go requires no open Must item.
 
@@ -20,47 +21,11 @@ replacement acceptance must still prove invitation acceptance into the exact org
 but now also proves stable pairing, privacy-safe participant identity, a visible handover,
 and third-member refusal. Do not close WEB-005 before WEB-019 passes.
 
+**Status 2026-10-25:** HC-02 passed on staging. Waits only for the owner spot-check 7b-6.
+
 **Priority:** Must before pilot. Closed by the WEB-031 suite run on staging (HC-02) plus owner spot-check 7b-6.
 
 *Noticed: 2026-09-07.*
-
-### WEB-010 — Complete deferred Batch 4c owner verification
-
-Owner testing on 2026-09-11 passed H4C-01, H4C-02, and H4C-04. H4C-03 exposed the occupied
-Amazon-recommendation defect now tracked as WEB-020. H4C-05 was skipped because the owner
-expected online persistence; the privacy boundary still requires private-session recovery
-because complete ledgers deliberately remain browser-only. Complete WEB-020 and rerun only
-H4C-03 and H4C-05 under the revised guide.
-
-**Priority:** Must before pilot. Closed by the WEB-031 suite (H4C-03, H4C-05) on staging.
-
-*Noticed: 2026-09-09.*
-
-### WEB-012 — Complete deferred Batch 5 owner acceptance
-
-Owner testing on 2026-09-11 passed H5-01, H5-02, and H5-05. H5-03 used a state-dependent
-Remember control and needs a clean-state rerun. H5-04 exposed unclear/sticky stale recovery;
-Batch 6e found and fixed its root cause (a withdrawn month's participant row was re-inserted
-on resubmit, which failed inside the transaction). H6-04 could not run because the two-person
-workflow was not understandable. WEB-012 remains open; rerun H5-03, the revised H5-04, and
-HC-08.
-
-**Priority:** Must before pilot. Closed by the WEB-031 suite (H5-03, H5-04, HC-08) on staging.
-
-*Noticed: 2026-09-10.*
-
-### WEB-013 — Complete deferred Batch 6 two-account owner acceptance
-
-Owner testing on 2026-09-11 found that two authenticated sessions appeared independent and
-the application did not prove who the paired participants were, who should act next, or how
-submission hands work to the other person. H6-02 and H6-05 were recorded as failures;
-H6-03, H6-04, H6-07, and H6-08 were blocked. This is an architecture/product gap rather
-than missing evidence. WEB-013 is blocked by WEB-019 and must use the replacement
-collaboration acceptance suite after that work lands.
-
-**Priority:** Must before pilot. Closed by the WEB-031 suite (HC-01 to HC-10) on staging.
-
-*Noticed: 2026-09-10.*
 
 ### WEB-019 — Replace organization-only workflow with an explicit two-person collaboration model
 
@@ -118,28 +83,12 @@ decision on the pre-run (or a manual spot-check). WEB-026 (one private draft per
 decided and completed the same day as Batch 6g in `docs/WEBAPP.md`. Do not close WEB-005,
 WEB-012, or WEB-013 before then.
 
-**Priority:** Must before pilot. Closes with WEB-005, WEB-012, and WEB-013.
+**Status 2026-10-25:** the WEB-031 suite passed every scenario on staging; WEB-012 and
+WEB-013 closed. Waits only for the owner spot-check 7b-6 (with WEB-005).
+
+**Priority:** Must before pilot. Closes with WEB-005 after the owner spot-check 7b-6.
 
 *Noticed: 2026-09-12.*
-
-### WEB-020 — Make occupied Amazon evidence explicit
-
-When an Amazon order is already confirmed for another charge, another transaction may
-still legitimately show it as evidence, but the UI currently leaves **Use this order**
-looking actionable and then only emits an easy-to-miss message. Mark the candidate visibly
-as already used, identify the other fictional charge without exposing data outside private
-Review, disable the conflicting action, and explain how to change the earlier match. Keep
-suggestions non-financial and allow reconsideration. Add component and pure-state coverage.
-
-**Status 2026-09-12:** implemented locally in Batch 6e. An order already confirmed for a
-different charge now shows **Already used for [merchant] on [date] ([amount])** inside
-private Review, its button reads **Already used** and is disabled, and the note explains
-that **Change match** on the other charge frees it. Pure and component tests cover the rule.
-Closes after the owner reruns H4C-03.
-
-**Priority:** Must before pilot. Closes when the WEB-031 suite passes H4C-03.
-
-*Noticed: 2026-09-11.*
 
 ### WEB-021 — Add a safe fictional-month restart action
 

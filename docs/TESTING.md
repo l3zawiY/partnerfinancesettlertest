@@ -123,7 +123,7 @@ coordinator-only deletion tokens, cross-tab draft adoption, Apply to group, the 
 month in two time zones, the your-turn message, the backup reminder, environment labels,
 security headers, plain storage messages, the in-browser self-test (`shared/selfTest.ts`,
 v1's T assertions on v1's own fictional statements), and the safe diagnostic. After Batch
-6h the gate reports 109 pure/Worker tests and 43 browser-like tests.
+6h the gate reports 109 pure/Worker tests and 43 browser-like tests; after Batch 7a, 109 and 44.
 
 ### Two-account acceptance suite (WEB-031)
 
@@ -134,7 +134,7 @@ the app running (`npm run dev`, or a staging address):
 
 ```bash
 CLERK_SECRET_KEY=sk_test_... node e2e/acceptance.mjs                      # local
-CLERK_SECRET_KEY=sk_test_... node e2e/acceptance.mjs --base https://split-ledger-staging.<account>.workers.dev
+CLERK_SECRET_KEY=sk_test_... node e2e/acceptance.mjs --base https://split-ledger-staging.hydrapeak8.workers.dev
 ```
 
 It creates three fresh fictional `+clerk_test` users and a fresh household through Clerk's

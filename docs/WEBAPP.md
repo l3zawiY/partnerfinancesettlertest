@@ -502,6 +502,8 @@ confirmed it ("yes, I'm sure"):
 6. The owner sees the logbook through those summaries and the Cloudflare D1 console now,
    and through the in-app **Pilot activity** page (WEB-049) right after go-live.
 
+The owner said **start** on 2026-10-25; R1 to R4 began that day.
+
 "D1" is now 2026-10-25. Days are targets; a failed gate moves later steps.
 
 | Step | What | Who | Owner time | Gate to continue |
@@ -1767,7 +1769,7 @@ owner's domain is tallywithus.com.
    production data the agent may read); never print keys. Fictional data
    only on staging; the suite creates and removes its own Clerk users and household.
 5. Follow "Remaining roadmap to go-live — 2026-10-25" (R1 to R12). The owner approved
-   the plan but asked to be told before building starts; confirm the owner said to start.
+   the plan and said start on 2026-10-25; continue from the first step not marked done.
 6. Commit and push per item; update "Current status", the test record, and the backlog.
 ```
 

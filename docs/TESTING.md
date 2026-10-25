@@ -147,6 +147,19 @@ than localhost or `*.workers.dev`. Playwright comes from the project if installe
 otherwise from the machine-wide install (pre-installed in the cloud container). It
 contains no login bypass.
 
+### Volume check (WEB-051)
+
+`webapp/e2e/volume.mjs` pairs a fresh fictional household with two `+clerk_test` users,
+then for three months each person imports 200 seeded fictional purchases across 40
+merchants, decides them with Apply to group (all five shares, Mine included), and submits;
+the coordinator closes each month. Each archive must hold exactly the expected shared items
+and match an exact integer-cent recalculation (same rounding as `shared/money.ts`). Same
+safety rules and evidence folder as the WEB-031 suite; not part of `npm run check`.
+
+```bash
+CLERK_SECRET_KEY=sk_test_... node e2e/volume.mjs --base https://split-ledger-staging.hydrapeak8.workers.dev
+```
+
 ## Release smoke test
 
 ### Import and month boundaries

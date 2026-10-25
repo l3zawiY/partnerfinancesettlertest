@@ -6,8 +6,8 @@ removed and recorded in `docs/WEBAPP.md`; stable ids are never reused.
 
 Batch 6h items (WEB-022 to WEB-035) were completed on 2026-10-24 and are recorded in
 `docs/WEBAPP.md`. WEB-010, WEB-012, WEB-013, and WEB-020 closed on 2026-10-25 when the WEB-031
-suite passed on staging (Batch 7a in `docs/WEBAPP.md`). WEB-050 (Time Travel rehearsal) closed
-on 2026-10-25 (R1 in `docs/WEBAPP.md`). Every item carries a **Priority** line: **Must before pilot** (blocks real data, per the
+suite passed on staging (Batch 7a in `docs/WEBAPP.md`). WEB-050 (Time Travel rehearsal) and WEB-051
+(volume check) closed on 2026-10-25 (R1 and R2 in `docs/WEBAPP.md`). Every item carries a **Priority** line: **Must before pilot** (blocks real data, per the
 refined pilot roadmap of 2026-10-24 in `docs/WEBAPP.md`), **Should** (scheduled but not
 blocking), or **Later**. Batch 7b's go/no-go requires no open Must item.
 
@@ -179,16 +179,6 @@ rows, so the partner can see exactly what is recorded about them.
 
 **Priority:** Should, right after go-live (owner decision 2026-10-25); deploy only after
 October 2026 is closed and its archive exported.
-
-*Noticed: 2026-10-25.*
-
-### WEB-051 — Commit the volume check and run it on staging
-
-The 2026-10-24 volume check (200 fictional transactions a month for each person over three
-months) was an uncommitted script. Add it to `webapp/e2e/` with the same exact-integer
-recalculation, run it against staging, and record timings and D1 usage.
-
-**Priority:** Must before pilot.
 
 *Noticed: 2026-10-25.*
 

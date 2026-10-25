@@ -485,6 +485,13 @@ Notes per scenario:
   tail showed no log lines or exceptions; rollback to the previous version and back
   rehearsed (details in `docs/WEBAPP.md` → Batch 7a → staging operations record).
 
+### Volume check on fictional staging — 2026-10-25 (agent run, hosted)
+
+`webapp/e2e/volume.mjs` against https://split-ledger-staging.hydrapeak8.workers.dev: 5
+scenarios, 20 checks, all passing, console clean. Three months of 200 fictional purchases
+each per person; every archive matched an exact integer-cent recalculation (316, 318, and
+314 shared items). Timings and storage are in `docs/WEBAPP.md` (R2).
+
 ## 2. Safety and preparation
 
 ### What physically runs where

@@ -512,12 +512,21 @@ undo bookmark brought back the newer state (4, 8, 8, 4). Finding: Wrangler auto-
 the restore in a non-interactive shell, so the runbook requires the owner's explicit
 approval for any production restore.
 
+**R2 done 2026-10-25 (WEB-051).** `webapp/e2e/volume.mjs` (committed) passed on staging on
+its first run: three months, 200 fictional purchases a month for each person across 40
+merchants, all five shares. Each archive held exactly the expected 314–318 shared items and
+matched the integer-cent recalculation; both settlement directions occurred. Per person
+and month: import about 2.2 s, 39–40 Apply to group clicks, submit 1.5 s. Browser storage
+grew about 105 KB a month after the first month (WEB-045). The staging database grew from
+176 KB to 936 KB for the three months, far inside the 5 GB free storage; Cloudflare's 24-hour
+row counts lag and are not a reliable per-run measure.
+
 "D1" is now 2026-10-25. Days are targets; a failed gate moves later steps.
 
 | Step | What | Who | Owner time | Gate to continue |
 |---|---|---|---|---|
 | R1 ✓ | WEB-050: rehearse D1 Time Travel restore on staging (done 2026-10-25) | Agent | none | Earlier state restored; runbook updated |
-| R2 | WEB-051: commit the volume check, run it on staging | Agent | none | Exact recalculation matches; D1 usage recorded |
+| R2 ✓ | WEB-051: commit the volume check, run it on staging (done 2026-10-25) | Agent | none | Exact recalculation matches; D1 usage recorded |
 | R3 | 7b-5 rehearsal: invitation-only sign-up on the Clerk Development instance still lets an invited person join (then restore the Development settings) | Agent | none | Invited join works; uninvited sign-up refused |
 | R4 | WEB-048: logbook built, tested, deployed to staging; WEB-031 suite rerun; privacy probe | Agent | none | Suite green; logbook rows hold only allowlisted fields |
 | 7b-1 to 7b-4 | Domain in Cloudflare, Clerk Production, DNS records, production publishable key | Owner (parallel with R1–R4) | ~30–40 min | Clerk shows tallywithus.com verified; new session started |

@@ -43,8 +43,10 @@ us" and email on the domain are possible later and not planned. Email records (M
 be added in Cloudflare later without disturbing Clerk's records.
 
 **Next step:** "Remaining roadmap to go-live — 2026-10-25" below the refined pilot
-roadmap. The agent's staging work (R1 to R4) and the owner's steps 7b-1 to 7b-4 run in
-parallel; nothing is built until the owner says to start.
+roadmap. R1, R2, and R4 are done on staging; R3 waits for the owner's choice (a or b, see
+"R3 blocked"). R5 onward waits for the owner's steps 7b-1 to 7b-4 and a new session that
+can see `VITE_CLERK_PUBLISHABLE_KEY_PRODUCTION`. R5 must also create the production
+logbook database `split-ledger-telemetry` and record its id.
 
 **Planning decisions — 2026-10-25.**
 
@@ -1835,7 +1837,9 @@ owner's domain is tallywithus.com.
    production data the agent may read); never print keys. Fictional data
    only on staging; the suite creates and removes its own Clerk users and household.
 5. Follow "Remaining roadmap to go-live — 2026-10-25" (R1 to R12). The owner approved
-   the plan and said start on 2026-10-25; continue from the first step not marked done.
+   the plan and said start on 2026-10-25; continue from the first step not marked done
+   (R1, R2, R4 done; R3 waits for the owner's a/b choice; R5 needs the production
+   publishable key and creates both production databases).
 6. Commit and push per item; update "Current status", the test record, and the backlog.
 ```
 

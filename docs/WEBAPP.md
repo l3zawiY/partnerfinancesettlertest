@@ -48,21 +48,22 @@ go/no-go review.
 
 **Open planning decisions — 2026-10-25 (owner asked for planning only; no code yet).**
 
-- *Pilot observability.* The owner wants error records and a usage/activity log for
-  later analysis and bug fixing, without a new project, free, and private; the partner will
-  probably not paste diagnostic reports, so errors must be captured automatically. Agent
-  proposal awaiting the owner's choices: no outside vendor (session replay or error tools
-  can capture screen content); (a) Workers Logs on the Worker with `invocation_logs`
-  off, one privacy-safe line per unexpected error (Free: 200,000 events a day, 3 days
-  retention, checked 2026-10-25); (b) a fixed allowlist of activity events (event name,
-  role, month, time, row counts, durations; never merchants, amounts, names, emails, or
-  ids) sent by the browser and the Worker to a store kept for the pilot (Workers
-  Analytics Engine or a D1 table); (c) browser crash reports with error type and code
-  location only. Sending private-screen activity names to the Worker changes the privacy
-  boundary ("nothing about private data reaches the Worker") and reading the activity
-  store needs a carve-out from the real-data rule; both are owner decisions. Everything is
-  verified on staging before production: what Cloudflare records automatically, and that
-  no financial content appears.
+- *Pilot observability (revised proposal 2026-10-25, awaiting owner agreement).* Owner
+  constraints: free, limited complexity, comprehensive, no manual owner work; errors must
+  be captured automatically because the partner will probably not paste diagnostics.
+  Proposal: one separate D1 database `split-ledger-telemetry` (never the financial
+  database) holding two kinds of rows, both from a fixed allowlist enforced by the Worker:
+  *errors* (server and browser: time, environment, app version, screen or route, error
+  type, status code, code location, reference code; never message text) and *activity*
+  (time, role, month, event name from a list of about 15, counts and durations only).
+  Never merchants, amounts, names, emails, card labels, or ids. Rows delete themselves
+  after 180 days (free scheduled Worker trigger). No outside vendor; Workers Logs
+  (3-day retention) is not relied on. The agent may read only this database (a carve-out
+  from the real-data rule the owner must approve); a weekly scheduled agent check and one
+  after each month close summarise errors and usage in this document, without financial
+  content. The Rules & Files screen and `docs/PARTNER-GUIDE.md` say what is recorded.
+  Verified on staging first (including a crash whose message contains a fictional merchant
+  must store no message text).
 - *Added to Batch 7b, agent, on staging:* rehearse D1 Time Travel restore (the runbook
   relies on it; not yet rehearsed), and rerun the 200-transactions-a-month volume check
   against staging. The 2026-10-24 volume check was an ad-hoc script, not committed; it must

@@ -143,6 +143,66 @@ suite, and a staging deploy.
 
 *Noticed: 2026-10-24.*
 
+### WEB-048 — Pilot logbook: automatic error and activity records
+
+Owner decision 2026-10-25 (plan in `docs/WEBAPP.md` → "Remaining roadmap to go-live").
+A separate D1 database per hosted environment (`split-ledger-telemetry-staging`,
+`split-ledger-telemetry`), never the financial database. The Worker accepts only rows from
+a fixed allowlist and refuses anything else:
+
+- *errors* from the Worker and both browsers: time, environment, app version, screen or
+  route, error type, status code, code location, reference code; never error message text;
+- *activity*: time, role (coordinator or partner), month, one of about 15 event names,
+  counts and durations only.
+
+Never merchants, amounts, names, emails, card labels, Clerk ids, or request bodies. Rows
+delete themselves after 180 days through a free scheduled Worker trigger. The error message
+a person sees carries the reference code. Rules & Files and `docs/PARTNER-GUIDE.md` say what
+is recorded. Ready-made Cloudflare D1 console queries for the owner go in the operations
+runbook. A weekly scheduled Claude check and one after each month close read only this
+database and write a summary without financial content in `docs/WEBAPP.md`. Done when unit
+tests cover the allowlist and refusals, and on staging the WEB-031 suite plus a deliberate
+browser crash whose message contains a fictional merchant leave rows with no message text,
+merchant, amount, or id.
+
+**Priority:** Must before pilot.
+
+*Noticed: 2026-10-25.*
+
+### WEB-049 — Pilot activity page
+
+A screen inside the app, visible to both participants, that lists the household's logbook
+rows from WEB-048 (newest first, errors and activity, filter by month) with **Download as
+spreadsheet** (CSV). Shows only the logbook's allowlisted fields. Both people see the same
+rows, so the partner can see exactly what is recorded about them.
+
+**Priority:** Should, right after go-live (owner decision 2026-10-25); deploy only after
+October 2026 is closed and its archive exported.
+
+*Noticed: 2026-10-25.*
+
+### WEB-050 — Rehearse D1 Time Travel restore on staging
+
+The runbook relies on D1 Time Travel for database recovery, but it has not been rehearsed.
+On staging: note the current time, create fictional shared records, make a deliberate
+fictional change, restore to the noted time with `wrangler d1 time-travel restore`, and
+confirm the app shows the earlier state. Record the current free-plan retention and the
+exact commands in the runbook.
+
+**Priority:** Must before pilot.
+
+*Noticed: 2026-10-25.*
+
+### WEB-051 — Commit the volume check and run it on staging
+
+The 2026-10-24 volume check (200 fictional transactions a month for each person over three
+months) was an uncommitted script. Add it to `webapp/e2e/` with the same exact-integer
+recalculation, run it against staging, and record timings and D1 usage.
+
+**Priority:** Must before pilot.
+
+*Noticed: 2026-10-25.*
+
 ### WEB-036 — Email nudges between the two participants
 
 Notify the other person by email when someone submits, and the coordinator when both

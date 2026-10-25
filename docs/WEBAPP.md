@@ -42,32 +42,16 @@ leaving the bare domain free for a possible public page; renaming the app to "Ta
 us" and email on the domain are possible later and not planned. Email records (MX, SPF) can
 be added in Cloudflare later without disturbing Clerk's records.
 
-**Next step:** Batch 7b. Owner steps 7b-1 (add tallywithus.com to Cloudflare and switch
-its nameservers) to 7b-4, then the agent's production steps, the spot-check 7b-6, and the
-go/no-go review.
+**Next step:** "Remaining roadmap to go-live — 2026-10-25" below the refined pilot
+roadmap. The agent's staging work (R1 to R4) and the owner's steps 7b-1 to 7b-4 run in
+parallel; nothing is built until the owner says to start.
 
-**Open planning decisions — 2026-10-25 (owner asked for planning only; no code yet).**
+**Planning decisions — 2026-10-25.**
 
-- *Pilot observability (revised proposal 2026-10-25, awaiting owner agreement).* Owner
-  constraints: free, limited complexity, comprehensive, no manual owner work; errors must
-  be captured automatically because the partner will probably not paste diagnostics.
-  Proposal: one separate D1 database `split-ledger-telemetry` (never the financial
-  database) holding two kinds of rows, both from a fixed allowlist enforced by the Worker:
-  *errors* (server and browser: time, environment, app version, screen or route, error
-  type, status code, code location, reference code; never message text) and *activity*
-  (time, role, month, event name from a list of about 15, counts and durations only).
-  Never merchants, amounts, names, emails, card labels, or ids. Rows delete themselves
-  after 180 days (free scheduled Worker trigger). No outside vendor; Workers Logs
-  (3-day retention) is not relied on. The agent may read only this database (a carve-out
-  from the real-data rule the owner must approve); a weekly scheduled agent check and one
-  after each month close summarise errors and usage in this document, without financial
-  content. The Rules & Files screen and `docs/PARTNER-GUIDE.md` say what is recorded.
-  Verified on staging first (including a crash whose message contains a fictional merchant
-  must store no message text).
-- *Added to Batch 7b, agent, on staging:* rehearse D1 Time Travel restore (the runbook
-  relies on it; not yet rehearsed), and rerun the 200-transactions-a-month volume check
-  against staging. The 2026-10-24 volume check was an ad-hoc script, not committed; it must
-  be rewritten or added to `webapp/e2e/`.
+- *Pilot observability:* **decided 2026-10-25**, see "Remaining roadmap to go-live" and
+  WEB-048 and WEB-049.
+- *Added to Batch 7b:* WEB-050 (D1 Time Travel rehearsal) and WEB-051 (committed volume
+  check on staging).
 - *Where transactions live:* each person's complete private ledger exists only in their
   browser (one draft per month) and in the **Download private session** files they keep;
   D1 and the closed archive hold only the allowlisted shared projection. Keeping every
@@ -344,6 +328,11 @@ paste, complete ledgers, private items, Amazon context, categorization rules, an
 drafts must stay in the browser. Do not add analytics, telemetry, advertising trackers, or
 server logs containing financial values.
 
+**Exception approved 2026-10-25 (WEB-048):** the pilot logbook may receive error records and
+activity event names with counts and durations from a fixed allowlist, stored in its own
+database and deleted after 180 days. It never contains financial values, merchants, names,
+emails, card labels, ids, or error message text. No third-party analytics or trackers.
+
 This is not a rewrite-for-its-own-sake, a multi-developer architecture, a mobile app, a
 subscription business, or an immediate replacement for v1. The experiment must preserve
 portable exports and a practical route back to the static version.
@@ -489,10 +478,48 @@ gate moves every later step.
 
 **Real-data rule for the agent (pilot and later).** The agent never opens, queries, exports,
 or asks for production shared records, real statements, archives, or screenshots of real
-data. Production support uses only status codes, Cloudflare/D1 operational counts, and the
+data. Carve-out approved 2026-10-25: the agent may read the logbook database
+(`split-ledger-telemetry`, WEB-048) and nothing else in production. Production support uses only status codes, Cloudflare/D1 operational counts, and the
 privacy-safe diagnostic from WEB-030 that a participant chooses to paste. Any production
 database command that reads rows is forbidden; migrations are applied only after a staging
 rehearsal of the same files.
+
+### Remaining roadmap to go-live — 2026-10-25 (owner-approved)
+
+**Owner decisions recorded 2026-10-25.** The owner agreed the pilot logbook plan and
+confirmed it ("yes, I'm sure"):
+
+1. A separate logbook database records errors (Worker and both browsers) and about 15
+   kinds of activity, with a fixed allowlist and 180-day automatic deletion (WEB-048).
+2. The privacy boundary changes in one way: the Worker learns *that* and *how long*
+   (event names, counts, durations), never *what* (see the privacy boundary section).
+3. The partner is told: the app and `docs/PARTNER-GUIDE.md` say what is recorded, and the
+   owner tells the partner.
+4. The real-data rule gets one carve-out: the agent may read the logbook database only,
+   never the financial database.
+5. A weekly scheduled Claude check plus one after each month close summarise the logbook
+   in this document.
+6. The owner sees the logbook through those summaries and the Cloudflare D1 console now,
+   and through the in-app **Pilot activity** page (WEB-049) right after go-live.
+
+"D1" is now 2026-10-25. Days are targets; a failed gate moves later steps.
+
+| Step | What | Who | Owner time | Gate to continue |
+|---|---|---|---|---|
+| R1 | WEB-050: rehearse D1 Time Travel restore on staging | Agent | none | Earlier state restored; runbook updated |
+| R2 | WEB-051: commit the volume check, run it on staging | Agent | none | Exact recalculation matches; D1 usage recorded |
+| R3 | 7b-5 rehearsal: invitation-only sign-up on the Clerk Development instance still lets an invited person join (then restore the Development settings) | Agent | none | Invited join works; uninvited sign-up refused |
+| R4 | WEB-048: logbook built, tested, deployed to staging; WEB-031 suite rerun; privacy probe | Agent | none | Suite green; logbook rows hold only allowlisted fields |
+| 7b-1 to 7b-4 | Domain in Cloudflare, Clerk Production, DNS records, production publishable key | Owner (parallel with R1–R4) | ~30–40 min | Clerk shows tallywithus.com verified; new session started |
+| R5 | Production: create `split-ledger-production` and `split-ledger-telemetry`, migrate, deploy to app.tallywithus.com | Agent | none | Guard passes; deploy names production |
+| R6 | Owner pastes the production `CLERK_SECRET_KEY` in Cloudflare | Owner | ~2 min | Agent sees `/api/me` answer 401 |
+| R7 | Unauthenticated production checks (HTTPS, headers, 401, no console errors, logbook receives a test error) | Agent | none | All pass |
+| R8 | Owner spot-check 7b-6 | Owner + partner | ~15 min each | Same result on both laptops; self-test passes |
+| R9 | 7b-5: restrict sign-up and organization creation in Clerk Production | Owner | ~2 min | Agent confirms the setting from the spot-check accounts' view |
+| R10 | Set up the weekly and after-close scheduled Claude checks | Agent | none | First check runs |
+| R11 | Go/no-go review written; owner decides | Agent writes, owner reads | ~10 min | Owner says go |
+| Go-live | Pilot month 1: October 2026, settled in early November (Batch 7c) | Owner + partner | normal | Month closes |
+| R12 | WEB-049 Pilot activity page, after October is closed and archived | Agent | none | Both people see the same rows; CSV downloads |
 
 ### Batch 6h — Pre-pilot hardening (done and verified locally 2026-10-24)
 
@@ -1675,6 +1702,7 @@ rolls back that file; stop and investigate before retrying.
 | Clerk Production: Organizations on, sign-up invitation-only after both accounts exist, members cannot create organizations | owner confirmation | |
 | Owner spot-check 7b-6 passed on both laptops, self-test passed on both, fictional data wiped | owner's two diagnostics | |
 | v1 fallback drill passed | test record | |
+| Logbook (WEB-048) on staging and production holds only allowlisted fields; D1 Time Travel restore rehearsed (WEB-050); volume check on staging (WEB-051) | test record and runbook | |
 | Real-data rule for the agent acknowledged | this document | |
 
 Decision: **go** / **no-go**, date, and what would have to change for a no-go to become go.
@@ -1729,15 +1757,17 @@ owner's domain is tallywithus.com.
    run npx wrangler whoami, and check whether tallywithus.com is an active zone. Production
    is app.tallywithus.com (already in wrangler.jsonc). Ask the owner for 7b-1 to 7b-4 if
    not done.
-3. Batch 7b agent steps: verify 7b-5's restricted sign-up plus invitation on staging first,
-   create split-ledger-production, set its id and the custom domain in the production
+3. Batch 7b agent steps, R1 to R4 on staging first (Time Travel rehearsal, volume check,
+   7b-5 restricted sign-up plus invitation, the WEB-048 logbook); then create
+   split-ledger-production, set its id and the custom domain in the production
    block of webapp/wrangler.jsonc, CONFIRM_PRODUCTION=yes npm run db:migrate:production and
    deploy:production, have the owner paste the production secret (7b-4), run the
    unauthenticated production checks, then the owner spot-check 7b-6 and the go/no-go.
-4. Never read production shared records or real data; never print keys. Fictional data
+4. Never read production shared records or real data (the logbook database is the only
+   production data the agent may read); never print keys. Fictional data
    only on staging; the suite creates and removes its own Clerk users and household.
-5. Read "Open planning decisions — 2026-10-25" under Current status; do not build pilot
-   observability until the owner has chosen.
+5. Follow "Remaining roadmap to go-live — 2026-10-25" (R1 to R12). The owner approved
+   the plan but asked to be told before building starts; confirm the owner said to start.
 6. Commit and push per item; update "Current status", the test record, and the backlog.
 ```
 

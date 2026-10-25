@@ -6,7 +6,8 @@ removed and recorded in `docs/WEBAPP.md`; stable ids are never reused.
 
 Batch 6h items (WEB-022 to WEB-035) were completed on 2026-10-24 and are recorded in
 `docs/WEBAPP.md`. WEB-010, WEB-012, WEB-013, and WEB-020 closed on 2026-10-25 when the WEB-031
-suite passed on staging (Batch 7a in `docs/WEBAPP.md`). Every item carries a **Priority** line: **Must before pilot** (blocks real data, per the
+suite passed on staging (Batch 7a in `docs/WEBAPP.md`). WEB-050 (Time Travel rehearsal) closed
+on 2026-10-25 (R1 in `docs/WEBAPP.md`). Every item carries a **Priority** line: **Must before pilot** (blocks real data, per the
 refined pilot roadmap of 2026-10-24 in `docs/WEBAPP.md`), **Should** (scheduled but not
 blocking), or **Later**. Batch 7b's go/no-go requires no open Must item.
 
@@ -178,18 +179,6 @@ rows, so the partner can see exactly what is recorded about them.
 
 **Priority:** Should, right after go-live (owner decision 2026-10-25); deploy only after
 October 2026 is closed and its archive exported.
-
-*Noticed: 2026-10-25.*
-
-### WEB-050 — Rehearse D1 Time Travel restore on staging
-
-The runbook relies on D1 Time Travel for database recovery, but it has not been rehearsed.
-On staging: note the current time, create fictional shared records, make a deliberate
-fictional change, restore to the noted time with `wrangler d1 time-travel restore`, and
-confirm the app shows the earlier state. Record the current free-plan retention and the
-exact commands in the runbook.
-
-**Priority:** Must before pilot.
 
 *Noticed: 2026-10-25.*
 

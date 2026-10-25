@@ -504,11 +504,19 @@ confirmed it ("yes, I'm sure"):
 
 The owner said **start** on 2026-10-25; R1 to R4 began that day.
 
+**R1 done 2026-10-25 (WEB-050).** On staging: baseline counts (3 fictional households, 6
+periods, 6 events, 3 pairings) and a Time Travel bookmark were taken; a full WEB-031 run
+(14/14 passing) added a household; `time-travel restore --bookmark` returned exactly the
+baseline counts in 3 s and the API kept answering 401 signed out; restoring the printed
+undo bookmark brought back the newer state (4, 8, 8, 4). Finding: Wrangler auto-confirms
+the restore in a non-interactive shell, so the runbook requires the owner's explicit
+approval for any production restore.
+
 "D1" is now 2026-10-25. Days are targets; a failed gate moves later steps.
 
 | Step | What | Who | Owner time | Gate to continue |
 |---|---|---|---|---|
-| R1 | WEB-050: rehearse D1 Time Travel restore on staging | Agent | none | Earlier state restored; runbook updated |
+| R1 ✓ | WEB-050: rehearse D1 Time Travel restore on staging (done 2026-10-25) | Agent | none | Earlier state restored; runbook updated |
 | R2 | WEB-051: commit the volume check, run it on staging | Agent | none | Exact recalculation matches; D1 usage recorded |
 | R3 | 7b-5 rehearsal: invitation-only sign-up on the Clerk Development instance still lets an invited person join (then restore the Development settings) | Agent | none | Invited join works; uninvited sign-up refused |
 | R4 | WEB-048: logbook built, tested, deployed to staging; WEB-031 suite rerun; privacy probe | Agent | none | Suite green; logbook rows hold only allowlisted fields |
@@ -1684,10 +1692,15 @@ Commands run from `webapp/`; every hosted command goes through `scripts/deploy-g
 | Roll back the app | `npx wrangler deployments list --env staging`, then `npx wrangler rollback <previous version id> --env staging -m "reason"` (rehearsed 2026-10-25), or Cloudflare → Workers & Pages → the Worker → **Deployments** → previous version → **Rollback** | same with `--env production` |
 | Export shared archives | Coordinator: Rules & Files → **Download closed shared archives** | same, before every deploy and migration |
 | Restore shared archives | Coordinator: Rules & Files → **Restore closed shared archives** | same |
-| Database recovery | D1 Time Travel to a point before the incident (check the current retention first) | same; then compare with the latest exported archives |
+| Database recovery | `npx wrangler d1 time-travel info split-ledger-staging --env staging --timestamp <RFC3339 time before the incident>` for the bookmark, then `npx wrangler d1 time-travel restore split-ledger-staging --env staging --bookmark <bookmark>`; keep the undo bookmark it prints (rehearsed 2026-10-25, 3 s) | same with `split-ledger-production --env production`, **only with the owner's explicit approval for that restore**, because Wrangler does not ask for confirmation in a non-interactive shell; then compare with the latest exported archives |
 | Rotate the Clerk secret | Clerk → API keys → roll; then `wrangler secret put CLERK_SECRET_KEY --env staging` | Clerk Production → API keys → roll; owner pastes the new value in Cloudflare → Worker → Settings → Variables and Secrets |
 | Revoke a lost laptop | Clerk → Users → the person → sessions → revoke; the person deletes the private draft on any laptop they still have | same |
 | Incident note | UTC time, environment, route, status code, diagnostic report if offered. Never tokens, ids, bodies, merchants, or amounts | same |
+
+D1 Time Travel keeps 7 days on Workers Free (30 on Paid; checked 2026-10-25). A restore
+overwrites the whole database in place and cancels in-flight requests; it does not touch
+the logbook database or anyone's private browser draft. Restoring by timestamp always maps
+to the same bookmark, and every restore prints an undo bookmark.
 
 A code rollback never reverses a database migration; migrations only add, so the previous
 app version keeps working against the newer schema. If a migration itself fails, Wrangler

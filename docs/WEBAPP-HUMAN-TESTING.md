@@ -492,6 +492,13 @@ scenarios, 20 checks, all passing, console clean. Three months of 200 fictional 
 each per person; every archive matched an exact integer-cent recalculation (316, 318, and
 314 shared items). Timings and storage are in `docs/WEBAPP.md` (R2).
 
+### Logbook on fictional staging — 2026-10-25 (agent runs, hosted)
+
+`webapp/e2e/logbook-probe.mjs` passed 6/6 (deliberate crashes with fictional merchant,
+amount, and email text were recorded by type and screen only). The WEB-031 suite then
+passed 14 scenarios and 73 checks on the logbook build, console clean, and its 41 logbook
+rows held only allowlisted fields. Details in `docs/WEBAPP.md` (R4).
+
 ## 2. Safety and preparation
 
 ### What physically runs where

@@ -30,7 +30,7 @@ The first hosted runs found three defects, each fixed with its own commit:
 The final run passed 14 scenarios and 73 checks with no console errors. Export, deletion,
 and restore of closed archives passed on staging (HC-10). A rollback to the previous
 Worker version and back was rehearsed. Gate after Batch 7a: 109 pure/Worker tests and 44
-browser-like tests, four type checks, build, 81/81 legacy assertions.
+browser-like tests, four type checks, build, 81/81 legacy assertions (123 and 47 after R4).
 
 Backlog: WEB-010, WEB-012, WEB-013, and WEB-020 closed (their closing condition was the
 WEB-031 suite on staging). WEB-005 and WEB-019 still wait on the owner spot-check 7b-6.
@@ -521,14 +521,43 @@ grew about 105 KB a month after the first month (WEB-045). The staging database 
 176 KB to 936 KB for the three months, far inside the 5 GB free storage; Cloudflare's 24-hour
 row counts lag and are not a reliable per-run measure.
 
+**R3 blocked 2026-10-25.** Switching the Clerk Development instance to invitation-only
+needs the Clerk dashboard or the Clerk command-line tool signed in to the owner's Clerk
+account; the secret key cannot change sign-up mode (`clerk config` refused: the CLI
+treated the key as an unclaimed application). It wrote nothing locally. Clerk's
+documentation (checked 2026-10-25) lists application invitations, enterprise connections,
+and manual user creation as the ways in under Invite-only and does not mention
+organization invitations. Impact is limited because 7b-5 locks sign-up only after both
+people have accounts (R8 before R9); it matters again only for partner replacement
+(WEB-043). Options for the owner: (a) toggle Development to Invite-only for about 10
+minutes while the agent reruns the suite, then back; (b) skip the rehearsal and confirm in
+R9 that both accounts still sign in after locking.
+
+**R4 done 2026-10-25 (WEB-048).** Commits `cc77f2b` (logbook) and the staging logbook id.
+Staging logbook database `split-ledger-telemetry-staging`, id
+`6b9bcb10-2668-4d32-b348-812543979ee0`, migration `0001_logbook.sql` applied; Worker
+version `aca67310-b074-4999-8754-ddcc7e35e3e8` with a daily `17 3 * * *` cleanup schedule
+and `DEPLOYMENT=staging`. The new `webapp/e2e/logbook-probe.mjs` passed (6/6): two
+deliberate crashes carrying a fictional merchant, amount, and email were recorded as
+`TypeError` and `RangeError` on the pairing screen with the coordinator role, and no row
+contained any of that text, an id, or an amount. The WEB-031 suite then passed 14/14 and
+left 41 logbook rows: imports, review submissions with times, Apply to group, session
+download and load, submit, replace, withdraw, close, export, restore, and deletion, each
+with the right role; none contained fictional names, "@", "$", or ids. Gate: 123
+pure/Worker tests and 47 browser-like tests, four type checks, build, 81/81 legacy
+assertions. Found while deploying: the Cloudflare build copies `.env.local` into the
+ignored local file `dist/split_ledger_webapp/.dev.vars` for previews; it is not uploaded
+(`wrangler secret list --env staging` shows only the stored `CLERK_SECRET_KEY`), and the
+same check is part of R7 for production.
+
 "D1" is now 2026-10-25. Days are targets; a failed gate moves later steps.
 
 | Step | What | Who | Owner time | Gate to continue |
 |---|---|---|---|---|
 | R1 ✓ | WEB-050: rehearse D1 Time Travel restore on staging (done 2026-10-25) | Agent | none | Earlier state restored; runbook updated |
 | R2 ✓ | WEB-051: commit the volume check, run it on staging (done 2026-10-25) | Agent | none | Exact recalculation matches; D1 usage recorded |
-| R3 | 7b-5 rehearsal: invitation-only sign-up on the Clerk Development instance still lets an invited person join (then restore the Development settings) | Agent | none | Invited join works; uninvited sign-up refused |
-| R4 | WEB-048: logbook built, tested, deployed to staging; WEB-031 suite rerun; privacy probe | Agent | none | Suite green; logbook rows hold only allowlisted fields |
+| R3 (blocked) | 7b-5 rehearsal: invitation-only sign-up on the Clerk Development instance still lets an invited person join (then restore the Development settings) | Agent | none | Invited join works; uninvited sign-up refused |
+| R4 ✓ | WEB-048: logbook built, tested, deployed to staging; WEB-031 suite rerun; privacy probe (done 2026-10-25) | Agent | none | Suite green; logbook rows hold only allowlisted fields |
 | 7b-1 to 7b-4 | Domain in Cloudflare, Clerk Production, DNS records, production publishable key | Owner (parallel with R1–R4) | ~30–40 min | Clerk shows tallywithus.com verified; new session started |
 | R5 | Production: create `split-ledger-production` and `split-ledger-telemetry`, migrate, deploy to app.tallywithus.com | Agent | none | Guard passes; deploy names production |
 | R6 | Owner pastes the production `CLERK_SECRET_KEY` in Cloudflare | Owner | ~2 min | Agent sees `/api/me` answer 401 |
@@ -1704,7 +1733,22 @@ Commands run from `webapp/`; every hosted command goes through `scripts/deploy-g
 | Database recovery | `npx wrangler d1 time-travel info split-ledger-staging --env staging --timestamp <RFC3339 time before the incident>` for the bookmark, then `npx wrangler d1 time-travel restore split-ledger-staging --env staging --bookmark <bookmark>`; keep the undo bookmark it prints (rehearsed 2026-10-25, 3 s) | same with `split-ledger-production --env production`, **only with the owner's explicit approval for that restore**, because Wrangler does not ask for confirmation in a non-interactive shell; then compare with the latest exported archives |
 | Rotate the Clerk secret | Clerk → API keys → roll; then `wrangler secret put CLERK_SECRET_KEY --env staging` | Clerk Production → API keys → roll; owner pastes the new value in Cloudflare → Worker → Settings → Variables and Secrets |
 | Revoke a lost laptop | Clerk → Users → the person → sessions → revoke; the person deletes the private draft on any laptop they still have | same |
-| Incident note | UTC time, environment, route, status code, diagnostic report if offered. Never tokens, ids, bodies, merchants, or amounts | same |
+| Incident note | UTC time, environment, route, status code, logbook reference, diagnostic report if offered. Never tokens, ids, bodies, merchants, or amounts | same |
+| Read the logbook | `npx wrangler d1 execute split-ledger-telemetry-staging --remote --env staging --command "<query>"` | Owner: Cloudflare → Storage & Databases → D1 → `split-ledger-telemetry` → Console, paste a query below. Agent: same command with `split-ledger-telemetry --env production` (the only production data the agent may read) |
+| Apply logbook changes | included in `npm run db:migrate:staging` | included in `db:migrate:production` |
+
+**Ready-made logbook queries** (paste one into the D1 console; times are UTC):
+
+```sql
+-- Every error in the last 7 days
+SELECT at, source, event, screen, route, status, error_type, code_location, reference FROM logbook WHERE kind = 'error' AND at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-7 days') ORDER BY at DESC;
+-- Everything recorded for one month, in order
+SELECT at, role, event, count, duration_seconds FROM logbook WHERE month = '2026-10' ORDER BY at;
+-- Approximate minutes to submit and rows, per person and month
+SELECT month, role, ROUND(SUM(duration_seconds) / 60.0) AS minutes, MAX(count) AS rows FROM logbook WHERE event = 'review_submitted' GROUP BY month, role;
+-- How often each thing happened in the last 30 days
+SELECT event, role, COUNT(*) AS times FROM logbook WHERE at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-30 days') GROUP BY event, role ORDER BY times DESC;
+```
 
 D1 Time Travel keeps 7 days on Workers Free (30 on Paid; checked 2026-10-25). A restore
 overwrites the whole database in place and cancels in-flight requests; it does not touch

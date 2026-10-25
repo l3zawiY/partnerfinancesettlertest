@@ -201,6 +201,41 @@ The same exclusions as v1 apply, plus aliases, household name, email addresses, 
 ids. Unknown values for deployment or status are replaced by `unknown` or `other` rather
 than echoed.
 
+## Pilot logbook — web app only (WEB-048)
+
+A separate D1 database per hosted environment (`split-ledger-telemetry-staging`,
+`split-ledger-telemetry`; locally `split-ledger-logbook`), schema in
+`webapp/logbook-migrations/0001_logbook.sql`, allowlist in `webapp/shared/logbook.ts`. It
+never holds financial data and is not part of any export.
+
+**Row (table `logbook`).** `at` (ISO time), `environment` (local, staging, production),
+`source` (`browser` or `worker`), `kind` (`error` or `activity`), `event` (from the lists
+below), `household_ref` (first 16 hex digits of SHA-256 of `split-ledger-logbook:` plus the
+Clerk organization id; never the id itself), `role` (`coordinator`, `partner`, or null,
+read by the Worker from the pairing), `month` (`YYYY-MM` or null), `screen`, `route` (API
+path with the month replaced by `:month`), `status`, `error_type` (an identifier such as
+`TypeError`), `code_location` (`file:line:column`, file name only), `reference` (8
+characters, also shown in the 5xx message), `app_version` (short commit id), `count`,
+`duration_seconds`. Rows older than 180 days are deleted by a daily schedule.
+
+**Browser request.** `POST /api/logbook` with a Clerk session and
+`{ "events": [ ... ] }`, 1 to 20 events, 204 on success. Each event has `event` and only
+the optional keys `month`, `screen`, `appVersion`, and for its event `count`,
+`durationSeconds`, `errorType`, `codeLocation`, each matching a fixed pattern; any other key
+or value refuses the whole request with 400. At most 500 browser events per household role
+per UTC day are stored.
+
+| Event | Source | Fields |
+|---|---|---|
+| `statement_imported` | browser | month, count (rows added) |
+| `review_submitted` | browser | month, count (rows in the month), durationSeconds (since this page first opened Import or Review for the month) |
+| `groups_applied` | browser | month, count (Apply to group clicks since the last submission) |
+| `self_test_run` | browser | count (failed checks) |
+| `diagnostic_copied`, `session_downloaded`, `session_loaded`, `private_draft_deleted` | browser | month where known |
+| `browser_error` | browser | screen, errorType, codeLocation |
+| `household_initialized`, `partner_invited`, `partner_joined`, `submitted`, `replaced`, `withdrew`, `month_closed`, `archives_exported`, `archives_restored`, `history_deleted`, `period_cancelled` | worker | month for monthly routes; route; status |
+| `server_error` | worker | route, status, error type, code location for thrown errors, reference |
+
 ## Internal transaction shape
 
 ```js

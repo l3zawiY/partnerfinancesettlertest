@@ -123,7 +123,7 @@ coordinator-only deletion tokens, cross-tab draft adoption, Apply to group, the 
 month in two time zones, the your-turn message, the backup reminder, environment labels,
 security headers, plain storage messages, the in-browser self-test (`shared/selfTest.ts`,
 v1's T assertions on v1's own fictional statements), and the safe diagnostic. After Batch
-6h the gate reports 109 pure/Worker tests and 43 browser-like tests; after Batch 7a, 109 and 44.
+6h the gate reports 109 pure/Worker tests and 43 browser-like tests; after Batch 7a, 109 and 44; after the logbook (WEB-048), 123 and 47.
 
 ### Two-account acceptance suite (WEB-031)
 
@@ -158,6 +158,18 @@ safety rules and evidence folder as the WEB-031 suite; not part of `npm run chec
 
 ```bash
 CLERK_SECRET_KEY=sk_test_... node e2e/volume.mjs --base https://split-ledger-staging.hydrapeak8.workers.dev
+```
+
+### Logbook privacy probe (WEB-048)
+
+`webapp/e2e/logbook-probe.mjs` signs in a fresh fictional user, sets up a household, and
+throws an uncaught error and an unhandled rejection whose messages contain a fictional
+merchant, amount, and email. It then reads the logbook rows of the run (local D1, or the
+staging logbook through Wrangler, so it needs the Cloudflare environment values) and fails
+if the errors are missing or any row contains that text, an id, or an amount.
+
+```bash
+CLERK_SECRET_KEY=sk_test_... node e2e/logbook-probe.mjs --base https://split-ledger-staging.hydrapeak8.workers.dev
 ```
 
 ## Release smoke test

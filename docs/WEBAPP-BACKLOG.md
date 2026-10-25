@@ -166,6 +166,11 @@ tests cover the allowlist and refusals, and on staging the WEB-031 suite plus a 
 browser crash whose message contains a fictional merchant leave rows with no message text,
 merchant, amount, or id.
 
+**Status 2026-10-25:** built and verified on staging (R4 in `docs/WEBAPP.md`): unit tests,
+the logbook privacy probe, and the WEB-031 suite. Remaining: the production logbook
+database and deploy (R5), a production test error (R7), and the weekly and after-close
+scheduled checks (R10).
+
 **Priority:** Must before pilot.
 
 *Noticed: 2026-10-25.*

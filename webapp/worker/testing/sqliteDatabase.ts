@@ -27,6 +27,11 @@ const MIGRATIONS = [
   fileURLToPath(new URL('../../migrations/0006_partner_invitation.sql', import.meta.url)),
 ]
 
+/** The separate pilot logbook database (WEB-048). */
+export const LOGBOOK_MIGRATIONS = [
+  fileURLToPath(new URL('../../logbook-migrations/0001_logbook.sql', import.meta.url)),
+]
+
 class SqliteStatement implements SqlStatement {
   constructor(
     private readonly database: DatabaseSync,
@@ -85,22 +90,23 @@ export interface TestDatabase extends SqlDatabase {
   applyPendingMigrations(): void
 }
 
-export function createTestDatabase(options: { stopAfterMigration?: number } = {}): TestDatabase {
+export function createTestDatabase(options: { stopAfterMigration?: number; migrations?: string[] } = {}): TestDatabase {
+  const migrations = options.migrations ?? MIGRATIONS
   const database = new DatabaseSync(':memory:')
   let failureIndex: number | null = null
   let applied = 0
 
   function applyMigrationsUpTo(count: number): void {
-    for (const migration of MIGRATIONS.slice(applied, count)) {
+    for (const migration of migrations.slice(applied, count)) {
       database.exec(readFileSync(migration, 'utf8'))
     }
-    applied = Math.max(applied, Math.min(count, MIGRATIONS.length))
+    applied = Math.max(applied, Math.min(count, migrations.length))
   }
 
   // D1 enforces foreign keys; plain SQLite does not unless asked. Matching D1 here keeps
   // the test honest about the constraint in the migrations.
   database.exec('PRAGMA foreign_keys = ON')
-  applyMigrationsUpTo(options.stopAfterMigration ?? MIGRATIONS.length)
+  applyMigrationsUpTo(options.stopAfterMigration ?? migrations.length)
 
   return {
     prepare(query: string) {
@@ -163,7 +169,7 @@ export function createTestDatabase(options: { stopAfterMigration?: number } = {}
       failureIndex = index
     },
     applyPendingMigrations() {
-      applyMigrationsUpTo(MIGRATIONS.length)
+      applyMigrationsUpTo(migrations.length)
     },
   }
 }

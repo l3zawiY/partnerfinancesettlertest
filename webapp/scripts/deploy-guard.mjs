@@ -12,8 +12,11 @@ const text = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')
 const config = JSON.parse(text)
 const environment = config.env?.[target]
 if (!environment) problems.push('wrangler.jsonc has no "' + target + '" environment.')
-const database = environment?.d1_databases?.[0]
-if (database && /NOT-SET|placeholder/i.test(database.database_id)) problems.push('The ' + target + ' database id is still a placeholder. Create the database and record its id first.')
+const databases = environment?.d1_databases || []
+const database = databases.find(function (entry) { return entry.binding === 'DB' })
+for (const entry of databases) if (/NOT-SET|placeholder/i.test(entry.database_id)) problems.push('The ' + target + ' ' + entry.binding + ' database id (' + entry.database_name + ') is still a placeholder. Create the database and record its id first.')
+if (!databases.some(function (entry) { return entry.binding === 'LOGBOOK' })) problems.push('The ' + target + ' environment has no LOGBOOK database (WEB-048).')
+if (new Set(databases.map(function (entry) { return entry.database_name })).size !== databases.length) problems.push('The ' + target + ' financial and logbook databases must be separate.')
 if (target === 'production' && (environment?.routes || []).some((route) => /NOT-SET|\.invalid$/i.test(route.pattern))) problems.push('The production domain is still a placeholder.')
 if (target === 'production' && environment?.workers_dev !== false) problems.push('Production must not have a workers.dev address.')
 

@@ -8,6 +8,7 @@ import { ApiPairingGateway } from './pairing/ApiPairingGateway'
 import { useClerkInvitations } from './useClerkInvitations'
 import Workspace from './Workspace'
 import { environmentLabels } from './environment'
+import { configureLogbook, setLogbookScreen } from './logbook'
 import { ApiWorkflowGateway } from './workflow/ApiWorkflowGateway'
 
 type Connection = 'checking' | 'ready' | 'no-household' | 'error'
@@ -72,6 +73,14 @@ function SignedInApplication() {
   }, [connection, pairingGateway, runPairing])
 
   const pairedParticipant = pairing?.state === 'paired' && pairing.viewer.kind === 'participant' ? pairing : null
+
+  // The pilot logbook sends only while this signed-in session can reach the Worker.
+  useEffect(function () {
+    if (connection !== 'ready') return
+    configureLogbook(getToken)
+    return function () { configureLogbook(null) }
+  }, [connection, getToken])
+  useEffect(function () { if (!pairedParticipant) setLogbookScreen('pairing') }, [pairedParticipant])
 
   return <>
     <div className="account-bar"><div className="account-inner"><span className="experiment-label">{environmentLabels().banner}</span><span className="account-spacer" /><div className="account"><span>{accountStatus(connection, pairing)}</span><OrganizationSwitcher hidePersonal /><UserButton /></div></div></div>

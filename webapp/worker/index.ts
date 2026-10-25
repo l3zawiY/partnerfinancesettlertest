@@ -11,11 +11,14 @@ import type {
 } from '../shared/api'
 import { isWorkflowCancelRequest, isWorkflowDeleteRequest, isWorkflowMutationRequest, isWorkflowRestoreRequest, isWorkflowSubmissionRequest } from '../shared/api'
 import { isInitializeHouseholdRequest, isJoinHouseholdRequest, isPartnerInvitationRequest, type HouseholdPairingResponse } from '../shared/pairing'
+import { APP_VERSION } from '../shared/appVersion'
+import { codeLocation, errorType, routePattern, type LogbookRow } from '../shared/logbook'
 import {
   clerkDirectory,
   type ClerkDirectory,
   type ClerkEnvironment,
   type IdentityVerifier,
+  type VerifiedIdentity,
   verifyClerkIdentity,
 } from './auth'
 import {
@@ -48,6 +51,7 @@ import {
   WorkflowForbiddenError,
   type WorkflowActor,
 } from './workflow'
+import { browserAllowanceLeft, deleteExpired, householdRef, insertRows, participantRole, readBrowserEvents, returnedErrorType, serverActivity } from './logbook'
 
 interface AssetBinding {
   fetch(request: Request): Promise<Response>
@@ -60,7 +64,13 @@ export interface WorkerEnvironment extends ClerkEnvironment {
    * `D1Database`, so tests can supply a plain SQLite database that behaves the same.
    */
   DB: SqlDatabase
+  /** The separate pilot logbook database (WEB-048); absent where no logbook is configured. */
+  LOGBOOK?: SqlDatabase
+  /** local, staging, or production; set by the deploy scripts. */
+  DEPLOYMENT?: string
 }
+
+interface WorkerContext { waitUntil(promise: Promise<unknown>): void }
 
 type ApiBody =
   | AuthenticatedIdentityResponse
@@ -109,224 +119,322 @@ export function storageUnavailable(error?: unknown): Response {
 }
 
 export function createWorker(
-  verifyIdentity: IdentityVerifier,
+  verifySession: IdentityVerifier,
   now = function () { return new Date().toISOString() },
   randomId: () => string = function () { return crypto.randomUUID() },
   directory: ClerkDirectory = clerkDirectory,
 ) {
-  return {
-    async fetch(request: Request, environment: WorkerEnvironment): Promise<Response> {
-      const url = new URL(request.url)
+  // One identity check per request, shared by the route and the logbook.
+  const identities = new WeakMap<Request, Promise<VerifiedIdentity | null>>()
+  const verifyIdentity: IdentityVerifier = function (request, environment) {
+    let identity = identities.get(request)
+    if (!identity) { identity = verifySession(request, environment); identities.set(request, identity) }
+    return identity
+  }
 
-      if (url.pathname === '/api/me') {
-        if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405)
+  async function handle(request: Request, environment: WorkerEnvironment): Promise<Response> {
+    const url = new URL(request.url)
 
-        try {
-          const identity = await verifyIdentity(request, environment)
-          if (!identity) return json({ error: 'Authentication required.' }, 401)
+    if (url.pathname === '/api/me') {
+      if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405)
 
-          return json({ authenticated: true, userId: identity.userId })
-        } catch {
-          return json({ error: 'Authentication service unavailable.' }, 503)
-        }
-      }
-
-      if (url.pathname === '/api/household') {
-        if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405)
-
-        let identity
-        try {
-          identity = await verifyIdentity(request, environment)
-        } catch {
-          return json({ error: 'Authentication service unavailable.' }, 503)
-        }
-
-        // Authentication: do we know who this is at all?
+      try {
+        const identity = await verifyIdentity(request, environment)
         if (!identity) return json({ error: 'Authentication required.' }, 401)
 
-        // Authorization: knowing the person is not the same as knowing which household
-        // they may read. Only the verified token can answer that, so a user with no
-        // active organization is refused rather than defaulted into one.
-        if (!identity.householdId) {
-          return json({ error: 'No active household for this session.' }, 403)
+        return json({ authenticated: true, userId: identity.userId })
+      } catch {
+        return json({ error: 'Authentication service unavailable.' }, 503)
+      }
+    }
+
+    if (url.pathname === '/api/household') {
+      if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405)
+
+      let identity
+      try {
+        identity = await verifyIdentity(request, environment)
+      } catch {
+        return json({ error: 'Authentication service unavailable.' }, 503)
+      }
+
+      // Authentication: do we know who this is at all?
+      if (!identity) return json({ error: 'Authentication required.' }, 401)
+
+      // Authorization: knowing the person is not the same as knowing which household
+      // they may read. Only the verified token can answer that, so a user with no
+      // active organization is refused rather than defaulted into one.
+      if (!identity.householdId) {
+        return json({ error: 'No active household for this session.' }, 403)
+      }
+
+      try {
+        const household = await ensureHousehold(
+          environment.DB,
+          identity.householdId,
+          new Date().toISOString(),
+        )
+        const notes = await listHouseholdNotes(environment.DB, identity.householdId)
+
+        return json({
+          householdId: household.householdId,
+          createdAt: household.createdAt,
+          notes,
+        })
+      } catch (error) {
+        return storageUnavailable(error)
+      }
+    }
+
+    // Stable two-person pairing. Authentication proves the person; the active
+    // organization is the tenant; these routes create or read the financial roles.
+    const pairingRoute = url.pathname.match(/^\/api\/household\/pairing(?:\/(initialize|join|partner-invitation))?$/)
+    if (pairingRoute) {
+      let identity
+      try { identity = await verifyIdentity(request, environment) }
+      catch { return json({ error: 'Authentication service unavailable.' }, 503) }
+      if (!identity) return json({ error: 'Authentication required.' }, 401)
+      if (!identity.householdId) return json({ error: 'No active household for this session.' }, 403)
+      const action = pairingRoute[1]
+      if ((action === undefined && request.method !== 'GET') || (action !== undefined && request.method !== 'POST')) return json({ error: 'Method not allowed.' }, 405)
+
+      try {
+        await ensureHousehold(environment.DB, identity.householdId, now())
+        if (action === undefined) {
+          return json({ pairing: await readPairing(environment.DB, identity.householdId, identity.userId, identity.organizationRole) })
         }
-
+        let body: unknown
+        try { body = await readJson(request) }
+        catch (error) { return json({ error: error instanceof Error ? error.message : 'Request body must be JSON.' }, 400) }
+        if (action === 'initialize') {
+          if (!isInitializeHouseholdRequest(body)) return json({ error: 'Household setup is invalid. Provide a short household name and alias with no email address.' }, 400)
+          return json({ pairing: await initializeHousehold({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, organizationRole: identity.organizationRole, householdName: body.householdName, alias: body.alias, now: now() }) })
+        }
+        if (action === 'partner-invitation') {
+          if (!isPartnerInvitationRequest(body)) return json({ error: 'Partner invitation is invalid.' }, 400)
+          let invitation
+          try { invitation = await directory.organizationInvitation(environment, identity.householdId, body.invitationId) }
+          catch { return json({ error: 'Authentication service unavailable.' }, 503) }
+          if (!invitation || invitation.status !== 'pending') return json({ error: 'That invitation is not a pending invitation for this household.' }, 400)
+          return json({ pairing: await recordPartnerInvitation({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, organizationRole: identity.organizationRole, invitationId: body.invitationId, now: now() }) })
+        }
+        if (!isJoinHouseholdRequest(body)) return json({ error: 'Partner join is invalid. Provide a short alias with no email address.' }, 400)
+        const householdId = identity.householdId
+        const userId = identity.userId
         try {
-          const household = await ensureHousehold(
-            environment.DB,
-            identity.householdId,
-            new Date().toISOString(),
-          )
-          const notes = await listHouseholdNotes(environment.DB, identity.householdId)
-
-          return json({
-            householdId: household.householdId,
-            createdAt: household.createdAt,
-            notes,
+          await assertInvitedPartner({
+            database: environment.DB, householdId, userId,
+            invitation: function (invitationId) { return directory.organizationInvitation(environment, householdId, invitationId) },
+            verifiedEmails: function () { return directory.verifiedEmails(environment, userId) },
           })
         } catch (error) {
-          return storageUnavailable(error)
+          if (error instanceof PairingForbiddenError) throw error
+          return json({ error: 'Authentication service unavailable.' }, 503)
         }
+        return json({ pairing: await joinAsPartner({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, organizationRole: identity.organizationRole, alias: body.alias, now: now() }) })
+      } catch (error) {
+        if (error instanceof PairingForbiddenError) return json({ error: error.message }, 403)
+        if (error instanceof PairingConflictError) return json({ error: error.message }, 409)
+        if (error instanceof PairingValidationError) return json({ error: error.message }, 400)
+        return storageUnavailable(error)
       }
+    }
 
-      // Stable two-person pairing. Authentication proves the person; the active
-      // organization is the tenant; these routes create or read the financial roles.
-      const pairingRoute = url.pathname.match(/^\/api\/household\/pairing(?:\/(initialize|join|partner-invitation))?$/)
-      if (pairingRoute) {
-        let identity
-        try { identity = await verifyIdentity(request, environment) }
-        catch { return json({ error: 'Authentication service unavailable.' }, 503) }
-        if (!identity) return json({ error: 'Authentication required.' }, 401)
-        if (!identity.householdId) return json({ error: 'No active household for this session.' }, 403)
-        const action = pairingRoute[1]
-        if ((action === undefined && request.method !== 'GET') || (action !== undefined && request.method !== 'POST')) return json({ error: 'Method not allowed.' }, 405)
+    if (url.pathname === '/api/shared-entries') {
+      return json({ error: 'The Batch 3 shared-entry diagnostic has been retired. Use the period workflow API.' }, 410)
+    }
 
-        try {
-          await ensureHousehold(environment.DB, identity.householdId, now())
-          if (action === undefined) {
-            return json({ pairing: await readPairing(environment.DB, identity.householdId, identity.userId, identity.organizationRole) })
-          }
+    const workflowPeriod = url.pathname.match(/^\/api\/workflows\/(\d{4}-\d{2})$/)
+    const workflowAction = url.pathname.match(/^\/api\/workflows\/(\d{4}-\d{2})\/(submission|close)$/)
+    const workflowAdministration = ['/api/workflows/capabilities', '/api/workflows/export', '/api/workflows/restore', '/api/workflows/cancel-abandoned', '/api/workflows'].includes(url.pathname)
+    if (workflowPeriod || workflowAction || workflowAdministration) {
+      let identity
+      try { identity = await verifyIdentity(request, environment) }
+      catch { return json({ error: 'Authentication service unavailable.' }, 503) }
+      if (!identity) return json({ error: 'Authentication required.' }, 401)
+      if (!identity.householdId) return json({ error: 'No active household for this session.' }, 403)
+
+      try {
+        await ensureHousehold(environment.DB, identity.householdId, now())
+        // Organization membership got the request this far. Shared financial workflow
+        // additionally requires one of the two paired Split Ledger participants, and
+        // every function below acts as that verified participant, never as a raw user id.
+        const me = await requireParticipant(environment.DB, identity.householdId, identity.userId)
+        const actor: WorkflowActor = { me, partner: await pairedCounterpart(environment.DB, identity.householdId, me) }
+        if (workflowPeriod) {
+          if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405)
+          return json({ workflow: await readWorkflow(environment.DB, identity.householdId, actor, workflowPeriod[1]!) })
+        }
+
+        if (workflowAction) {
+          const period = workflowAction[1]!
+          const action = workflowAction[2]!
           let body: unknown
           try { body = await readJson(request) }
           catch (error) { return json({ error: error instanceof Error ? error.message : 'Request body must be JSON.' }, 400) }
-          if (action === 'initialize') {
-            if (!isInitializeHouseholdRequest(body)) return json({ error: 'Household setup is invalid. Provide a short household name and alias with no email address.' }, 400)
-            return json({ pairing: await initializeHousehold({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, organizationRole: identity.organizationRole, householdName: body.householdName, alias: body.alias, now: now() }) })
+          if (action === 'submission' && request.method === 'POST') {
+            if (!isWorkflowSubmissionRequest(body) || body.projection.period !== period || body.expectedVersion !== null) return json({ error: 'Workflow submission is invalid.' }, 400)
+            return json({ workflow: await submitWorkflow({ database: environment.DB, householdId: identity.householdId, actor, projection: body.projection, expectedVersion: body.expectedVersion, requestId: body.requestId, replace: false, now: now(), eventId: randomId() }) })
           }
-          if (action === 'partner-invitation') {
-            if (!isPartnerInvitationRequest(body)) return json({ error: 'Partner invitation is invalid.' }, 400)
-            let invitation
-            try { invitation = await directory.organizationInvitation(environment, identity.householdId, body.invitationId) }
-            catch { return json({ error: 'Authentication service unavailable.' }, 503) }
-            if (!invitation || invitation.status !== 'pending') return json({ error: 'That invitation is not a pending invitation for this household.' }, 400)
-            return json({ pairing: await recordPartnerInvitation({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, organizationRole: identity.organizationRole, invitationId: body.invitationId, now: now() }) })
+          if (action === 'submission' && request.method === 'PUT') {
+            if (!isWorkflowSubmissionRequest(body) || body.projection.period !== period || body.expectedVersion === null) return json({ error: 'Workflow replacement is invalid.' }, 400)
+            return json({ workflow: await submitWorkflow({ database: environment.DB, householdId: identity.householdId, actor, projection: body.projection, expectedVersion: body.expectedVersion, requestId: body.requestId, replace: true, now: now(), eventId: randomId() }) })
           }
-          if (!isJoinHouseholdRequest(body)) return json({ error: 'Partner join is invalid. Provide a short alias with no email address.' }, 400)
-          const householdId = identity.householdId
-          const userId = identity.userId
-          try {
-            await assertInvitedPartner({
-              database: environment.DB, householdId, userId,
-              invitation: function (invitationId) { return directory.organizationInvitation(environment, householdId, invitationId) },
-              verifiedEmails: function () { return directory.verifiedEmails(environment, userId) },
-            })
-          } catch (error) {
-            if (error instanceof PairingForbiddenError) throw error
-            return json({ error: 'Authentication service unavailable.' }, 503)
+          if (action === 'submission' && request.method === 'DELETE') {
+            if (!isWorkflowMutationRequest(body)) return json({ error: 'Workflow withdrawal is invalid.' }, 400)
+            return json({ workflow: await withdrawWorkflow({ database: environment.DB, householdId: identity.householdId, actor, period, expectedVersion: body.expectedVersion, requestId: body.requestId, now: now(), eventId: randomId() }) })
           }
-          return json({ pairing: await joinAsPartner({ database: environment.DB, householdId: identity.householdId, userId: identity.userId, organizationRole: identity.organizationRole, alias: body.alias, now: now() }) })
-        } catch (error) {
-          if (error instanceof PairingForbiddenError) return json({ error: error.message }, 403)
-          if (error instanceof PairingConflictError) return json({ error: error.message }, 409)
-          if (error instanceof PairingValidationError) return json({ error: error.message }, 400)
-          return storageUnavailable(error)
+          if (action === 'close' && request.method === 'POST') {
+            if (!isWorkflowMutationRequest(body)) return json({ error: 'Workflow close is invalid.' }, 400)
+            return json({ workflow: await closeWorkflow({ database: environment.DB, householdId: identity.householdId, actor, period, expectedVersion: body.expectedVersion, requestId: body.requestId, now: now(), eventId: randomId() }) })
+          }
+          return json({ error: 'Method not allowed.' }, 405)
         }
-      }
 
-      if (url.pathname === '/api/shared-entries') {
-        return json({ error: 'The Batch 3 shared-entry diagnostic has been retired. Use the period workflow API.' }, 410)
-      }
-
-      const workflowPeriod = url.pathname.match(/^\/api\/workflows\/(\d{4}-\d{2})$/)
-      const workflowAction = url.pathname.match(/^\/api\/workflows\/(\d{4}-\d{2})\/(submission|close)$/)
-      const workflowAdministration = ['/api/workflows/capabilities', '/api/workflows/export', '/api/workflows/restore', '/api/workflows/cancel-abandoned', '/api/workflows'].includes(url.pathname)
-      if (workflowPeriod || workflowAction || workflowAdministration) {
-        let identity
-        try { identity = await verifyIdentity(request, environment) }
-        catch { return json({ error: 'Authentication service unavailable.' }, 503) }
-        if (!identity) return json({ error: 'Authentication required.' }, 401)
-        if (!identity.householdId) return json({ error: 'No active household for this session.' }, 403)
-
-        try {
-          await ensureHousehold(environment.DB, identity.householdId, now())
-          // Organization membership got the request this far. Shared financial workflow
-          // additionally requires one of the two paired Split Ledger participants, and
-          // every function below acts as that verified participant, never as a raw user id.
-          const me = await requireParticipant(environment.DB, identity.householdId, identity.userId)
-          const actor: WorkflowActor = { me, partner: await pairedCounterpart(environment.DB, identity.householdId, me) }
-          if (workflowPeriod) {
-            if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405)
-            return json({ workflow: await readWorkflow(environment.DB, identity.householdId, actor, workflowPeriod[1]!) })
-          }
-
-          if (workflowAction) {
-            const period = workflowAction[1]!
-            const action = workflowAction[2]!
-            let body: unknown
-            try { body = await readJson(request) }
-            catch (error) { return json({ error: error instanceof Error ? error.message : 'Request body must be JSON.' }, 400) }
-            if (action === 'submission' && request.method === 'POST') {
-              if (!isWorkflowSubmissionRequest(body) || body.projection.period !== period || body.expectedVersion !== null) return json({ error: 'Workflow submission is invalid.' }, 400)
-              return json({ workflow: await submitWorkflow({ database: environment.DB, householdId: identity.householdId, actor, projection: body.projection, expectedVersion: body.expectedVersion, requestId: body.requestId, replace: false, now: now(), eventId: randomId() }) })
-            }
-            if (action === 'submission' && request.method === 'PUT') {
-              if (!isWorkflowSubmissionRequest(body) || body.projection.period !== period || body.expectedVersion === null) return json({ error: 'Workflow replacement is invalid.' }, 400)
-              return json({ workflow: await submitWorkflow({ database: environment.DB, householdId: identity.householdId, actor, projection: body.projection, expectedVersion: body.expectedVersion, requestId: body.requestId, replace: true, now: now(), eventId: randomId() }) })
-            }
-            if (action === 'submission' && request.method === 'DELETE') {
-              if (!isWorkflowMutationRequest(body)) return json({ error: 'Workflow withdrawal is invalid.' }, 400)
-              return json({ workflow: await withdrawWorkflow({ database: environment.DB, householdId: identity.householdId, actor, period, expectedVersion: body.expectedVersion, requestId: body.requestId, now: now(), eventId: randomId() }) })
-            }
-            if (action === 'close' && request.method === 'POST') {
-              if (!isWorkflowMutationRequest(body)) return json({ error: 'Workflow close is invalid.' }, 400)
-              return json({ workflow: await closeWorkflow({ database: environment.DB, householdId: identity.householdId, actor, period, expectedVersion: body.expectedVersion, requestId: body.requestId, now: now(), eventId: randomId() }) })
-            }
-            return json({ error: 'Method not allowed.' }, 405)
-          }
-
-          if (url.pathname === '/api/workflows/export') {
-            if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
-            // Only the coordinator can delete, so only the coordinator's export issues a deletion
-            // token; a partner export can no longer cancel the coordinator's pending one (WEB-025).
-            return json(await exportClosedWorkflows(environment.DB, identity.householdId, now(), me.role === 'coordinator' ? 'delete_' + randomId() : null))
-          }
-          if (url.pathname === '/api/workflows/capabilities') {
-            if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405)
-            return json({ canAdministerSharedHistory: me.role === 'coordinator' })
-          }
-          if (url.pathname === '/api/workflows/restore') {
-            if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
-            if (me.role !== 'coordinator') return json({ error: 'Only the coordinator, ' + (actor.partner && actor.partner.role === 'coordinator' ? actor.partner.alias : 'of this household') + ', can restore, cancel, or delete shared history.' }, 403)
-            let body: unknown
-            try { body = await readJson(request) } catch { return json({ error: 'Request body must be valid JSON.' }, 400) }
-            if (!isWorkflowRestoreRequest(body)) return json({ error: 'Shared archive bundle is invalid.' }, 400)
-            const restoredPeriods = await restoreWorkflowHistory(environment.DB, identity.householdId, actor, body.bundle, now(), randomId)
-            return json({ restoredPeriods })
-          }
-          if (url.pathname === '/api/workflows') {
-            if (request.method !== 'DELETE') return json({ error: 'Method not allowed.' }, 405)
-            if (me.role !== 'coordinator') return json({ error: 'Only the coordinator, ' + (actor.partner && actor.partner.role === 'coordinator' ? actor.partner.alias : 'of this household') + ', can restore, cancel, or delete shared history.' }, 403)
-            let body: unknown
-            try { body = await readJson(request) } catch { return json({ error: 'Request body must be valid JSON.' }, 400) }
-            if (!isWorkflowDeleteRequest(body)) return json({ error: 'Shared-history deletion confirmation is invalid.' }, 400)
-            return json({ deletedPeriods: await deleteWorkflowHistory(environment.DB, identity.householdId, body.deletionToken, now()) })
-          }
-          if (url.pathname === '/api/workflows/cancel-abandoned') {
-            if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
-            if (me.role !== 'coordinator') return json({ error: 'Only the coordinator, ' + (actor.partner && actor.partner.role === 'coordinator' ? actor.partner.alias : 'of this household') + ', can restore, cancel, or delete shared history.' }, 403)
-            let body: unknown
-            try { body = await readJson(request) } catch { return json({ error: 'Request body must be valid JSON.' }, 400) }
-            if (!isWorkflowCancelRequest(body)) return json({ error: 'Abandoned-period cancellation confirmation is invalid.' }, 400)
-            await cancelAbandonedWorkflow(environment.DB, identity.householdId, body.period)
-            return json({ cancelledPeriod: body.period })
-          }
-        } catch (error) {
-          if (error instanceof WorkflowConflictError) {
-            // A recovery-required month stays labelled as such; every other conflict is a
-            // recoverable stale condition carrying the authoritative workflow.
-            if (error.workflow) return json({ workflow: { ...error.workflow, status: error.workflow.status === 'recovery-required' ? 'recovery-required' : 'stale', staleReason: error.message } }, 409)
-            return json({ error: error.message }, 409)
-          }
-          if (error instanceof WorkflowForbiddenError || error instanceof PairingForbiddenError) return json({ error: error.message }, 403)
-          return storageUnavailable(error)
+        if (url.pathname === '/api/workflows/export') {
+          if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
+          // Only the coordinator can delete, so only the coordinator's export issues a deletion
+          // token; a partner export can no longer cancel the coordinator's pending one (WEB-025).
+          return json(await exportClosedWorkflows(environment.DB, identity.householdId, now(), me.role === 'coordinator' ? 'delete_' + randomId() : null))
         }
+        if (url.pathname === '/api/workflows/capabilities') {
+          if (request.method !== 'GET') return json({ error: 'Method not allowed.' }, 405)
+          return json({ canAdministerSharedHistory: me.role === 'coordinator' })
+        }
+        if (url.pathname === '/api/workflows/restore') {
+          if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
+          if (me.role !== 'coordinator') return json({ error: 'Only the coordinator, ' + (actor.partner && actor.partner.role === 'coordinator' ? actor.partner.alias : 'of this household') + ', can restore, cancel, or delete shared history.' }, 403)
+          let body: unknown
+          try { body = await readJson(request) } catch { return json({ error: 'Request body must be valid JSON.' }, 400) }
+          if (!isWorkflowRestoreRequest(body)) return json({ error: 'Shared archive bundle is invalid.' }, 400)
+          const restoredPeriods = await restoreWorkflowHistory(environment.DB, identity.householdId, actor, body.bundle, now(), randomId)
+          return json({ restoredPeriods })
+        }
+        if (url.pathname === '/api/workflows') {
+          if (request.method !== 'DELETE') return json({ error: 'Method not allowed.' }, 405)
+          if (me.role !== 'coordinator') return json({ error: 'Only the coordinator, ' + (actor.partner && actor.partner.role === 'coordinator' ? actor.partner.alias : 'of this household') + ', can restore, cancel, or delete shared history.' }, 403)
+          let body: unknown
+          try { body = await readJson(request) } catch { return json({ error: 'Request body must be valid JSON.' }, 400) }
+          if (!isWorkflowDeleteRequest(body)) return json({ error: 'Shared-history deletion confirmation is invalid.' }, 400)
+          return json({ deletedPeriods: await deleteWorkflowHistory(environment.DB, identity.householdId, body.deletionToken, now()) })
+        }
+        if (url.pathname === '/api/workflows/cancel-abandoned') {
+          if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
+          if (me.role !== 'coordinator') return json({ error: 'Only the coordinator, ' + (actor.partner && actor.partner.role === 'coordinator' ? actor.partner.alias : 'of this household') + ', can restore, cancel, or delete shared history.' }, 403)
+          let body: unknown
+          try { body = await readJson(request) } catch { return json({ error: 'Request body must be valid JSON.' }, 400) }
+          if (!isWorkflowCancelRequest(body)) return json({ error: 'Abandoned-period cancellation confirmation is invalid.' }, 400)
+          await cancelAbandonedWorkflow(environment.DB, identity.householdId, body.period)
+          return json({ cancelledPeriod: body.period })
+        }
+      } catch (error) {
+        if (error instanceof WorkflowConflictError) {
+          // A recovery-required month stays labelled as such; every other conflict is a
+          // recoverable stale condition carrying the authoritative workflow.
+          if (error.workflow) return json({ workflow: { ...error.workflow, status: error.workflow.status === 'recovery-required' ? 'recovery-required' : 'stale', staleReason: error.message } }, 409)
+          return json({ error: error.message }, 409)
+        }
+        if (error instanceof WorkflowForbiddenError || error instanceof PairingForbiddenError) return json({ error: error.message }, 403)
+        return storageUnavailable(error)
+      }
+    }
+
+    if (url.pathname.startsWith('/api/')) {
+      return json({ error: 'API route not found.' }, 404)
+    }
+
+    return environment.ASSETS.fetch(request)
+  }
+
+  /** Records after the response so a slow or failing logbook never delays or changes it. */
+  function later(context: WorkerContext | undefined, work: Promise<unknown>): Promise<unknown> {
+    const safe = work.catch(function () { /* the logbook never affects the answer */ })
+    if (context) { context.waitUntil(safe); return Promise.resolve() }
+    return safe
+  }
+
+  function row(environment: WorkerEnvironment, fields: Partial<LogbookRow> & Pick<LogbookRow, 'source' | 'kind' | 'event'>): LogbookRow {
+    return { at: now(), environment: environment.DEPLOYMENT || 'local', householdRef: null, role: null, month: null, screen: null, route: null, status: null, errorType: null, codeLocation: null, reference: null, appVersion: APP_VERSION, count: null, durationSeconds: null, ...fields }
+  }
+
+  async function who(request: Request, environment: WorkerEnvironment): Promise<{ householdRef: string | null; role: 'coordinator' | 'partner' | null }> {
+    try {
+      const identity = await verifyIdentity(request, environment)
+      if (!identity) return { householdRef: null, role: null }
+      return { householdRef: await householdRef(identity.householdId), role: await participantRole(environment.DB, identity.householdId, identity.userId) }
+    } catch { return { householdRef: null, role: null } } // the failure being recorded may be the identity itself
+  }
+
+  /** POST /api/logbook: allowlisted browser events from a signed-in person (WEB-048). */
+  async function receiveBrowserEvents(request: Request, environment: WorkerEnvironment, context?: WorkerContext): Promise<Response> {
+    if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
+    let identity
+    try { identity = await verifyIdentity(request, environment) }
+    catch { return json({ error: 'Authentication service unavailable.' }, 503) }
+    if (!identity) return json({ error: 'Authentication required.' }, 401)
+    let body: unknown
+    try {
+      const text = await request.text()
+      if (text.length > 20_000) return json({ error: 'Logbook request is too large.' }, 400)
+      body = JSON.parse(text)
+    } catch { return json({ error: 'Request body must be JSON.' }, 400) }
+    const events = readBrowserEvents(body)
+    if (!events) return json({ error: 'Logbook events are outside the allowlist.' }, 400)
+    const logbook = environment.LOGBOOK
+    if (logbook) {
+      await later(context, (async function () {
+        const { householdRef: ref, role } = await who(request, environment)
+        const allowed = await browserAllowanceLeft(logbook, ref, role, now())
+        await insertRows(logbook, events.slice(0, allowed).map(function (event) {
+          return row(environment, { source: 'browser', kind: event.event === 'browser_error' ? 'error' : 'activity', event: event.event, householdRef: ref, role, month: event.month ?? null, screen: event.screen ?? null, errorType: event.errorType ?? null, codeLocation: event.codeLocation ?? null, appVersion: event.appVersion ?? null, count: event.count ?? null, durationSeconds: event.durationSeconds ?? null })
+        }))
+      })())
+    }
+    return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } })
+  }
+
+  return {
+    async fetch(request: Request, environment: WorkerEnvironment, context?: WorkerContext): Promise<Response> {
+      const url = new URL(request.url)
+      if (url.pathname === '/api/logbook') return receiveBrowserEvents(request, environment, context)
+
+      let response: Response
+      let thrown: unknown = null
+      try { response = await handle(request, environment) }
+      catch (error) {
+        thrown = error
+        response = json({ error: 'Something went wrong in the Split Ledger service. Your private draft in this browser is safe; try again in a few minutes.' }, 500)
+      }
+      const logbook = environment.LOGBOOK
+      if (!logbook || !url.pathname.startsWith('/api/')) return response
+      const { route, month } = routePattern(url.pathname)
+
+      if (response.status >= 500) {
+        // The person sees the same reference the logbook stores, so a report can be matched.
+        const reference = randomId().replace(/[^a-z0-9]/gi, '').slice(0, 8).toUpperCase()
+        const body = await response.clone().json().catch(function () { return {} }) as { error?: unknown }
+        const headers = new Headers(response.headers); headers.delete('Content-Length')
+        const answer = new Response(JSON.stringify({ ...body, reference }), { status: response.status, headers })
+        await later(context, (async function () {
+          const { householdRef: ref, role } = await who(request, environment)
+          await insertRows(logbook, [row(environment, { source: 'worker', kind: 'error', event: 'server_error', householdRef: ref, role, month, route, status: response.status, reference, errorType: thrown ? errorType(thrown) : returnedErrorType(response.status, body.error), codeLocation: thrown instanceof Error ? codeLocation(thrown.stack, null) : null })])
+        })())
+        return answer
       }
 
-      if (url.pathname.startsWith('/api/')) {
-        return json({ error: 'API route not found.' }, 404)
+      const activity = response.ok ? serverActivity(request.method, route) : null
+      if (activity) {
+        await later(context, (async function () {
+          const { householdRef: ref, role } = await who(request, environment)
+          await insertRows(logbook, [row(environment, { source: 'worker', kind: 'activity', event: activity, householdRef: ref, role, month, route, status: response.status })])
+        })())
       }
+      return response
+    },
 
-      return environment.ASSETS.fetch(request)
+    /** Daily schedule: removes logbook rows past the retention period. */
+    async scheduled(_controller: unknown, environment: WorkerEnvironment, context: WorkerContext): Promise<void> {
+      if (environment.LOGBOOK) context.waitUntil(deleteExpired(environment.LOGBOOK, now()).catch(function () { /* retried tomorrow */ }))
     },
   }
 }

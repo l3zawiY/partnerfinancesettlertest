@@ -15,6 +15,8 @@ export function isWorkflowCapabilitiesResponse(value: unknown): value is Workflo
 
 export interface ApiErrorResponse {
   error: string
+  /** Present on 5xx answers; the same code is stored in the pilot logbook (WEB-048). */
+  reference?: string
 }
 
 export interface HouseholdNote {

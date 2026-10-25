@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { logActivity } from './logbook'
 import {
   amazonOccupiedBy,
   matchAmazonOrders,
@@ -76,6 +77,8 @@ export function usePrivateWorkspace(scopeKey: string) {
   const [confirmedTotals, setConfirmedTotals] = useState(false)
   // The last draft text this tab wrote or adopted; another tab's newer save replaces it (WEB-027).
   const lastSaved = useRef<string | null>(null)
+  // Apply to group clicks since the last submission, reported with it to the pilot logbook.
+  const groupApplications = useRef(0)
   // A load confirmation must survive the auto-save it triggers 150 ms later.
   const keepNotice = useRef(false)
   const [tabNotice, setTabNotice] = useState<string | null>(null)
@@ -199,6 +202,7 @@ export function usePrivateWorkspace(scopeKey: string) {
     setLedger(next); setKnownCards(function (current) { return Array.from(new Set(current.concat(cardLabel))) })
     setRanges(function (current) { return current.concat(parsed.ranges) }); setBlocks(function (current) { return current.concat(parsed.blocks) })
     setSummary({ added: merged.added, existingDupes: merged.existingDupes, pasteDupes: merged.pasteDupes, postedUpgrades: merged.postedUpgrades, outOfPeriod: merged.outOfPeriod.length })
+    logActivity('statement_imported', { month: period, count: merged.added })
     setText(''); setConfirmedTotals(false); return true
   }
 
@@ -212,6 +216,7 @@ export function usePrivateWorkspace(scopeKey: string) {
   }
 
   function decideGroup(key: string, share: number): void {
+    groupApplications.current += 1
     setLedger(applyRules(decideMerchantGroup(ledger, key, share), rules, threshold, defaultUnknown)); setConfirmedTotals(false)
   }
 
@@ -266,9 +271,11 @@ export function usePrivateWorkspace(scopeKey: string) {
     return buildSharedExport({ toolVersion: WEBAPP_TOOL_VERSION, period, owner: identity ? identity.me : (names[meIndex] || 'Me').trim() || 'Me', txns: ledger })
   }
 
-  function saveSession(): void { const state = sessionState(); downloadJson('split-session-' + period + '.json', createSessionSnapshot(identity ? { ...state, names: [identity.me, identity.partner], meIndex: 0 } : state)); setBackedUpPeriods(function (done) { return done.includes(period) ? done : done.concat(period) }) }
+  function takeGroupApplications(): number { const count = groupApplications.current; groupApplications.current = 0; return count }
+
+  function saveSession(): void { logActivity('session_downloaded', { month: period }); const state = sessionState(); downloadJson('split-session-' + period + '.json', createSessionSnapshot(identity ? { ...state, names: [identity.me, identity.partner], meIndex: 0 } : state)); setBackedUpPeriods(function (done) { return done.includes(period) ? done : done.concat(period) }) }
   async function loadSession(file: File): Promise<void> {
-    try { const loaded = readSession(JSON.parse(await file.text())); if (!loaded) throw new Error(); loadState(loaded); keepNotice.current = true; setMessage('Private session loaded and auto-save resumed.') }
+    try { const loaded = readSession(JSON.parse(await file.text())); if (!loaded) throw new Error(); loadState(loaded); keepNotice.current = true; setMessage('Private session loaded and auto-save resumed.'); logActivity('session_loaded', { month: loaded.period }) }
     catch { setMessage('That file is not a readable Split Ledger private session; nothing changed.') }
   }
   function saveShared(): void { const value = projection(); downloadJson('split-' + period + '-' + safeFilePart(value.owner) + '.json', value) }
@@ -284,6 +291,7 @@ export function usePrivateWorkspace(scopeKey: string) {
 
   function erasePrivateDraft(): void {
     deleteScopedPrivateDraft(window.localStorage, scopeKey)
+    logActivity('private_draft_deleted')
     clearState()
     setMessage('Every month\'s private draft for this account and household was deleted from this browser. Auto-save is paused until reload.')
   }
@@ -297,7 +305,7 @@ export function usePrivateWorkspace(scopeKey: string) {
     amazonContext, setAmazonContext, amazonMatches, message, groupBy, setGroupBy, onlyUndecided,
     setOnlyUndecided, confirmedTotals, setConfirmedTotals, postedCount: posted.length, undecidedCount,
     setIdentity, scopeKey, backedUp: backedUpPeriods.includes(period), tabNotice, dismissTabNotice: function () { setTabNotice(null) },
-    parse, decide, decideGroup, forgetRule, reapplyRules, correctAmount, parseAmazon, setAmazonDecision, confirmAmazon,
+    parse, decide, decideGroup, takeGroupApplications, forgetRule, reapplyRules, correctAmount, parseAmazon, setAmazonDecision, confirmAmazon,
     projection, saveSession, loadSession, saveShared, erasePrivateDraft,
   }
 }

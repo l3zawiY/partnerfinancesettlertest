@@ -35,6 +35,11 @@ export async function authenticatedApiRequest(
   catch { recordStatus(path, 0); throw new Error(UNREACHABLE_MESSAGE) }
   recordStatus(path, response.status)
   const body: unknown = await response.json().catch(function () { return null })
+  // A 5xx carries the reference stored in the pilot logbook; showing it lets a report be matched.
+  if (response.status >= 500 && body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string' && typeof (body as { reference?: unknown }).reference === 'string') {
+    const answer = body as { error: string; reference: string }
+    answer.error = answer.error + ' Reference ' + answer.reference + '.'
+  }
   if (response.status === 403 && body && typeof body === 'object' && 'error' in body && String((body as { error: unknown }).error).includes('active household')) throw new NoActiveHouseholdError()
   return { response, body }
 }

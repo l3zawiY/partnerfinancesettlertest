@@ -39,3 +39,14 @@ are sent to the other person.
   amounts.
 - Never paste bank or card numbers anywhere other than the statement box, and never share
   the private session file.
+
+## What the app records about you during the pilot
+
+To catch problems without anyone having to report them, the service keeps a small logbook
+for 180 days, separate from the shared months. For both of you alike it records errors
+(which screen, what kind, and a reference code that also appears in the error message) and
+actions with their time, your role, and the month: importing a statement and how many
+rows, submitting and roughly how long it took, how often you used Apply to group, closing a
+month, the self-test, and downloads. It **never** records merchants, amounts, names,
+emails, card labels, or the wording of an error. The same explanation is in the app under
+**Rules & Files** → **What the pilot logbook records**.

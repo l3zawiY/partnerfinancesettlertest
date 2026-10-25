@@ -10,6 +10,7 @@ import SettleScreen from './SettleScreen'
 import SetupScreen from './SetupScreen'
 import ShareStatusScreen, { describeEvent } from './ShareStatusScreen'
 import { fictionalPartnerProjection } from './testing/fictionalFixtures'
+import { logActivity, setLogbookScreen } from './logbook'
 import { downloadJson, usePrivateWorkspace } from './usePrivateWorkspace'
 import type { FictionalWorkflowControls } from './workflow/LocalWorkflowGateway'
 
@@ -38,6 +39,21 @@ export default function Workspace(props: { scopeKey: string; gateway: WorkflowGa
   const workflowRef = useRef(workflow)
   useEffect(function () { workflowRef.current = workflow }, [workflow])
   const now = props.now || function () { return new Date().toISOString() }
+  useEffect(function () { setLogbookScreen(screen) }, [screen])
+  // When this page first showed Import or Review for a month; the time to submit is reported
+  // to the pilot logbook as an approximate "minutes spent" (it restarts after a reload).
+  const workStarted = useRef<Record<string, number>>({})
+  useEffect(function () {
+    if ((screen === 'import' || screen === 'review') && !workStarted.current[workspace.period]) workStarted.current[workspace.period] = Date.now()
+  }, [screen, workspace.period])
+  function reportSubmission(next: PeriodWorkflow | null): void {
+    if (!next) return
+    const started = workStarted.current[workspace.period]
+    logActivity('review_submitted', { month: workspace.period, count: workspace.ledger.length, ...(started ? { durationSeconds: Math.min(7 * 86_400, Math.round((Date.now() - started) / 1000)) } : {}) })
+    const groups = workspace.takeGroupApplications()
+    if (groups) logActivity('groups_applied', { month: workspace.period, count: groups })
+    delete workStarted.current[workspace.period]
+  }
 
   useEffect(function () {
     let active = true
@@ -110,8 +126,8 @@ export default function Workspace(props: { scopeKey: string; gateway: WorkflowGa
     finally { inFlight.current = false; setBusy(false) }
   }
 
-  function submit(): void { const projection = workspace.projection(); void run(() => props.gateway.submit({ projection, expectedVersion: workflow.mine ? workflow.version : null })) }
-  function replace(): void { const projection = workspace.projection(); void run(() => props.gateway.replace({ projection, expectedVersion: workflow.version })) }
+  function submit(): void { const projection = workspace.projection(); void run(() => props.gateway.submit({ projection, expectedVersion: workflow.mine ? workflow.version : null })).then(reportSubmission) }
+  function replace(): void { const projection = workspace.projection(); void run(() => props.gateway.replace({ projection, expectedVersion: workflow.version })).then(reportSubmission) }
   function withdraw(): void { void run(() => props.gateway.withdraw(workspace.period, workflow.version)) }
   function partnerReady(): void { if (props.simulation) void run(() => props.simulation!.makePartnerReady(workspace.period, fictionalPartnerProjection(workspace.period))) }
   function stale(): void { if (props.simulation) void run(() => props.simulation!.makeStale(workspace.period)) }

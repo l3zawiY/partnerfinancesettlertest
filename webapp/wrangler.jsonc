@@ -11,8 +11,17 @@
       // the named environments below through the guarded npm scripts.
       "database_id": "local-development-placeholder",
       "migrations_dir": "migrations"
+    },
+    {
+      // Pilot logbook (WEB-048): a separate database that never holds financial data.
+      "binding": "LOGBOOK",
+      "database_name": "split-ledger-logbook",
+      "database_id": "local-logbook-placeholder",
+      "migrations_dir": "logbook-migrations"
     }
   ],
+  // Daily removal of logbook rows older than 180 days.
+  "triggers": { "crons": ["17 3 * * *"] },
   "assets": {
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
@@ -25,8 +34,10 @@
       "name": "split-ledger-staging",
       "workers_dev": true,
       "d1_databases": [
-        { "binding": "DB", "database_name": "split-ledger-staging", "database_id": "cb8833cb-8ec4-4053-8536-47e1338bbc26", "migrations_dir": "migrations" }
+        { "binding": "DB", "database_name": "split-ledger-staging", "database_id": "cb8833cb-8ec4-4053-8536-47e1338bbc26", "migrations_dir": "migrations" },
+        { "binding": "LOGBOOK", "database_name": "split-ledger-telemetry-staging", "database_id": "STAGING-LOGBOOK-ID-NOT-SET", "migrations_dir": "logbook-migrations" }
       ],
+      "triggers": { "crons": ["17 3 * * *"] },
       "assets": { "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] }
     },
     // Real pilot on the owner's domain (Batch 7b). Separate name, database, keys, and address;
@@ -36,8 +47,10 @@
       "workers_dev": false,
       "routes": [{ "pattern": "app.tallywithus.com", "custom_domain": true }],
       "d1_databases": [
-        { "binding": "DB", "database_name": "split-ledger-production", "database_id": "PRODUCTION-DATABASE-ID-NOT-SET", "migrations_dir": "migrations" }
+        { "binding": "DB", "database_name": "split-ledger-production", "database_id": "PRODUCTION-DATABASE-ID-NOT-SET", "migrations_dir": "migrations" },
+        { "binding": "LOGBOOK", "database_name": "split-ledger-telemetry", "database_id": "PRODUCTION-LOGBOOK-ID-NOT-SET", "migrations_dir": "logbook-migrations" }
       ],
+      "triggers": { "crons": ["17 3 * * *"] },
       "assets": { "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] }
     }
   }

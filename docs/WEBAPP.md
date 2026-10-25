@@ -46,6 +46,35 @@ be added in Cloudflare later without disturbing Clerk's records.
 its nameservers) to 7b-4, then the agent's production steps, the spot-check 7b-6, and the
 go/no-go review.
 
+**Open planning decisions — 2026-10-25 (owner asked for planning only; no code yet).**
+
+- *Pilot observability.* The owner wants error records and a usage/activity log for
+  later analysis and bug fixing, without a new project, free, and private; the partner will
+  probably not paste diagnostic reports, so errors must be captured automatically. Agent
+  proposal awaiting the owner's choices: no outside vendor (session replay or error tools
+  can capture screen content); (a) Workers Logs on the Worker with `invocation_logs`
+  off, one privacy-safe line per unexpected error (Free: 200,000 events a day, 3 days
+  retention, checked 2026-10-25); (b) a fixed allowlist of activity events (event name,
+  role, month, time, row counts, durations; never merchants, amounts, names, emails, or
+  ids) sent by the browser and the Worker to a store kept for the pilot (Workers
+  Analytics Engine or a D1 table); (c) browser crash reports with error type and code
+  location only. Sending private-screen activity names to the Worker changes the privacy
+  boundary ("nothing about private data reaches the Worker") and reading the activity
+  store needs a carve-out from the real-data rule; both are owner decisions. Everything is
+  verified on staging before production: what Cloudflare records automatically, and that
+  no financial content appears.
+- *Added to Batch 7b, agent, on staging:* rehearse D1 Time Travel restore (the runbook
+  relies on it; not yet rehearsed), and rerun the 200-transactions-a-month volume check
+  against staging. The 2026-10-24 volume check was an ad-hoc script, not committed; it must
+  be rewritten or added to `webapp/e2e/`.
+- *Where transactions live:* each person's complete private ledger exists only in their
+  browser (one draft per month) and in the **Download private session** files they keep;
+  D1 and the closed archive hold only the allowlisted shared projection. Keeping every
+  month's private session file is the only source for later personal spending analysis.
+- *Branches:* `main` is the released v1 (`index.html` v1.0.0) and is contained in
+  `mac-unpushed-work`. `origin/experiment/web-service` is an older point of this branch
+  (35 commits behind, none of its own). Merging into `main` waits for the Batch 7c decision.
+
 ## Status — 2026-10-24 (superseded by the status above)
 
 **Batch 6e is committed and pushed** on `mac-unpushed-work` (`f1766cb`), and an automated
@@ -1706,7 +1735,9 @@ owner's domain is tallywithus.com.
    unauthenticated production checks, then the owner spot-check 7b-6 and the go/no-go.
 4. Never read production shared records or real data; never print keys. Fictional data
    only on staging; the suite creates and removes its own Clerk users and household.
-5. Commit and push per item; update "Current status", the test record, and the backlog.
+5. Read "Open planning decisions — 2026-10-25" under Current status; do not build pilot
+   observability until the owner has chosen.
+6. Commit and push per item; update "Current status", the test record, and the backlog.
 ```
 
 ## Files and commands introduced in Batch 1

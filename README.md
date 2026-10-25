@@ -61,7 +61,7 @@ are fictional because the repository may be public.
 `docs/archive/` is historical evidence, not routine context. Active documents and the
 verified implementation take precedence.
 
-The last two rows cover the `webapp/` experiment on the `experiment/web-service` branch and
+The last two rows cover the `webapp/` experiment on the `mac-unpushed-work` branch and
 do not describe this application. Everything else in this README describes `index.html`,
 which remains the product.
 

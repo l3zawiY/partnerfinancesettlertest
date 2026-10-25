@@ -36,7 +36,11 @@ Backlog: WEB-010, WEB-012, WEB-013, and WEB-020 closed (their closing condition 
 WEB-031 suite on staging). WEB-005 and WEB-019 still wait on the owner spot-check 7b-6.
 
 The owner's domain is **tallywithus.com** (not yet added to Cloudflare as of 2026-10-25).
-The production subdomain is still the owner's choice.
+Owner decisions 2026-10-25: the Cloudflare account above is the intended one; production
+is **app.tallywithus.com** (recorded in the production block of `webapp/wrangler.jsonc`),
+leaving the bare domain free for a possible public page; renaming the app to "Tally with
+us" and email on the domain are possible later and not planned. Email records (MX, SPF) can
+be added in Cloudflare later without disturbing Clerk's records.
 
 **Next step:** Batch 7b. Owner steps 7b-1 (add tallywithus.com to Cloudflare and switch
 its nameservers) to 7b-4, then the agent's production steps, the spot-check 7b-6, and the
@@ -1538,8 +1542,8 @@ Learning objective: configure the real security and recovery boundary before a p
 
 #### Owner steps for production (about 30–40 minutes, no code)
 
-Pick the production address now, for example `split.<your-domain>`. The steps below call
-your domain `example.com`; replace it with yours. The owner's domain is `tallywithus.com`.
+The production address is `app.tallywithus.com` (owner decision 2026-10-25). The steps below
+call the domain `example.com`; read it as `tallywithus.com`.
 
 - **7b-1 — Domain in Cloudflare.** If `example.com` is not yet in your Cloudflare account:
   dashboard → **Add a domain** → enter it → choose the **Free** plan → Cloudflare shows two
@@ -1692,8 +1696,9 @@ owner's domain is tallywithus.com.
    VITE_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY environment values if missing, without
    printing them). Run node test/run-tests.js and, in webapp/, npm ci && npm run check.
 2. Check CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are present (never print them),
-   run npx wrangler whoami, and check whether tallywithus.com is an active zone. Ask the
-   owner for the production subdomain and for 7b-1 to 7b-4 if not done.
+   run npx wrangler whoami, and check whether tallywithus.com is an active zone. Production
+   is app.tallywithus.com (already in wrangler.jsonc). Ask the owner for 7b-1 to 7b-4 if
+   not done.
 3. Batch 7b agent steps: verify 7b-5's restricted sign-up plus invitation on staging first,
    create split-ledger-production, set its id and the custom domain in the production
    block of webapp/wrangler.jsonc, CONFIRM_PRODUCTION=yes npm run db:migrate:production and

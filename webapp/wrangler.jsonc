@@ -34,7 +34,7 @@
     "production": {
       "name": "split-ledger-production",
       "workers_dev": false,
-      "routes": [{ "pattern": "PRODUCTION-DOMAIN-NOT-SET.invalid", "custom_domain": true }],
+      "routes": [{ "pattern": "app.tallywithus.com", "custom_domain": true }],
       "d1_databases": [
         { "binding": "DB", "database_name": "split-ledger-production", "database_id": "PRODUCTION-DATABASE-ID-NOT-SET", "migrations_dir": "migrations" }
       ],

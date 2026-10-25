@@ -18,7 +18,7 @@ export function headersFile(publishableKey: string): string {
   const csp = [
     "default-src 'self'",
     "script-src 'self' " + clerk + ' https://challenges.cloudflare.com',
-    "connect-src 'self' " + clerk,
+    "connect-src 'self' " + clerk + ' https://img.clerk.com',
     "img-src 'self' https://img.clerk.com data:",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",

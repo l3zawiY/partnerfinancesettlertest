@@ -16,7 +16,7 @@ describe('security headers', function () {
     const file = headersFile(LIVE)
     expect(file).toMatch(/^\/\*\n/)
     expect(file).toContain("script-src 'self' https://clerk.split.example.com https://challenges.cloudflare.com")
-    expect(file).toContain("connect-src 'self' https://clerk.split.example.com;")
+    expect(file).toContain("connect-src 'self' https://clerk.split.example.com https://img.clerk.com;")
     expect(file).toContain("frame-ancestors 'none'")
     expect(file).toContain('X-Content-Type-Options: nosniff')
     expect(file).toContain('Referrer-Policy: no-referrer')

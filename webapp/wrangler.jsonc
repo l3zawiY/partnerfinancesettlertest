@@ -35,7 +35,7 @@
       "workers_dev": true,
       "d1_databases": [
         { "binding": "DB", "database_name": "split-ledger-staging", "database_id": "cb8833cb-8ec4-4053-8536-47e1338bbc26", "migrations_dir": "migrations" },
-        { "binding": "LOGBOOK", "database_name": "split-ledger-telemetry-staging", "database_id": "STAGING-LOGBOOK-ID-NOT-SET", "migrations_dir": "logbook-migrations" }
+        { "binding": "LOGBOOK", "database_name": "split-ledger-telemetry-staging", "database_id": "6b9bcb10-2668-4d32-b348-812543979ee0", "migrations_dir": "logbook-migrations" }
       ],
       "triggers": { "crons": ["17 3 * * *"] },
       "assets": { "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] }

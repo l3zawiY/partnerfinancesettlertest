@@ -19,13 +19,13 @@
     "run_worker_first": ["/api/*"]
   },
   "env": {
-    // Fictional staging on workers.dev (Batch 7a). The agent replaces the database id after
-    // `wrangler d1 create split-ledger-staging`; scripts/deploy-guard.mjs refuses NOT-SET.
+    // Fictional staging on workers.dev (Batch 7a). Database created 2026-10-25 with
+    // `wrangler d1 create split-ledger-staging`; the id is not secret.
     "staging": {
       "name": "split-ledger-staging",
       "workers_dev": true,
       "d1_databases": [
-        { "binding": "DB", "database_name": "split-ledger-staging", "database_id": "STAGING-DATABASE-ID-NOT-SET", "migrations_dir": "migrations" }
+        { "binding": "DB", "database_name": "split-ledger-staging", "database_id": "cb8833cb-8ec4-4053-8536-47e1338bbc26", "migrations_dir": "migrations" }
       ],
       "assets": { "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] }
     },

@@ -12,10 +12,10 @@
     "check": "npm run typecheck && npm test && npm run build",
     "build:staging": "node scripts/deploy-guard.mjs staging build && WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=.wrangler/logs VITE_DEPLOYMENT=staging CLOUDFLARE_ENV=staging vite build",
     "db:migrate:staging": "node scripts/deploy-guard.mjs staging migrate && WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=.wrangler/logs wrangler d1 migrations apply split-ledger-staging --remote --env staging",
-    "deploy:staging": "npm run build:staging && node scripts/deploy-guard.mjs staging deploy && WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=.wrangler/logs wrangler deploy",
+    "deploy:staging": "npm run build:staging && node scripts/deploy-guard.mjs staging deploy && WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=.wrangler/logs wrangler deploy --var VITE_CLERK_PUBLISHABLE_KEY:$VITE_CLERK_PUBLISHABLE_KEY",
     "build:production": "node scripts/deploy-guard.mjs production build && WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=.wrangler/logs VITE_DEPLOYMENT=production CLOUDFLARE_ENV=production VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY_PRODUCTION vite build",
     "db:migrate:production": "node scripts/deploy-guard.mjs production migrate && WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=.wrangler/logs wrangler d1 migrations apply split-ledger-production --remote --env production",
-    "deploy:production": "npm run build:production && node scripts/deploy-guard.mjs production deploy && WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=.wrangler/logs wrangler deploy"
+    "deploy:production": "npm run build:production && node scripts/deploy-guard.mjs production deploy && WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=.wrangler/logs wrangler deploy --var VITE_CLERK_PUBLISHABLE_KEY:$VITE_CLERK_PUBLISHABLE_KEY_PRODUCTION"
   },
   "dependencies": {
     "@clerk/backend": "3.17.1",

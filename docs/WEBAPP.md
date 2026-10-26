@@ -16,9 +16,9 @@ it current instead of creating session handoffs or a separate plan for every bat
   production publishable key is saved in the cloud environment as
   `VITE_CLERK_PUBLISHABLE_KEY_PRODUCTION`, and the allowed domains include
   `tallywithus.com` and `*.tallywithus.com`.
-- *Next:* **R5** in a new session: create `split-ledger-production` and
-  `split-ledger-telemetry`, record both ids in `webapp/wrangler.jsonc`, migrate, and deploy
-  to `app.tallywithus.com`. Then R6 (owner pastes the production secret into Cloudflare),
+- *Next:* **R5** is under way: both production databases exist and their ids are in
+  `webapp/wrangler.jsonc`; migrating them and deploying to `app.tallywithus.com` wait on
+  the owner's explicit approval (see "R5 in progress"). Then R6 (owner pastes the production secret into Cloudflare),
   R7, R8 (spot-check), R9, R10, R11 (go/no-go). Target pilot start about 2026-10-31.
 - *In parallel, not part of the pilot:* the owner started a separate session for a simple
   public page at `tallywithus.com` and `www.tallywithus.com`, on branch `landing-page`, in a
@@ -653,6 +653,16 @@ same check is part of R7 for production.
 | Go-live | Pilot month 1: October 2026, settled in early November (Batch 7c) | Owner + partner | normal | Month closes |
 | R12 | WEB-049 Pilot activity page, after October is closed and archived | Agent | none | Both people see the same rows; CSV downloads |
 | R13 | Merge `landing-page` into `mac-unpushed-work` by pull request (branch plan, step 2) | Agent prepares, owner clicks Merge | ~5 min | `landing/` present on `mac-unpushed-work`; live sites unchanged |
+
+**R5 in progress 2026-10-26.** Session checks passed: 81/81 legacy assertions, 123 + 47
+web tests, type checks, build; `wrangler whoami` shows "Hydrapeak8@gmail.com's Account";
+`tallywithus.com` is an active zone; the production publishable key starts with
+`pk_live_` and decodes to `clerk.tallywithus.com`. Created (empty) D1 databases
+`split-ledger-production` (`4fd32d21-5ec9-4371-8fa5-4e6d9dbef2cb`) and
+`split-ledger-telemetry` (`43b0c195-6fa9-4221-ad97-6da46c9a2641`), recorded in
+`webapp/wrangler.jsonc`; `npm run check` and the production build guard pass. The
+session's permission layer then paused the production migration for the owner's explicit
+approval; the migration and deploy wait on that.
 
 **R5 notes for the agent (written 2026-10-26).**
 

@@ -16,6 +16,12 @@ one screen:
    for 24 hours and 7 days, from the zone's traffic records, and a table of what the last
    24 hours were made of. Robots and scanners are included, so "visits" are not people.
 
+**Current state (2026-10-26):** live at `https://ops.tallywithus.com` in the Horizon UI style,
+behind one password (`OPS_PASSWORD` secret; Zero Trust declined because it needed a card),
+reading a read-only token (`CF_ANALYTICS_TOKEN`: Account Analytics, D1, and Zone Analytics,
+all Read). Owner reviewed it: "Looking good". Open: public page numbers need a better source
+(see "Open issues"); moving these notes into `docs/` on merge.
+
 It is its own Cloudflare Worker, `tallywithus-ops`, kept in this `ops-dashboard/` folder. It is
 separate from the app (`webapp/`) and the public page (`landing/`). Nothing here changes them.
 

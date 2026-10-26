@@ -201,6 +201,61 @@ Handover in `docs/WEBAPP.md` ("Handover for the operations dashboard side projec
 
 *Noticed: 2026-10-26.*
 
+### WEB-054 — Split the web documentation: owner TL;DR, short main page, archived history
+
+`docs/WEBAPP.md` is about 2,600 lines (~45k tokens) and mixes current status with finished
+history; it already held contradictions (a stale "Next step: R5", a bullet with leftover
+text). The owner starts new sessions very often (Claude Code in the app and in VS Code, and
+Codex in VS Code), reads documents in the Claude app file viewer or VS Code, and will not
+read history. Goal: the owner understands where things stand in 30 seconds, a new session
+reads one short page (~5–8k tokens instead of ~15–25k), every fact lives in one place, and
+history is kept for agents.
+
+**Plan (agreed with the owner 2026-10-26; do it at the start of the next session that has
+about 25 minutes, before other work):**
+
+1. Tag the current state: `docs-before-split-2026-10-26`, and push the tag.
+2. Rewrite `docs/WEBAPP.md` to about 250–300 lines: a plain-language **TL;DR for the
+   owner** at the top (at most ~12 lines: where we are, what is next for the owner with
+   time estimates, what waits on the agent, decisions waiting on the owner, last-updated
+   date, and the VS Code tip "Source Control → Sync / Pull on mac-unpushed-work"); then
+   for agents: remaining steps table, production and staging at a glance, rules (real
+   data, approvals, keys), facts that still matter, the full agent handover, a map of the
+   other files, and the documentation policy.
+3. Move, word for word: runbook, logbook queries, services, free-plan boundary, files and
+   commands, secrets setup, and costs to `docs/WEBAPP-OPERATIONS.md` (~150 lines); goal and
+   privacy boundary, architecture, decisions, open risks, after-pilot ideas, and the
+   collaboration contract to `docs/WEBAPP-DESIGN.md` (~550 lines, keep the heading
+   "Authoritative concepts" and "Server-owned identity and attribution" that code comments
+   cite); everything else (old statuses, "How to continue", finished batches, R1 to R8
+   notes) to `docs/archive/WEBAPP-HISTORY.md` (~1,750 lines). A trial split on 2026-10-26
+   confirmed every line lands in exactly one file.
+4. One fact, one home: status only in `docs/WEBAPP.md`, test results only in
+   `docs/WEBAPP-HUMAN-TESTING.md`, open work only in this backlog; replace duplicates with
+   links.
+5. Facts check by the agent (not the owner): search the history for findings, blockers,
+   "cannot", "never", "must", and keep each still-true fact on the main page; list kept
+   and dropped facts in the reply.
+6. One entry point: `CLAUDE.md`, `AGENTS.md`, `webapp/CLAUDE.md`, and `webapp/AGENTS.md`
+   all say "start at `docs/WEBAPP.md`" with the same wording; add the new files to the
+   routing table in `CLAUDE.md`. Update pointers in `webapp/shared/pairing.ts`,
+   `webapp/src/identity.ts`, this backlog, `docs/WEBAPP-HUMAN-TESTING.md`, `PRODUCT.md`,
+   and `README.md`.
+7. Upkeep rule in the documentation policy: each session pulls first; writes step details
+   straight into the history file and keeps one line on the main page; refreshes the
+   TL;DR; pushes at the end.
+8. The owner's handover becomes one line: "Continue the Split Ledger web pilot on branch
+   mac-unpushed-work. Start at docs/WEBAPP.md."
+
+Not in scope: the app, production, the `landing-page` and `ops-dashboard` branches (they
+change only their own folders), and trimming the test record's older scenarios (after
+go-live). Verify with a before/after line check, `git diff --check`, and a search for
+references to moved section names.
+
+**Priority:** Must, next session (owner: "super important"); documentation only.
+
+*Noticed: 2026-10-26.*
+
 ### WEB-053 — Match Clerk's sign-in and account windows to the app's look
 
 Clerk's sign-in window, organization switcher, and account menu use Clerk's default blue,

@@ -7,6 +7,10 @@ it current instead of creating session handoffs or a separate plan for every bat
 
 **Where things stand (read this first).**
 
+- **First action for the next session (owner, 2026-10-26, "super important"):** do
+  WEB-054 in `docs/WEBAPP-BACKLOG.md` (split this document into an owner TL;DR, a short
+  main page, operations and design files, and archived history) before any other work.
+
 - *Done:* Batch 6h (local hardening), Batch 7a (fictional staging), R1 (D1 Time Travel
   rehearsal), R2 (volume check), R4 (pilot logbook on staging), the owner's steps 7b-1
   to 7b-4, and R5 to R7 (production live at `https://app.tallywithus.com`, signed-out
@@ -2056,22 +2060,24 @@ agent: plain language, exact steps, and ask only for the owner steps the roadmap
    VITE_CLERK_PUBLISHABLE_KEY_PRODUCTION are present without printing them, run
    npx wrangler whoami (expected account: "Hydrapeak8@gmail.com's Account"), and confirm
    https://app.tallywithus.com answers 200 and /api/me answers 401.
-3. R5 to R7 are done; R8 is partly done (both accounts signed in and paired, see "R8
+3. First do WEB-054 (documentation split, plan in docs/WEBAPP-BACKLOG.md); it rewrites
+   this handover into a one-line version. Then continue below.
+4. R5 to R7 are done; R8 is partly done (both accounts signed in and paired, see "R8
    started"). Guide the owner and partner through the rest of R8 (fictional samples;
    collect both safe diagnostic reports and the browsers used), then R9 (lock sign-up;
    both sign out and back in), R10 (scheduled logbook checks), and R11 (go/no-go review,
    using the template in Batch 7b). Also ask the owner for the WEB-053 decision (Clerk
    colours, plan in docs/WEBAPP-BACKLOG.md) and build it if they choose.
-4. Any production deploy or migration needs the owner's explicit approval in that session
+5. Any production deploy or migration needs the owner's explicit approval in that session
    (the session's permission layer enforces it) and must follow a staging run of the
    WEB-031 suite. Never read production shared records or real data (the logbook database
    split-ledger-telemetry is the only production data the agent may read); never print
    keys. Fictional data only on staging; the suites create and remove their own Clerk
    users and household.
-5. Other sessions may work on branches landing-page (public page, landing/ folder, Worker
+6. Other sessions may work on branches landing-page (public page, landing/ folder, Worker
    tallywithus-landing) and ops-dashboard (WEB-052, ops-dashboard/ folder, Worker
    tallywithus-ops); do not touch those branches, folders, or Workers.
-6. Commit and push per item; update "Current status", the test record, and the backlog.
+7. Commit and push per item; update "Current status", the test record, and the backlog.
 ```
 
 ### Handover for the operations dashboard side project (WEB-052)

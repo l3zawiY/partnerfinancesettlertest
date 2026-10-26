@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { D1_QUERY, WORKERS_QUERY, failureReason, loadDatabases, loadWorkers, parseDatabaseList, parseD1Usage, parseVisitors, parseWorkers, windowVariables } from '../src/cloudflare'
+import { D1_QUERY, VISITORS_QUERY, WORKERS_QUERY, failureReason, loadDatabases, loadVisitors, loadWorkers, parseDatabaseList, parseD1Usage, parseVisitors, parseWorkers, windowVariables } from '../src/cloudflare'
 
 const NOW = new Date('2026-10-26T12:00:00.000Z')
 const TOKEN = 'fictional-token-value'
@@ -23,7 +23,8 @@ describe('Cloudflare analytics', () => {
     }))
     expect(result['split-ledger-production']['24h']).toEqual({ requests: 15, errors: 1 })
     expect(result['split-ledger-staging']['7d']).toEqual({ requests: 99, errors: 2 })
-    expect(result['tallywithus-landing']['30d']).toEqual({ requests: 0, errors: 0 })
+    expect(result['tallywithus-ops']['30d']).toEqual({ requests: 0, errors: 0 })
+    expect(result).not.toHaveProperty('tallywithus-landing')
     expect(result).not.toHaveProperty('someone-else')
   })
 
@@ -35,10 +36,34 @@ describe('Cloudflare analytics', () => {
     expect(usage[1]).toMatchObject({ name: 'split-ledger-telemetry', rowsRead: { '24h': 12 } })
   })
 
-  it('adds up visits and page views for the public page', () => {
-    const result = parseVisitors(account({ w7d: [{ count: 30, sum: { visits: 12 }, dimensions: { requestHost: 'tallywithus.com' } }, { count: 5, sum: { visits: 4 }, dimensions: { requestHost: 'www.tallywithus.com' } }] }))
-    expect(result['7d']).toEqual({ pageViews: 35, visits: 16 })
-    expect(result['24h']).toEqual({ pageViews: 0, visits: 0 })
+  it('adds up public page requests, visits, and server errors from the zone records', () => {
+    const zone = (groups: unknown[]) => ({ data: { viewer: { zones: [{ httpRequestsAdaptiveGroups: groups }] } }, errors: null })
+    expect(parseVisitors(zone([
+      { count: 30, sum: { visits: 12 }, dimensions: { edgeResponseStatus: 200 } },
+      { count: 5, sum: { visits: 0 }, dimensions: { edgeResponseStatus: 404 } },
+      { count: 2, sum: { visits: 1 }, dimensions: { edgeResponseStatus: 503 } },
+    ]))).toEqual({ requests: 37, visits: 13, serverErrors: 2 })
+    expect(parseVisitors(zone([]))).toEqual({ requests: 0, visits: 0, serverErrors: 0 })
+    expect(VISITORS_QUERY).toContain('clientRequestHTTPHost_in: $hosts')
+    expect(VISITORS_QUERY).toContain('requestSource: "eyeball"')
+  })
+
+  it('shows a window the free plan does not keep as not kept, and needs the last 24 hours', async () => {
+    const asked: Array<{ start: string; hosts: string[]; zone: string }> = []
+    const fetcher = (async (_url: string, init: RequestInit) => {
+      const variables = JSON.parse(String(init.body)).variables
+      asked.push(variables)
+      if (variables.start === '2026-09-26T12:00:00.000Z') return Response.json({ data: null, errors: [{ message: 'cannot request data older than 7 days' }] })
+      return Response.json({ data: { viewer: { zones: [{ httpRequestsAdaptiveGroups: [{ count: 9, sum: { visits: 3 }, dimensions: { edgeResponseStatus: 200 } }] }] } } })
+    }) as unknown as typeof fetch
+    const result = await loadVisitors({ accountId: 'acc', token: TOKEN, zoneId: 'fictional-zone', fetcher }, NOW)
+    expect(result).toEqual({ ok: true, value: { '24h': { requests: 9, visits: 3, serverErrors: 0 }, '7d': { requests: 9, visits: 3, serverErrors: 0 }, '30d': null } })
+    expect(asked.map((variables) => variables.start)).toEqual(['2026-10-25T12:00:00.000Z', '2026-10-19T12:00:00.000Z', '2026-09-26T12:00:00.000Z'])
+    expect(asked[0]).toMatchObject({ zone: 'fictional-zone', hosts: ['tallywithus.com', 'www.tallywithus.com'] })
+
+    const refused = (async () => Response.json({ data: null, errors: [{ message: 'not authorized' }] })) as unknown as typeof fetch
+    expect(await loadVisitors({ accountId: 'acc', token: TOKEN, zoneId: 'z', fetcher: refused }, NOW)).toEqual({ ok: false, reason: 'Cloudflare answered with an error: not authorized' })
+    expect(await loadVisitors({ accountId: 'acc', token: TOKEN, fetcher: refused }, NOW)).toEqual({ ok: false, reason: 'The zone id is not set.' })
   })
 
   it('sends the token only as a bearer header, and never repeats it in a failure', async () => {
@@ -51,7 +76,7 @@ describe('Cloudflare analytics', () => {
     expect(result).toEqual({ ok: false, reason: 'Cloudflare answered 400: Authentication failed for x' })
     expect((seen[0].init.headers as Record<string, string>).authorization).toBe(`Bearer ${TOKEN}`)
     const body = JSON.parse(String(seen[0].init.body))
-    expect(body.variables).toMatchObject({ account: 'fictional-account', scripts: ['split-ledger-production', 'split-ledger-staging', 'tallywithus-landing', 'tallywithus-ops'] })
+    expect(body.variables).toMatchObject({ account: 'fictional-account', scripts: ['split-ledger-production', 'split-ledger-staging', 'tallywithus-ops'] })
     expect(String(seen[0].init.body)).not.toContain(TOKEN)
   })
 

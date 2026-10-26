@@ -20,7 +20,7 @@ export interface PageData {
   logbook: Loaded<LogbookView>
   workers: Loaded<Record<string, PerWindow<WorkerCounts>>>
   databases: Loaded<DatabaseUsage[]>
-  visitors: Loaded<PerWindow<VisitorCounts>>
+  visitors: Loaded<PerWindow<VisitorCounts | null>>
 }
 
 const STYLE = `
@@ -155,7 +155,7 @@ ${WINDOW_NAMES.map((window) => `<td class="num">${count(counts[window].requests)
   return `<section id="workers">${heading}<div class="scroll"><table><thead>
 <tr><th>Part</th><th class="num">24 h</th><th class="num">7 days</th><th class="num">30 days</th><th class="num">Failures (7 days)</th><th class="num">Free limit used today</th></tr>
 </thead><tbody>${rows}</tbody></table></div>
-<p class="note">A failure means the part itself crashed or hit a limit. Error answers the app gives on purpose (such as "please sign in again") are in the logbook above. Cloudflare's counts can be a few minutes behind.</p></section>`
+<p class="note">A failure means the part itself crashed or hit a limit. Error answers the app gives on purpose (such as "please sign in again") are in the logbook above. The public page runs no code, so it is not counted here; see section 4. Cloudflare's counts can be a few minutes behind.</p></section>`
 }
 
 export function renderDatabases(databases: PageData['databases']): string {
@@ -181,15 +181,16 @@ export function renderDatabases(databases: PageData['databases']): string {
 }
 
 export function renderVisitors(visitors: PageData['visitors']): string {
-  const heading = `<h2>4. Visitors to the public page</h2>
-<p class="how">How many people opened tallywithus.com. A visit is one person arriving; page views count every page they open.</p>`
+  const heading = `<h2>4. Public page: visits and traffic</h2>
+<p class="how">How often tallywithus.com was opened. A visit is someone arriving from another site or a typed address; requests count every file loaded. Search engines and other bots are included, so real people are fewer.</p>`
   if (!visitors.ok) return `<section id="visitors">${heading}${failed(visitors.reason)}</section>`
-  const total = WINDOW_NAMES.reduce((sum, window) => sum + visitors.value[window].pageViews, 0)
-  if (total === 0) {
-    return `<section id="visitors">${heading}<p class="muted">No visitor statistics yet. They appear here once Cloudflare Web Analytics records visits to the public page.</p></section>`
-  }
-  const tiles = WINDOW_NAMES.map((window) => `<div class="tile"><div class="muted small">${WINDOW_LABELS[window]}</div><div class="big">${count(visitors.value[window].visits)}</div><div>visit${visitors.value[window].visits === 1 ? '' : 's'}</div><div class="muted small">${count(visitors.value[window].pageViews)} page views</div></div>`).join('')
-  return `<section id="visitors">${heading}<div class="tiles">${tiles}</div><p class="note">From Cloudflare Web Analytics for tallywithus.com and www.tallywithus.com. Counts only; no visitor is identified.</p></section>`
+  const tiles = WINDOW_NAMES.map((window) => {
+    const counts = visitors.value[window]
+    if (!counts) return `<div class="tile"><div class="muted small">${WINDOW_LABELS[window]}</div><div class="big muted">—</div><div class="muted small">Not kept on the free plan</div></div>`
+    const errors = counts.serverErrors > 0 ? `<div class="some small">${count(counts.serverErrors)} server error${counts.serverErrors === 1 ? '' : 's'}</div>` : ''
+    return `<div class="tile"><div class="muted small">${WINDOW_LABELS[window]}</div><div class="big">${count(counts.visits)}</div><div>visit${counts.visits === 1 ? '' : 's'}</div><div class="muted small">${count(counts.requests)} requests</div>${errors}</div>`
+  }).join('')
+  return `<section id="visitors">${heading}<div class="tiles">${tiles}</div><p class="note">From Cloudflare's traffic records for tallywithus.com and www.tallywithus.com. Counts only; no visitor is identified.</p></section>`
 }
 
 export function renderPage(data: PageData): string {
@@ -199,7 +200,7 @@ export function renderPage(data: PageData): string {
 <meta name="robots" content="noindex, nofollow"><title>Tally with us — operations</title><style>${STYLE}</style></head>
 <body><main>
 <header><h1>Tally with us — operations</h1><span class="muted small">Updated ${escapeHtml(torontoTime(data.now.toISOString()))} · <a href="${escapeHtml(pageHref(data.logbookName, data.errorWindow))}">Refresh</a></span></header>
-<nav><a href="#logbook">Logbook</a><a href="#workers">Traffic</a><a href="#databases">Databases</a><a href="#visitors">Visitors</a></nav>
+<nav><a href="#logbook">Logbook</a><a href="#workers">Traffic</a><a href="#databases">Databases</a><a href="#visitors">Public page</a></nav>
 ${renderGlance(health)}
 ${renderLogbook(data)}
 ${renderWorkers(data.workers)}

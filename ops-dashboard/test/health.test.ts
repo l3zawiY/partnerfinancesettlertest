@@ -7,7 +7,7 @@ const NOW = new Date('2026-10-27T15:00:00.000Z')
 const ago = (hours: number) => new Date(NOW.getTime() - hours * 3_600_000).toISOString()
 const quietWorkers = { 'split-ledger-production': { '24h': { requests: 300, errors: 0 }, '7d': { requests: 900, errors: 0 }, '30d': { requests: 2000, errors: 0 } } }
 const smallDatabases = [{ name: 'split-ledger-telemetry', id: 'x', sizeBytes: 40_000, rowsRead: { '24h': 100, '7d': 500, '30d': 900 }, rowsWritten: { '24h': 2_000, '7d': 5_000, '30d': 9_000 } }]
-const someVisitors = { '24h': { visits: 18, pageViews: 36 }, '7d': { visits: 120, pageViews: 240 }, '30d': { visits: 410, pageViews: 820 } }
+const someVisitors = { '24h': { visits: 18, requests: 90, serverErrors: 0 }, '7d': { visits: 120, requests: 600, serverErrors: 0 }, '30d': { visits: 410, requests: 2000, serverErrors: 0 } }
 
 function input(errors24h: number, errors7d: number, partnerHoursAgo: number | null = 5, overrides: Partial<HealthInput> = {}): HealthInput {
   const activity = [{ event: 'statement_imported', role: 'coordinator', times: 9, lastAt: ago(1) }]
@@ -38,7 +38,7 @@ describe('at a glance: the four questions', () => {
     expect(answer(health, QUESTIONS.broken).answer).toBe('No. No errors in the real pilot in the last 7 days.')
     expect(answer(health, QUESTIONS.partner).answer).toBe('Yes: last active today (Oct 27, 2026, 06:00 EDT), 5 actions in 30 days.')
     expect(answer(health, QUESTIONS.plan).answer).toBe('Yes. The most-used limit today is database writing, at 2%.')
-    expect(answer(health, QUESTIONS.visitors).answer).toBe('Yes: 18 visits in the last 24 hours, 120 visits in 7 days.')
+    expect(answer(health, QUESTIONS.visitors).answer).toBe('Yes: 18 visits in the last 24 hours, 120 visits in 7 days (bots included).')
   })
 
   it('is something broken: earlier errors, one error, many errors, crashes', () => {
@@ -69,8 +69,10 @@ describe('at a glance: the four questions', () => {
   })
 
   it('is anyone visiting: none yet, or counts', () => {
-    const none = { '24h': { visits: 0, pageViews: 0 }, '7d': { visits: 0, pageViews: 0 }, '30d': { visits: 0, pageViews: 0 } }
-    expect(answer(assessHealth(input(0, 0, 5, { visitors: { ok: true, value: none } })), QUESTIONS.visitors).answer).toBe('None recorded yet.')
+    const none = { visits: 0, requests: 0, serverErrors: 0 }
+    expect(answer(assessHealth(input(0, 0, 5, { visitors: { ok: true, value: { '24h': none, '7d': none, '30d': none } } })), QUESTIONS.visitors).answer).toBe('No visits recorded in the last 7 days.')
+    const dayOnly = { '24h': { visits: 4, requests: 20, serverErrors: 0 }, '7d': null, '30d': null }
+    expect(answer(assessHealth(input(0, 0, 5, { visitors: { ok: true, value: dayOnly } })), QUESTIONS.visitors).answer).toBe('Yes: 4 visits in the last 24 hours (bots included).')
   })
 
   it('says it cannot tell when numbers are missing, without alarming', () => {

@@ -32,14 +32,14 @@ function cloudflareFetcher(seen: string[]) {
     const query = JSON.parse(String(init?.body)).query as string
     if (query.includes('workersInvocationsAdaptive')) return Response.json({ data: { viewer: { accounts: [{ w24h: [{ sum: { requests: 1234, errors: 0 }, dimensions: { scriptName: 'split-ledger-production' } }] }] } } })
     if (query.includes('d1AnalyticsAdaptiveGroups')) return Response.json({ data: { viewer: { accounts: [{ w24h: [{ sum: { rowsRead: 77, rowsWritten: 5 }, dimensions: { databaseId: 'tele' } }] }] } } })
-    return Response.json({ data: { viewer: { accounts: [{}] } } })
+    return Response.json({ data: { viewer: { zones: [{ httpRequestsAdaptiveGroups: [{ count: 50, sum: { visits: 7 }, dimensions: { edgeResponseStatus: 200 } }] }] } } })
   }) as unknown as typeof fetch
 }
 
 function setup(overrides: Partial<Env> = {}) {
   const production = fakeLogbook('PROD')
   const staging = fakeLogbook('STAGING')
-  const env: Env = { AUTH_MODE: 'access', ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD, OWNER_EMAIL: OWNER, TELEMETRY: production.database, TELEMETRY_STAGING: staging.database, CF_ACCOUNT_ID: 'fictional-account', CF_ANALYTICS_TOKEN: TOKEN, ...overrides }
+  const env: Env = { AUTH_MODE: 'access', ACCESS_TEAM_DOMAIN: TEAM, ACCESS_AUD: AUD, OWNER_EMAIL: OWNER, TELEMETRY: production.database, TELEMETRY_STAGING: staging.database, CF_ACCOUNT_ID: 'fictional-account', CF_ANALYTICS_TOKEN: TOKEN, ZONE_ID: 'fictional-zone', ...overrides }
   const seen: string[] = []
   return { env, production, staging, seen, fetcher: cloudflareFetcher(seen) }
 }
@@ -91,8 +91,8 @@ describe('dashboard page', () => {
     expect(body).toContain('1,234')
     expect(body).toContain('split-ledger-telemetry')
     expect(body).toContain('37 KB')
-    expect(body).toContain('No visitor statistics yet')
-    expect(seen.filter((url) => url.includes('api.cloudflare.com'))).toHaveLength(4)
+    expect(body).toContain('7 visits in the last 24 hours')
+    expect(seen.filter((url) => url.includes('api.cloudflare.com'))).toHaveLength(6)
   })
 
   it('switches between the two logbooks and windows only through fixed names', async () => {

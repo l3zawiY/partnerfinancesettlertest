@@ -4,7 +4,9 @@
 
 import { WINDOWS, type WindowName } from './logbook'
 
-export const WORKERS = ['split-ledger-production', 'split-ledger-staging', 'tallywithus-landing', 'tallywithus-ops'] as const
+// The public page (tallywithus-landing) serves static files only, so no Worker code runs and
+// Cloudflare's Worker counts never include it; its numbers come from the zone's traffic records.
+export const WORKERS = ['split-ledger-production', 'split-ledger-staging', 'tallywithus-ops'] as const
 export const PUBLIC_HOSTS = ['tallywithus.com', 'www.tallywithus.com'] as const
 
 const GRAPHQL_URL = 'https://api.cloudflare.com/client/v4/graphql'
@@ -19,7 +21,8 @@ export type PerWindow<T> = Record<WindowName, T>
 
 export interface WorkerCounts { requests: number; errors: number }
 export interface DatabaseUsage { name: string; id: string; sizeBytes: number | null; rowsRead: PerWindow<number>; rowsWritten: PerWindow<number> }
-export interface VisitorCounts { pageViews: number; visits: number }
+/** Public page traffic for one window, from the zone's request records (bots included). */
+export interface VisitorCounts { requests: number; visits: number; serverErrors: number }
 
 function aliasFor(window: WindowName): string {
   return `w${window}`
@@ -41,10 +44,12 @@ export const D1_QUERY = windowedQuery(
   (window) => `d1AnalyticsAdaptiveGroups(limit: 100, filter: { datetime_geq: $s${window}, datetime_leq: $end }) { sum { rowsRead rowsWritten } dimensions { databaseId } }`,
 )
 
-export const VISITORS_QUERY = windowedQuery(
-  '$account: String!, $end: Time!, $s24h: Time!, $s7d: Time!, $s30d: Time!, $hosts: [String!]!',
-  (window) => `rumPageloadEventsAdaptiveGroups(limit: 100, filter: { datetime_geq: $s${window}, datetime_leq: $end, requestHost_in: $hosts }) { count sum { visits } dimensions { requestHost } }`,
-)
+// One window per request: the free plan may keep these records for less than 30 days, and a
+// window it refuses must not hide the others. "eyeball" leaves out Cloudflare's own traffic.
+export const VISITORS_QUERY =
+  'query($zone: String!, $start: Time!, $end: Time!, $hosts: [String!]!) { viewer { zones(filter: { zoneTag: $zone }) { ' +
+  'httpRequestsAdaptiveGroups(limit: 100, filter: { datetime_geq: $start, datetime_leq: $end, clientRequestHTTPHost_in: $hosts, requestSource: "eyeball" }) ' +
+  '{ count sum { visits } dimensions { edgeResponseStatus } } } } }'
 
 export function windowVariables(now: Date): Record<string, string> {
   const variables: Record<string, string> = { end: now.toISOString() }
@@ -96,14 +101,15 @@ export function parseD1Usage(json: unknown, databases: Array<{ name: string; id:
   })
 }
 
-export function parseVisitors(json: unknown): PerWindow<VisitorCounts> {
-  const data = accountData(json)
-  const result = { '24h': { pageViews: 0, visits: 0 }, '7d': { pageViews: 0, visits: 0 }, '30d': { pageViews: 0, visits: 0 } }
-  for (const window of WINDOW_NAMES) {
-    for (const group of data[aliasFor(window)] ?? []) {
-      result[window].pageViews += number(group.count)
-      result[window].visits += number(group.sum?.visits)
-    }
+export function parseVisitors(json: unknown): VisitorCounts {
+  const zones = (json as { data?: { viewer?: { zones?: unknown[] } } })?.data?.viewer?.zones
+  const groups = ((Array.isArray(zones) && zones[0] ? (zones[0] as Record<string, unknown>).httpRequestsAdaptiveGroups : []) ?? []) as Groups
+  const result = { requests: 0, visits: 0, serverErrors: 0 }
+  for (const group of groups) {
+    const requests = number(group.count)
+    result.requests += requests
+    result.visits += number(group.sum?.visits)
+    if (number(group.dimensions?.edgeResponseStatus) >= 500) result.serverErrors += requests
   }
   return result
 }
@@ -127,7 +133,7 @@ export function failureReason(status: number, json: unknown): string {
   return message ? `${prefix}: ${message.slice(0, 160)}` : prefix
 }
 
-export interface AnalyticsSettings { accountId: string; token: string; fetcher?: typeof fetch }
+export interface AnalyticsSettings { accountId: string; token: string; zoneId?: string; fetcher?: typeof fetch }
 
 async function call(settings: AnalyticsSettings, url: string, init: RequestInit): Promise<Loaded<unknown>> {
   const fetcher = settings.fetcher ?? fetch
@@ -151,7 +157,7 @@ function graphql(settings: AnalyticsSettings, query: string, variables: Record<s
   return call(settings, GRAPHQL_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ query, variables: { account: settings.accountId, ...variables } }),
+    body: JSON.stringify({ query, variables: { account: settings.accountId, zone: settings.zoneId, ...variables } }),
   })
 }
 
@@ -170,7 +176,24 @@ export async function loadDatabases(settings: AnalyticsSettings, now: Date): Pro
   return { ok: true, value: parseD1Usage(usage.value, parseDatabaseList(list.value)) }
 }
 
-export async function loadVisitors(settings: AnalyticsSettings, now: Date): Promise<Loaded<PerWindow<VisitorCounts>>> {
-  const answer = await graphql(settings, VISITORS_QUERY, { ...windowVariables(now), hosts: [...PUBLIC_HOSTS] })
-  return answer.ok ? { ok: true, value: parseVisitors(answer.value) } : answer
+/**
+ * Public page traffic per window. The last 24 hours must load; a longer window the free plan
+ * does not keep shows as null ("not kept") instead of failing the section.
+ */
+export async function loadVisitors(settings: AnalyticsSettings, now: Date): Promise<Loaded<PerWindow<VisitorCounts | null>>> {
+  if (!settings.zoneId) return { ok: false, reason: 'The zone id is not set.' }
+  const end = now.toISOString()
+  const answers = await Promise.all(WINDOW_NAMES.map((window) => graphql(settings, VISITORS_QUERY, {
+    start: new Date(now.getTime() - WINDOWS[window] * 86_400_000).toISOString(),
+    end,
+    hosts: [...PUBLIC_HOSTS],
+  })))
+  const [day] = answers
+  if (!day.ok) return day
+  const value = {} as PerWindow<VisitorCounts | null>
+  WINDOW_NAMES.forEach((window, index) => {
+    const answer = answers[index]
+    value[window] = answer.ok ? parseVisitors(answer.value) : null
+  })
+  return { ok: true, value }
 }

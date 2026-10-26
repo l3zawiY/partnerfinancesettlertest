@@ -12,6 +12,8 @@ export interface Env extends AuthSettings {
   /** split-ledger-telemetry-staging (fictional). Optional. */
   TELEMETRY_STAGING?: D1Database
   CF_ACCOUNT_ID?: string
+  /** The tallywithus.com zone, for the public page's traffic records. Not secret. */
+  ZONE_ID?: string
   /** Read-only Cloudflare token (Account Analytics Read, D1 Read), stored as a Worker secret. */
   CF_ANALYTICS_TOKEN?: string
 }
@@ -60,7 +62,7 @@ export async function handle(request: Request, env: Env, now: Date = new Date(),
   const logbookName: LogbookName = isLogbookName(logbookParam) && (logbookParam === 'production' || stagingAvailable) ? logbookParam : 'production'
   const database = logbookName === 'staging' ? env.TELEMETRY_STAGING : env.TELEMETRY
 
-  const settings: AnalyticsSettings | null = env.CF_ANALYTICS_TOKEN && env.CF_ACCOUNT_ID ? { accountId: env.CF_ACCOUNT_ID, token: env.CF_ANALYTICS_TOKEN, fetcher } : null
+  const settings: AnalyticsSettings | null = env.CF_ANALYTICS_TOKEN && env.CF_ACCOUNT_ID ? { accountId: env.CF_ACCOUNT_ID, token: env.CF_ANALYTICS_TOKEN, zoneId: env.ZONE_ID, fetcher } : null
   const [logbook, workers, databases, visitors] = await Promise.all([
     safeLogbook(database, now, errorWindow),
     settings ? loadWorkers(settings, now) : notConfigured,

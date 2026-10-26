@@ -24,6 +24,8 @@
   "vars": {
     "AUTH_MODE": "password",
     "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": ""
+    "ACCESS_AUD": "",
+    // tallywithus.com, for the public page's traffic counts (needs Zone Analytics Read).
+    "ZONE_ID": "bacdaf54d3200b2b27935858d907ffa6"
   }
 }

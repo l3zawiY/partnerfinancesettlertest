@@ -32,7 +32,7 @@ export interface HealthInput {
   logbook: Loaded<LogbookView>
   workers: Loaded<Record<string, PerWindow<WorkerCounts>>>
   databases: Loaded<DatabaseUsage[]>
-  visitors: Loaded<PerWindow<VisitorCounts>>
+  visitors: Loaded<PerWindow<VisitorCounts | null>>
 }
 
 function plural(value: number, word: string): string {
@@ -96,10 +96,13 @@ function plan(input: HealthInput): Answer {
 
 function visitors(input: HealthInput): Answer {
   const question = QUESTIONS.visitors
-  if (!input.visitors.ok) return { question, level: 'info', answer: 'Can’t tell yet: visitor numbers are not available (see Visitors).' }
-  const { '24h': day, '7d': week } = input.visitors.value
-  if (week.visits === 0 && input.visitors.value['30d'].visits === 0) return { question, level: 'info', answer: 'None recorded yet.' }
-  return { question, level: 'good', answer: `Yes: ${plural(day.visits, 'visit')} in the last 24 hours, ${plural(week.visits, 'visit')} in 7 days.` }
+  if (!input.visitors.ok || !input.visitors.value['24h']) return { question, level: 'info', answer: 'Can’t tell yet: public page numbers are not available (see Public page).' }
+  const day = input.visitors.value['24h']
+  const week = input.visitors.value['7d']
+  const longest = week ?? day
+  if (longest.visits === 0) return { question, level: 'info', answer: `No visits recorded in the last ${week ? '7 days' : '24 hours'}.` }
+  const weekPart = week ? `, ${plural(week.visits, 'visit')} in 7 days` : ''
+  return { question, level: 'good', answer: `Yes: ${plural(day.visits, 'visit')} in the last 24 hours${weekPart} (bots included).` }
 }
 
 export function assessHealth(input: HealthInput): Health {

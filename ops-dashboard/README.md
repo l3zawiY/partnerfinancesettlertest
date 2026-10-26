@@ -231,7 +231,9 @@ without hiding the others.
   zone's request records. The public page was removed from the Worker table, where it
   always showed 0. Field names were checked against Cloudflare's published schema; the live
   query could not be run from the agent's container (its own token lacks that permission),
-  so it is first proven on the deployed page. 49 tests pass. Not deployed yet.
+  so it is first proven on the deployed page. 49 tests pass. Deployed as version
+  `0bc3fb49-ff79-43fa-a524-d0a44eba1193` (owner approved); both secrets kept; page still
+  answers 401 without the password.
 - **2026-10-26 (live, first findings):** the owner set `OPS_PASSWORD` and `CF_ANALYTICS_TOKEN`
   (both stored as Secrets) and opened the page. First findings from the real numbers:
   - Production logbook: household created, partner invited, and partner joined within 8

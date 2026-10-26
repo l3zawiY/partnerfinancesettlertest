@@ -43,8 +43,7 @@ us" and email on the domain are possible later and not planned. Email records (M
 be added in Cloudflare later without disturbing Clerk's records.
 
 **Next step:** "Remaining roadmap to go-live — 2026-10-25" below the refined pilot
-roadmap. R1, R2, and R4 are done on staging; R3 waits for the owner's choice (a or b, see
-"R3 blocked"). R5 onward waits for the owner's steps 7b-1 to 7b-4 and a new session that
+roadmap. R1, R2, and R4 are done on staging; R3 skipped (owner chose b). R5 onward waits for the owner's steps 7b-1 to 7b-4 and a new session that
 can see `VITE_CLERK_PUBLISHABLE_KEY_PRODUCTION`. R5 must also create the production
 logbook database `split-ledger-telemetry` and record its id.
 
@@ -535,6 +534,16 @@ people have accounts (R8 before R9); it matters again only for partner replaceme
 minutes while the agent reruns the suite, then back; (b) skip the rehearsal and confirm in
 R9 that both accounts still sign in after locking.
 
+**Owner chose (b) on 2026-10-26:** no rehearsal; R9 includes both people confirming they
+still sign in after sign-up is locked.
+
+**7b-1 in progress 2026-10-26.** The domain is registered at Namecheap. Cloudflare's import
+found Namecheap's parking records (an `A` record for `@` pointing at a Namecheap redirect
+server and `www` → `parkingpage.namecheap.com`) plus Namecheap email-forwarding `MX` and
+SPF `TXT` records. Advice given: delete the two parking records, keep the email records,
+add nothing for `app` (the Worker custom domain creates it in R5), and keep DNSSEC off
+at Namecheap while switching nameservers.
+
 **R4 done 2026-10-25 (WEB-048).** Commits `cc77f2b` (logbook) and the staging logbook id.
 Staging logbook database `split-ledger-telemetry-staging`, id
 `6b9bcb10-2668-4d32-b348-812543979ee0`, migration `0001_logbook.sql` applied; Worker
@@ -558,7 +567,7 @@ same check is part of R7 for production.
 |---|---|---|---|---|
 | R1 ✓ | WEB-050: rehearse D1 Time Travel restore on staging (done 2026-10-25) | Agent | none | Earlier state restored; runbook updated |
 | R2 ✓ | WEB-051: commit the volume check, run it on staging (done 2026-10-25) | Agent | none | Exact recalculation matches; D1 usage recorded |
-| R3 (blocked) | 7b-5 rehearsal: invitation-only sign-up on the Clerk Development instance still lets an invited person join (then restore the Development settings) | Agent | none | Invited join works; uninvited sign-up refused |
+| R3 (skipped, owner chose b) | 7b-5 rehearsal: invitation-only sign-up on the Clerk Development instance still lets an invited person join (then restore the Development settings) | Agent | none | Invited join works; uninvited sign-up refused |
 | R4 ✓ | WEB-048: logbook built, tested, deployed to staging; WEB-031 suite rerun; privacy probe (done 2026-10-25) | Agent | none | Suite green; logbook rows hold only allowlisted fields |
 | 7b-1 to 7b-4 | Domain in Cloudflare, Clerk Production, DNS records, production publishable key | Owner (parallel with R1–R4) | ~30–40 min | Clerk shows tallywithus.com verified; new session started |
 | R5 | Production: create `split-ledger-production` and `split-ledger-telemetry`, migrate, deploy to app.tallywithus.com | Agent | none | Guard passes; deploy names production |
@@ -1838,7 +1847,7 @@ owner's domain is tallywithus.com.
    only on staging; the suite creates and removes its own Clerk users and household.
 5. Follow "Remaining roadmap to go-live — 2026-10-25" (R1 to R12). The owner approved
    the plan and said start on 2026-10-25; continue from the first step not marked done
-   (R1, R2, R4 done; R3 waits for the owner's a/b choice; R5 needs the production
+   (R1, R2, R4 done; R3 skipped, owner chose b; R5 needs the production
    publishable key and creates both production databases).
 6. Commit and push per item; update "Current status", the test record, and the backlog.
 ```

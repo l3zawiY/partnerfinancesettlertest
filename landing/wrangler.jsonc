@@ -1,0 +1,15 @@
+{
+  // Public landing page for tallywithus.com. Static files only: no code, no database.
+  // Separate from the app Workers (split-ledger-staging, split-ledger-production).
+  "name": "tallywithus-landing",
+  "compatibility_date": "2026-09-07",
+  "assets": {
+    "directory": "./public"
+  },
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "tallywithus.com", "custom_domain": true },
+    { "pattern": "www.tallywithus.com", "custom_domain": true }
+  ]
+}

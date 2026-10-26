@@ -208,7 +208,32 @@ which does not match the app's green theme. `ClerkProvider` accepts an `appearan
 setting (primary colour, text colours, font, corner radius) that can reuse the app's
 colour tokens and Inter font. Check contrast and both Clerk instances after the change.
 
-**Priority:** Could; cosmetic, owner noticed during the first production sign-in.
+**Plan (agent, 2026-10-26; owner chose to decide in a later session).**
+
+- *Covers:* the Sign in window, the organization (household) switcher, the account menu,
+  and Clerk's organization settings where the partner is invited. One change in
+  `webapp/src/AppProviders.tsx` (`appearance.variables` on `ClerkProvider`, Clerk React
+  6.15) plus a test of the values.
+- *Does not cover:* Clerk's hosted Account Portal that the invitation email opens
+  (`accounts.tallywithus.com`); the owner sets its colour and logo in the Clerk dashboard
+  (Customization → Branding). "Secured by Clerk" stays (removing it needs a paid plan).
+- *Owner decision needed:* Clerk takes one primary colour for buttons and links.
+  **A (recommended):** dark green `#315b2d` (`--mine`) with white text, like the app's
+  main action buttons; readable as link colour. **B:** lime `#c8f15d` (`--accent`) with
+  dark text, like the active tab; poor contrast as link colour on the off-white
+  background. Fallback if A looks heavy: A for buttons with lime only as the focus ring.
+- *Other values:* text `#1f2a25` (`--ink`), secondary text `#66756b` (`--ink-soft`),
+  background `#fbfcf9` (`--card`), inputs white, borders `#dfe6dc` (`--rule`), danger
+  `#a65e52` (`--stop`), success `#557d50` (`--ok`), warning `#9b6b3e` (`--warn`), focus
+  ring `#9dce57` (`--accent-strong`), the app's font stack, corner radius about 8px.
+- *Also ask the owner:* the same green for the Account Portal (dashboard step), and
+  whether there is a logo or the "S" mark stays the brand.
+- *Steps once decided:* build; deploy to staging; WEB-031 suite; before/after screenshots
+  of the sign-in window and menus for the owner; production deploy only with owner
+  approval. About 15 minutes of agent work.
+
+**Priority:** Could; cosmetic, owner noticed during the first production sign-in. Next
+step after R8 unless the owner says otherwise.
 
 *Noticed: 2026-10-26.*
 

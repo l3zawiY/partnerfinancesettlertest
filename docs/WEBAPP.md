@@ -31,7 +31,10 @@ it current instead of creating session handoffs or a separate plan for every bat
   No statements or shared items have been submitted yet.
 - *Next:* **R8** is partly done (both accounts signed in and paired; see "R8 started"):
   the Clerk redirect setting and the wording fix are done; next is the fictional-data
-  part of the spot-check. WEB-053 (Clerk colours) is being planned. Then R9 (lock sign-up), R10
+  part of the spot-check.
+- *Then (owner, 2026-10-26):* WEB-053, matching Clerk's windows to the app's colours. The
+  plan and the one owner decision (primary colour A dark green, recommended, or B lime)
+  are in `docs/WEBAPP-BACKLOG.md`; ask the owner before building. Then R9 (lock sign-up), R10
   (scheduled logbook checks), R11 (go/no-go). Target pilot start about 2026-10-31.
 - *Side project in parallel (owner request 2026-10-26):* a private operations dashboard,
   WEB-052, in its own session and branch `ops-dashboard`; see "Handover for the operations
@@ -2053,10 +2056,12 @@ agent: plain language, exact steps, and ask only for the owner steps the roadmap
    VITE_CLERK_PUBLISHABLE_KEY_PRODUCTION are present without printing them, run
    npx wrangler whoami (expected account: "Hydrapeak8@gmail.com's Account"), and confirm
    https://app.tallywithus.com answers 200 and /api/me answers 401.
-3. R5 to R7 are done. Guide the owner and partner through R8 (spot-check 7b-6; collect
-   both safe diagnostic reports and the browsers used), then R9 (lock sign-up; both sign
-   out and back in), R10 (scheduled logbook checks), and R11 (go/no-go review, using the
-   template in Batch 7b).
+3. R5 to R7 are done; R8 is partly done (both accounts signed in and paired, see "R8
+   started"). Guide the owner and partner through the rest of R8 (fictional samples;
+   collect both safe diagnostic reports and the browsers used), then R9 (lock sign-up;
+   both sign out and back in), R10 (scheduled logbook checks), and R11 (go/no-go review,
+   using the template in Batch 7b). Also ask the owner for the WEB-053 decision (Clerk
+   colours, plan in docs/WEBAPP-BACKLOG.md) and build it if they choose.
 4. Any production deploy or migration needs the owner's explicit approval in that session
    (the session's permission layer enforces it) and must follow a staging run of the
    WEB-031 suite. Never read production shared records or real data (the logbook database

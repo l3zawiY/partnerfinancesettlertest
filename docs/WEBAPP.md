@@ -8,8 +8,9 @@ it current instead of creating session handoffs or a separate plan for every bat
 **Where things stand (read this first).**
 
 - *Done:* Batch 6h (local hardening), Batch 7a (fictional staging), R1 (D1 Time Travel
-  rehearsal), R2 (volume check), R4 (pilot logbook on staging), and the owner's steps 7b-1
-  to 7b-4. R3 was skipped (owner chose b).
+  rehearsal), R2 (volume check), R4 (pilot logbook on staging), the owner's steps 7b-1
+  to 7b-4, and R5 to R7 (production live at `https://app.tallywithus.com`, signed-out
+  checks passed). R3 was skipped (owner chose b).
 - *Owner steps completed 2026-10-26:* `tallywithus.com` is active in Cloudflare (moved from
   Namecheap's nameservers); Clerk Production exists for `tallywithus.com` on the Hobby
   plan with all DNS records verified; its sign-in settings were reviewed (below); the
@@ -21,10 +22,22 @@ it current instead of creating session handoffs or a separate plan for every bat
 - *Done 2026-10-26:* **R6** (production secret stored as a Cloudflare Secret).
 - *Done 2026-10-26:* **R7** (see "R7 done"; one recorded exception for Cloudflare's
   analytics script).
-- *Next:* **R8**, the owner and partner spot-check (7b-6) on `https://app.tallywithus.com`.
+- *Production at a glance (2026-10-26):* Worker `split-ledger-production`, current version
+  `96cc22f2-f91e-4983-95b8-8694ff2289f9`, at `https://app.tallywithus.com` (no workers.dev
+  address); databases `split-ledger-production` (financial, empty, never read by the
+  agent) and `split-ledger-telemetry` (logbook, one test row from R5); one secret,
+  `CLERK_SECRET_KEY`; Clerk Production with SSO off; zone setting **Always Use HTTPS** on.
+  Production has held no real data yet.
+- *Next:* **R8**, the owner and partner spot-check (7b-6) on `https://app.tallywithus.com`,
+  when both are free (owner, 2026-10-26: "in a bit"). Then R9 (lock sign-up), R10
+  (scheduled logbook checks), R11 (go/no-go). Target pilot start about 2026-10-31.
 - *Side project in parallel (owner request 2026-10-26):* a private operations dashboard,
-  WEB-052; see "Handover for the operations dashboard side project". Then R6 (owner pastes the production secret into Cloudflare),
-  R7, R8 (spot-check), R9, R10, R11 (go/no-go). Target pilot start about 2026-10-31.
+  WEB-052, in its own session and branch `ops-dashboard`; see "Handover for the operations
+  dashboard side project".
+- *Owner decisions 2026-10-26:* keep Cloudflare Web Analytics for the public page later
+  (the app keeps blocking its script; see "R7 done"); leave Clerk's **Allow new members to
+  delete organizations** as it is (not changed; the recovery path for an accidentally
+  deleted household is the exported closed archives and D1 Time Travel).
 - *In parallel, not part of the pilot:* the owner started a separate session for a simple
   public page at `tallywithus.com` and `www.tallywithus.com`, on branch `landing-page`, in a
   new `landing/` folder, as its own Worker `tallywithus-landing`. It must not touch
@@ -75,9 +88,8 @@ leaving the bare domain free for a possible public page; renaming the app to "Ta
 us" and email on the domain are possible later and not planned. Email records (MX, SPF) can
 be added in Cloudflare later without disturbing Clerk's records.
 
-**Next step:** R5, in a session started after 2026-10-26 so it can see
-`VITE_CLERK_PUBLISHABLE_KEY_PRODUCTION`. See "Remaining roadmap to go-live — 2026-10-25" and
-the R5 notes there.
+**Next step:** R8, the owner spot-check; see "Where things stand" above and "Remaining
+roadmap to go-live — 2026-10-25".
 
 **Planning decisions — 2026-10-25.**
 
@@ -610,8 +622,8 @@ partner = Member, as tested). **Allow user-created organizations** stays on unti
 because the owner creates the household in the spot-check. Agent recommendation given:
 turn **Allow new members to delete organizations** off, so the household cannot be deleted
 by accident from Clerk's organization menu, and confirm in **SSO connections** that Google,
-Apple, GitHub, and similar are all off. The owner did not confirm either change in this
-session: R5's session should ask, or check during R8.
+Apple, GitHub, and similar are all off. Outcome (R7 session, 2026-10-26): SSO connections
+confirmed off; the owner chose to leave the delete setting unchanged.
 
 **7b-2 and 7b-3 done 2026-10-26.** Clerk Production instance created on the Hobby plan for
 `tallywithus.com`, cloned from Development. Its five DNS records (`clerk`, `accounts`,
@@ -721,8 +733,8 @@ statistics for the public page later, so the zone keeps injecting the Web Analyt
 beacon; the app's policy keeps blocking it on purpose, which leaves one browser console
 message from Cloudflare's script, not from the app. To remove it, exclude
 `app.tallywithus.com` in the Web Analytics site rules if Cloudflare offers that, or accept
-it. Still unanswered: whether **Allow new members to delete organizations** is off in Clerk
-Production (check during R8). Next: R8, the owner spot-check.
+it. The owner chose to leave **Allow new members to delete organizations** unchanged.
+Next: R8, the owner spot-check.
 
 **R5 notes for the agent (written 2026-10-26).**
 
@@ -1948,7 +1960,7 @@ rolls back that file; stop and investigate before retrying.
 | No open **Must before pilot** item in `docs/WEBAPP-BACKLOG.md` | link to backlog state | |
 | WEB-031 suite passed on staging (HC-01 to HC-10, H4C-03, H4C-05, H5-03, H5-04) | `docs/WEBAPP-HUMAN-TESTING.md` section 1, 2026-10-25 | pass |
 | Staging export restores; rollback rehearsed | Batch 7a staging operations record, 2026-10-25 | pass |
-| Production: custom domain over HTTPS, security headers present, `/api/*` returns 401 signed out, no console errors | check output | |
+| Production: custom domain over HTTPS, security headers present, `/api/*` returns 401 signed out, no console errors | R7, 2026-10-26 (this document and `docs/WEBAPP-HUMAN-TESTING.md` section 1) | pass, one accepted exception: Cloudflare's Web Analytics script is blocked by the app's policy (owner keeps Web Analytics for the public page) |
 | Clerk Production: Organizations on, sign-up invitation-only after both accounts exist, members cannot create organizations | owner confirmation | |
 | Owner spot-check 7b-6 passed on both laptops, self-test passed on both, fictional data wiped | owner's two diagnostics | |
 | v1 fallback drill passed | test record | |
@@ -1994,29 +2006,31 @@ its security and maintenance costs.
 Continue the Split Ledger web pilot on branch mac-unpushed-work (never main).
 
 Read AGENTS.md and CLAUDE.md, then docs/WEBAPP.md → "Current status" (start with "Where
-things stand"), "Remaining roadmap to go-live — 2026-10-25" including the R5 notes, the
-Batch 7b section and its operations runbook, and docs/WEBAPP-BACKLOG.md. The owner is a
-non-coding product manager who delegated building, deployment, and testing to the agent:
-plain language, exact steps, and ask only for the owner steps the roadmap lists.
+things stand"), "Remaining roadmap to go-live — 2026-10-25" including the R5 to R7 notes,
+the Batch 7b section and its operations runbook, and docs/WEBAPP-BACKLOG.md. The owner is
+a non-coding product manager who delegated building, deployment, and testing to the
+agent: plain language, exact steps, and ask only for the owner steps the roadmap lists.
 
 1. Confirm webapp/.env.local exists without reading it (recreate it from the
    VITE_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY environment values if missing, without
    printing them). Run node test/run-tests.js and, in webapp/, npm ci && npm run check.
 2. Check that CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, and
    VITE_CLERK_PUBLISHABLE_KEY_PRODUCTION are present without printing them, run
-   npx wrangler whoami (expected account: "Hydrapeak8@gmail.com's Account", confirmed by
-   the owner), and confirm tallywithus.com is an active zone.
-3. Do R5 following its notes, then guide the owner through R6 (paste the production
-   secret into Cloudflare), then R7, R8 (owner spot-check 7b-6), R9, R10 (scheduled
-   logbook checks), and R11 (go/no-go). Ask the owner whether they turned off "Allow new
-   members to delete organizations" and confirmed SSO connections are off in Clerk
-   Production.
-4. Never read production shared records or real data (the logbook database
+   npx wrangler whoami (expected account: "Hydrapeak8@gmail.com's Account"), and confirm
+   https://app.tallywithus.com answers 200 and /api/me answers 401.
+3. R5 to R7 are done. Guide the owner and partner through R8 (spot-check 7b-6; collect
+   both safe diagnostic reports and the browsers used), then R9 (lock sign-up; both sign
+   out and back in), R10 (scheduled logbook checks), and R11 (go/no-go review, using the
+   template in Batch 7b).
+4. Any production deploy or migration needs the owner's explicit approval in that session
+   (the session's permission layer enforces it) and must follow a staging run of the
+   WEB-031 suite. Never read production shared records or real data (the logbook database
    split-ledger-telemetry is the only production data the agent may read); never print
    keys. Fictional data only on staging; the suites create and remove their own Clerk
    users and household.
-5. Another session may be working on branch landing-page (public page at tallywithus.com);
-   do not touch that branch, the landing/ folder, or the tallywithus-landing Worker.
+5. Other sessions may work on branches landing-page (public page, landing/ folder, Worker
+   tallywithus-landing) and ops-dashboard (WEB-052, ops-dashboard/ folder, Worker
+   tallywithus-ops); do not touch those branches, folders, or Workers.
 6. Commit and push per item; update "Current status", the test record, and the backlog.
 ```
 

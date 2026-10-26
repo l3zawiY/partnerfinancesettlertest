@@ -499,6 +499,27 @@ amount, and email text were recorded by type and screen only). The WEB-031 suite
 passed 14 scenarios and 73 checks on the logbook build, console clean, and its 41 logbook
 rows held only allowlisted fields. Details in `docs/WEBAPP.md` (R4).
 
+### Production signed-out checks (R7) — 2026-10-26 (agent run, hosted)
+
+Against https://app.tallywithus.com (Worker `split-ledger-production`, Clerk Production),
+no account and no data:
+
+| Check | Result |
+|---|---|
+| Page over HTTPS, sign-in screen shown (Chromium, Playwright) | pass |
+| `http://app.` and `http://www.tallywithus.com` redirect 301 to `https://`, no loop | pass (after the owner turned on **Always Use HTTPS**) |
+| Security headers: content-security policy, HSTS, nosniff, no-referrer, frame denial, permissions, opener policy | pass |
+| Signed out: `/api/me`, `/api/household`, `/api/workflows`, `/api/workflows/export` 401; `POST /api/logbook` 401; retired `/api/shared-entries` 410 | pass |
+| Only secret is `CLERK_SECRET_KEY`; no workers.dev address (404) | pass |
+| Logbook received a test error (the pre-R6 503 on `/api/me`) with no household, role, or personal text | pass |
+| No console errors | pass with one accepted exception: Cloudflare's Web Analytics script is blocked by the app's policy (owner keeps Web Analytics for the public page) |
+
+Found and fixed: the policy blocked Clerk Production's protection script
+(`cdn.protect.clerk.com`); `*.protect.clerk.com` added per Clerk's CSP guide, the WEB-031
+suite rerun on staging (14 scenarios, 73 checks, console clean), then production
+redeployed with owner approval. Authenticated production checks are the owner spot-check
+(R8, 7b-6).
+
 ## 2. Safety and preparation
 
 ### What physically runs where

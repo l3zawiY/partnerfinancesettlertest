@@ -199,6 +199,12 @@ only and covers operations, not one household's activity.
 **Priority:** Should; side project in parallel with go-live, owner request 2026-10-26.
 Handover in `docs/WEBAPP.md` ("Handover for the operations dashboard side project").
 
+**Status 2026-10-26:** built and live at `https://ops.tallywithus.com` on branch
+`ops-dashboard` (Worker `tallywithus-ops`); password protection instead of Cloudflare
+Access, because Zero Trust needed a card; owner reviewed it. Record in
+`ops-dashboard/README.md`. Remaining: a better source for public-page visits, and merging
+the branch (its notes move into `docs/`). Close this item at that merge.
+
 *Noticed: 2026-10-26.*
 
 ### WEB-054 — Split the web documentation: owner TL;DR, short main page, archived history

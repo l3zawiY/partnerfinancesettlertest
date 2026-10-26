@@ -16,6 +16,8 @@ named below when a task needs them.
 - **The agent's next step:** the documentation split (WEB-054), then guide the spot-check.
 - Go-live target: about 2026-10-31, after the spot-check, locking sign-up, scheduled
   logbook checks, and a go/no-go review.
+- Your private operations dashboard is **live** at https://ops.tallywithus.com (your
+  password). Its notes are in `ops-dashboard/README.md` on branch `ops-dashboard`.
 - In VS Code, see the latest version with **Source Control → Sync / Pull** on branch
   `mac-unpushed-work`.
 
@@ -37,7 +39,9 @@ named below when a task needs them.
 4. **WEB-053**, Clerk colours: ask A or B, then build per its plan in the backlog.
 5. **R9** lock sign-up (7b-5; both sign out and back in), **R10** scheduled logbook
    checks, **R11** go/no-go review (template in `docs/WEBAPP.md` → "Go / no-go review
-   template"). Then go-live, R12 (WEB-049), R13 (merge `landing-page`).
+   template"). Then go-live, R12 (WEB-049), R13 (merge `landing-page`), and merge
+   `ops-dashboard` the same way (only when the owner asks; it changes only
+   `ops-dashboard/`, and its README moves into `docs/` then).
 
 ## Production at a glance
 
@@ -47,6 +51,10 @@ named below when a task needs them.
   `split-ledger-telemetry` (logbook; the only production data the agent may read).
 - Staging: https://split-ledger-staging.hydrapeak8.workers.dev, fictional data only,
   Clerk Development.
+- Operations dashboard: Worker `tallywithus-ops` at `https://ops.tallywithus.com`, one
+  password (`OPS_PASSWORD` secret; Zero Trust declined, it needed a card), read-only token
+  `CF_ANALYTICS_TOKEN` (Account Analytics, D1, Zone Analytics: Read). Reads only the
+  logbook databases and Cloudflare's counts. Open: a better source for public-page visits.
 - Cloudflare zone `tallywithus.com`: Always Use HTTPS on; Web Analytics kept for the
   public page (the app's policy blocks its script on purpose; one console message).
 
@@ -57,8 +65,8 @@ named below when a task needs them.
   Commands: `docs/WEBAPP.md` → "Operations runbook (hosted environments)".
 - Never read production shared records or real data; never print keys; fictional data
   only on staging.
-- Do not touch branches `landing-page` (`landing/`) or `ops-dashboard` (`ops-dashboard/`,
-  WEB-052); other sessions own them.
+- Do not change branches `landing-page` (`landing/`) or `ops-dashboard` (`ops-dashboard/`,
+  WEB-052) except to merge them by pull request when the owner asks.
 - Commit and push per item; update this page, and record details in `docs/WEBAPP.md`.
 
 ## Facts that save time

@@ -43,9 +43,12 @@ stays the record until WEB-054 restructures this document.
   plan and the one owner decision (primary colour A dark green, recommended, or B lime)
   are in `docs/WEBAPP-BACKLOG.md`; ask the owner before building. Then R9 (lock sign-up), R10
   (scheduled logbook checks), R11 (go/no-go). Target pilot start about 2026-10-31.
-- *Side project in parallel (owner request 2026-10-26):* a private operations dashboard,
-  WEB-052, in its own session and branch `ops-dashboard`; see "Handover for the operations
-  dashboard side project".
+- *Side project done 2026-10-26:* the private operations dashboard (WEB-052) is live at
+  `https://ops.tallywithus.com`, password-protected (`OPS_PASSWORD`; Zero Trust needed a
+  card), Worker `tallywithus-ops`, read-only token `CF_ANALYTICS_TOKEN`; the owner reviewed
+  it. Its record is `ops-dashboard/README.md` on branch `ops-dashboard` (changes only that
+  folder; merge by pull request when the owner asks). Open: a better source for
+  public-page visits.
 - *Owner decisions 2026-10-26:* keep Cloudflare Web Analytics for the public page later
   (the app keeps blocking its script; see "R7 done"); leave Clerk's **Allow new members to
   delete organizations** as it is (not changed; the recovery path for an accidentally

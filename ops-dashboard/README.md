@@ -230,6 +230,12 @@ without hiding the others.
 
 ## Status log
 
+- **2026-10-26 (81 "people"):** live, without the network field the page counted 81 visits by
+  people, mostly Chrome and Firefox from Germany, the US, Poland, and the Netherlands:
+  scanners posing as browsers. A page load now counts as a person only when the same
+  hour, browser, device, and country also downloaded the page's style or font; the rest is
+  "a program posing as a browser". Repeat visits that reuse the cached style are missed,
+  so the count leans low. 60 tests pass.
 - **2026-10-26 (free plan withholds a field):** live, Cloudflare refused the request because
   the free plan does not give `clientASNDescription` (network). The page now drops any
   optional field Cloudflare refuses, retries, and says which ones are missing; without the

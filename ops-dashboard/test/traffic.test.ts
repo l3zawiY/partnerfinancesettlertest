@@ -47,8 +47,12 @@ describe('the public page report', () => {
       row({ hour: `2026-10-26T${hour}:00:00Z`, path: '/fonts/inter.woff2', visits: 0 }),
     ]),
     row({ hour: '2026-10-26T11:00:00Z', status: 301 }),
-    // Wife: one phone visit.
+    // Wife: one phone visit (page plus its style).
     row({ hour: '2026-10-26T12:00:00Z', device: 'mobile', browser: 'Mobile Safari', network: 'FICTIONAL-MOBILE' }),
+    row({ hour: '2026-10-26T12:00:00Z', device: 'mobile', browser: 'Mobile Safari', network: 'FICTIONAL-MOBILE', path: '/style.css', visits: 0 }),
+    // What the live page showed on 2026-10-26: programs posing as Chrome, page only, no style.
+    row({ hour: '2026-10-26T13:00:00Z', country: 'DE', network: 'unknown', requests: 19, visits: 19 }),
+    row({ hour: '2026-10-26T13:00:00Z', country: 'US', browser: 'Firefox', network: 'unknown', requests: 10, visits: 10 }),
     // Scanners and robots.
     row({ hour: '2026-10-26T03:00:00Z', path: '/.env', status: 404, browser: 'unknown', network: 'FICTIONAL CLOUD HOSTING', requests: 300, visits: 60 }),
     row({ hour: '2026-10-26T04:00:00Z', path: '/', browser: 'Chrome', network: 'DIGITALOCEAN-ASN', requests: 50, visits: 50 }),
@@ -60,9 +64,19 @@ describe('the public page report', () => {
 
   it('lands near the real answer: about 4 visits by people', () => {
     expect(report.people).toEqual({ visits: 4, pageViews: 4 })
-    expect(report.requests).toEqual({ people: 11, robots: 12, automated: 350, agent: 6 })
+    expect(report.requests).toEqual({ people: 12, robots: 12, automated: 379, agent: 6 })
     expect(report.agentLikely).toBe(6)
-    expect(report.totalRequests).toBe(379)
+    expect(report.totalRequests).toBe(409)
+  })
+
+  it('counts a page load without its style as a program posing as a browser', () => {
+    expect(report.peopleGroups.some((group) => group.detail === 'DE')).toBe(false)
+    expect(report.automatedGroups.find((group) => group.detail.startsWith('page only'))).toMatchObject({ label: '/', requests: 29 })
+  })
+
+  it('leans low for a repeat visit that reuses the cached style', () => {
+    const repeat = buildReport([row({ requests: 2, visits: 2 }), row({ path: '/style.css', visits: 0 })], '24h', NOW)
+    expect(repeat.people.visits).toBe(1)
   })
 
   it('puts requests into Toronto-labelled hours, newest last', () => {
@@ -77,6 +91,7 @@ describe('the public page report', () => {
 
   it('lists who the people were and what was probed, biggest first', () => {
     expect(report.peopleGroups[0]).toMatchObject({ label: 'Chrome on desktop', detail: 'Canada', visits: 3, pageViews: 3 })
+    expect(report.peopleGroups).toHaveLength(2)
     expect(report.peopleGroups[1]).toMatchObject({ label: 'Mobile Safari on mobile', visits: 1 })
     expect(report.automatedGroups[0]).toMatchObject({ label: '/.env', requests: 300 })
     expect(report.automatedGroups[0].detail).toBe('does not exist on the site')

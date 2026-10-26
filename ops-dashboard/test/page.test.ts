@@ -35,6 +35,7 @@ function cloudflareFetcher(seen: string[]) {
     return Response.json({ data: { viewer: { zones: [{ httpRequestsAdaptiveGroups: [
       { count: 40, sum: { visits: 6 }, dimensions: { datetimeHour: '2026-10-26T10:00:00Z', clientRequestPath: '/.env', edgeResponseStatus: 404, userAgentBrowser: 'unknown', userAgent: 'zgrab', clientASNDescription: 'FICTIONAL-CLOUD', clientDeviceType: 'desktop', clientCountryName: 'XX' } },
       { count: 1, sum: { visits: 1 }, dimensions: { datetimeHour: '2026-10-26T11:00:00Z', clientRequestPath: '/', edgeResponseStatus: 200, userAgentBrowser: 'Chrome', userAgent: 'Mozilla/5.0 fictional', clientASNDescription: 'FICTIONAL-ISP', clientDeviceType: 'desktop', clientCountryName: 'Canada' } },
+      { count: 1, sum: { visits: 0 }, dimensions: { datetimeHour: '2026-10-26T11:00:00Z', clientRequestPath: '/style.css', edgeResponseStatus: 200, userAgentBrowser: 'Chrome', userAgent: 'Mozilla/5.0 fictional', clientASNDescription: 'FICTIONAL-ISP', clientDeviceType: 'desktop', clientCountryName: 'Canada' } },
     ] }] } } })
   }) as unknown as typeof fetch
 }

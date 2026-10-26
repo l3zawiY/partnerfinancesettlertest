@@ -138,6 +138,41 @@ export function statusWord(status: number | null): string {
 
 export const GROUP_LIMIT = 8
 
+/** The page's style and font: real browsers download them with the page; scanners skip them. */
+export const PAGE_ASSETS = ['/style.css', '/fonts/inter.woff2']
+
+function delivered(row: TrafficRow): boolean {
+  return row.status !== null && ((row.status >= 200 && row.status < 300) || row.status === 304)
+}
+
+function clientKey(row: TrafficRow): string {
+  return `${row.hour}|${row.browser}|${row.device}|${row.country}`
+}
+
+/**
+ * How many page loads each browser group can back with a style or font download in the same
+ * hour. Without the network (withheld on the free plan), this is what tells a person from a
+ * scanner posing as a browser. A repeat visit that reuses the cached style is missed, so this
+ * leans low rather than high.
+ */
+export function confirmedPages(rows: TrafficRow[]): Map<string, number> {
+  const pages = new Map<string, number>()
+  const assets = new Map<string, Record<string, number>>()
+  for (const row of rows) {
+    if (classify(row) !== 'people') continue
+    const key = clientKey(row)
+    if (isPageView(row)) pages.set(key, (pages.get(key) ?? 0) + row.requests)
+    else if (PAGE_ASSETS.includes(row.path) && delivered(row)) {
+      const counts = assets.get(key) ?? {}
+      counts[row.path] = (counts[row.path] ?? 0) + row.requests
+      assets.set(key, counts)
+    }
+  }
+  const confirmed = new Map<string, number>()
+  for (const [key, count] of pages) confirmed.set(key, Math.min(count, Math.max(0, ...Object.values(assets.get(key) ?? {}))))
+  return confirmed
+}
+
 export function buildReport(rows: TrafficRow[], range: TrafficRange, now: Date): TrafficReport {
   const buckets = makeBuckets(range, now)
   const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]))
@@ -146,29 +181,49 @@ export function buildReport(rows: TrafficRow[], range: TrafficRange, now: Date):
   const people = { visits: 0, pageViews: 0 }
   const peopleGroups = new Map<string, Group>()
   const automatedGroups = new Map<string, Group>()
+  const remaining = confirmedPages(rows)
   let serverErrors = 0
+
+  const count = (kind: Kind, row: TrafficRow, amount: number, bucket: Bucket | undefined) => {
+    requests[kind] += amount
+    if (bucket) bucket.counts[kind] += amount
+  }
 
   for (const row of rows) {
     const kind = classify(row)
-    requests[kind] += row.requests
     const bucket = byKey.get(bucketKey(range, row.hour))
-    if (bucket) bucket.counts[kind] += row.requests
     if (row.status !== null && row.status >= 500 && SITE_FILES.includes(row.path)) serverErrors += row.requests
-    if (kind === 'people') {
-      const pageView = isPageView(row)
-      if (pageView) {
-        people.visits += row.visits
-        people.pageViews += row.requests
-        if (bucket) bucket.peopleVisits += row.visits || row.requests
+    if (kind === 'people' && isPageView(row)) {
+      const key = clientKey(row)
+      const real = Math.min(row.requests, remaining.get(key) ?? 0)
+      remaining.set(key, (remaining.get(key) ?? 0) - real)
+      if (real > 0) {
+        count('people', row, real, bucket)
+        people.visits += real
+        people.pageViews += real
+        if (bucket) bucket.peopleVisits += real
+        addTo(peopleGroups, `${row.device}|${row.browser}|${row.country}`, `${row.browser} on ${row.device}`, row.country, { ...row, requests: real, visits: real }, true)
       }
-      addTo(peopleGroups, `${row.device}|${row.browser}|${row.country}`, `${row.browser} on ${row.device}`, row.country, row, pageView)
+      if (row.requests > real) {
+        const posing = { ...row, requests: row.requests - real }
+        count('automated', posing, posing.requests, bucket)
+        addTo(automatedGroups, `${row.path}|posing`, row.path, 'page only, never its style: a program posing as a browser', posing, false)
+      }
+    } else if (kind === 'people') {
+      count('people', row, row.requests, bucket)
+      addTo(peopleGroups, `${row.device}|${row.browser}|${row.country}`, `${row.browser} on ${row.device}`, row.country, row, false)
     } else if (kind === 'agent') {
+      count('agent', row, row.requests, bucket)
       if (row.agent === 'likely') agentLikely += row.requests
     } else {
+      count(kind, row, row.requests, bucket)
       // One line per address asked for: the owner needs the pattern, not every network.
       addTo(automatedGroups, row.path, row.path, SITE_FILES.includes(row.path) ? 'a real page file' : 'does not exist on the site', row, false)
     }
   }
+
+  // A browser group that only fetched files and never a confirmed page is not listed as a person.
+  for (const [key, group] of peopleGroups) if (group.pageViews === 0) peopleGroups.delete(key)
 
   const top = (groups: Map<string, Group>, by: (group: Group) => number) => [...groups.values()].sort((a, b) => by(b) - by(a) || a.label.localeCompare(b.label)).slice(0, GROUP_LIMIT)
   return {

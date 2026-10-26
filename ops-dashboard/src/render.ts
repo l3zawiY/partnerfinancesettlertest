@@ -210,7 +210,7 @@ export function renderVisitors(data: PageData): string {
   const visits = report.people.visits || report.people.pageViews
   const takeaway = `<p class="takeaway"><strong>${count(visits)} visit${visits === 1 ? '' : 's'} by people</strong> in ${period}. ${others ? `${share}% of all traffic was robots and scanners: normal for any new website, and nothing to do (the page refuses what doesn't exist).` : ''}</p>`
   const tiles = [
-    ['Visits by people', count(visits), `${count(report.people.pageViews)} page view${report.people.pageViews === 1 ? '' : 's'}`, 'hero'],
+    ['Visits by people', count(visits), 'page loads that also loaded the style', 'hero'],
     ['Robots and scanners', count(others), `requests · ${share}% of traffic`, ''],
     ['Claude’s checks', count(report.requests.agent), 'requests from my tests', ''],
   ].map(([name, value, sub, cls]) => `<div class="tile ${cls}"><div class="muted small">${escapeHtml(name)}</div><div class="big">${escapeHtml(value)}</div><div class="muted small">${escapeHtml(sub)}</div></div>`).join('')
@@ -230,7 +230,7 @@ export function renderVisitors(data: PageData): string {
   return `<section id="visitors">${heading}${takeaway}<div class="tiles">${tiles}</div>${errors}
 <div class="two"><div>${peopleChart}</div><div><h3>Who the people were</h3>${peopleTable}</div></div>
 ${otherChart}${renderChartTable(report.buckets)}${robots}
-<details class="table-view"><summary>How people are told apart</summary><p class="small">A request counts as a person when it comes from a recognised browser, from a home or mobile internet provider (not a server company), asks for one of the page's own files, and gets it. Known robots are those Cloudflare labels (search engines and similar). Claude's checks name themselves; older ones are recognised as curl or Node programs${report.agentLikely ? ` (${count(report.agentLikely)} of these requests)` : ''}. Everything else is scanners and other automated programs. A scanner disguised as a browser on a home network would count as a person, so small numbers are approximate.</p></details>
+<details class="table-view"><summary>How people are told apart</summary><p class="small">A page load counts as a person when it comes from a recognised browser, from a home or mobile internet provider where Cloudflare says so, and the same browser also downloads the page's style or font that hour. Scanners posing as browsers fetch the page alone. A repeat visit that reuses the saved style is missed, so the count leans low. Known robots are those Cloudflare labels (search engines and similar). Claude's checks name themselves; older ones are recognised as curl or Node programs${report.agentLikely ? ` (${count(report.agentLikely)} of these requests)` : ''}. Everything else is scanners and other automated programs. A scanner that also fetches the style would count as a person, so small numbers are approximate.</p></details>
 <p class="note">From Cloudflare's traffic records for tallywithus.com and www.tallywithus.com. Counts only; no visitor is identified. ${escapeHtml(notes)}</p></section>`
 }
 

@@ -16,12 +16,13 @@
     { "binding": "TELEMETRY", "database_name": "split-ledger-telemetry", "database_id": "43b0c195-6fa9-4221-ad97-6da46c9a2641" },
     { "binding": "TELEMETRY_STAGING", "database_name": "split-ledger-telemetry-staging", "database_id": "6b9bcb10-2668-4d32-b348-812543979ee0" }
   ],
-  // Not secret. ACCESS_TEAM_DOMAIN and ACCESS_AUD come from the owner's Access application;
-  // until both are filled in, the page refuses everyone. CF_ACCOUNT_ID and OWNER_EMAIL are
+  // Not secret. AUTH_MODE is "password" since 2026-10-26: the owner declined Zero Trust
+  // because it requires a payment card. For "access", fill in ACCESS_TEAM_DOMAIN and
+  // ACCESS_AUD from the owner's Access application; until then the page refuses everyone. CF_ACCOUNT_ID and OWNER_EMAIL are
   // passed by `npm run deploy`. Secrets (set in Cloudflare, never here): CF_ANALYTICS_TOKEN,
   // and OPS_PASSWORD only if AUTH_MODE is "password".
   "vars": {
-    "AUTH_MODE": "access",
+    "AUTH_MODE": "password",
     "ACCESS_TEAM_DOMAIN": "",
     "ACCESS_AUD": ""
   }

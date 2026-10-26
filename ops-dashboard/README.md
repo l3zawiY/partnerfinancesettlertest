@@ -220,6 +220,11 @@ change should be needed.
 
 ## Status log
 
+- **2026-10-26 (password mode):** Zero Trust's Free plan asked for a payment card, so the owner
+  chose the password option (Step C) instead. `AUTH_MODE` is now `password`; version
+  `a7a39a82-6796-443e-b4e8-17c82156ca56`. Until the owner adds the `OPS_PASSWORD` secret
+  (20+ characters), the page answers 503 "The password is not configured yet."
+  (checked, also with a guessed password). Step A is no longer needed.
 - **2026-10-26 (deployed):** the owner approved. `tallywithus-ops` version
   `59283f06-b872-423d-8e3f-52b8607a0da5` is at `ops.tallywithus.com` (custom domain) with
   bindings `TELEMETRY` and `TELEMETRY_STAGING` only, `AUTH_MODE=access`, and owner email

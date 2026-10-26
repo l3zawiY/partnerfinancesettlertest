@@ -22,7 +22,7 @@ describe('Worker configuration', () => {
   })
 
   it('keeps secrets and personal details out of the configuration', () => {
-    expect(config.vars.AUTH_MODE).toBe('access')
+    expect(['access', 'password']).toContain(config.vars.AUTH_MODE)
     for (const name of ['CF_ANALYTICS_TOKEN', 'OPS_PASSWORD', 'OWNER_EMAIL', 'CF_ACCOUNT_ID']) expect(config.vars).not.toHaveProperty(name)
   })
 

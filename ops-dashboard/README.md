@@ -13,8 +13,8 @@ one screen:
 3. **Databases (D1)**: size, rows read, and rows written for each database, from
    Cloudflare's records *about* the databases, plus how much of the free daily limits is used.
 4. **Public page**: visits and requests for `tallywithus.com` and `www.tallywithus.com`
-   from the zone's traffic records (bots included). Windows the free plan does not keep
-   show "Not kept on the free plan".
+   for 24 hours and 7 days, from the zone's traffic records, and a table of what the last
+   24 hours were made of. Robots and scanners are included, so "visits" are not people.
 
 It is its own Cloudflare Worker, `tallywithus-ops`, kept in this `ops-dashboard/` folder. It is
 separate from the app (`webapp/`) and the public page (`landing/`). Nothing here changes them.
@@ -226,6 +226,15 @@ without hiding the others.
 
 ## Status log
 
+- **2026-10-26 (public page numbers did not add up):** the first live reading showed 137
+  "visits" and 769 requests in 24 hours, where the owner expects about 3 real visits, and
+  100 visits for 30 days (fewer than for 7 days, which is impossible). Likely causes:
+  automated scanners and robots, which find new websites within hours, and Cloudflare
+  estimating long ranges from samples on the free plan. Changes: the 30-day box is
+  dropped for the public page; the top-box answer says "Unclear" instead of "Yes"; and
+  section 4 shows what the last 24 hours were made of (page address, answer, browser or
+  known robot, network, device; never addresses or full browser strings), with plain
+  shares of refused requests, known robots, and non-browsers. 50 tests pass. Not deployed yet.
 - **2026-10-26 (public page numbers, option A):** the owner added `Zone · Analytics · Read`
   for `tallywithus.com` to the read-only token. Section 4 and the top-box answer now use the
   zone's request records. The public page was removed from the Worker table, where it

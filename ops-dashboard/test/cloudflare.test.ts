@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { D1_QUERY, VISITORS_QUERY, WORKERS_QUERY, failureReason, loadDatabases, loadVisitors, loadWorkers, parseDatabaseList, parseD1Usage, parseVisitors, parseWorkers, windowVariables } from '../src/cloudflare'
+import { BREAKDOWN_QUERY, D1_QUERY, VISITORS_QUERY, parseBreakdown, WORKERS_QUERY, failureReason, loadDatabases, loadVisitors, loadWorkers, parseDatabaseList, parseD1Usage, parseVisitors, parseWorkers, windowVariables } from '../src/cloudflare'
 
 const NOW = new Date('2026-10-26T12:00:00.000Z')
 const TOKEN = 'fictional-token-value'
@@ -48,17 +48,31 @@ describe('Cloudflare analytics', () => {
     expect(VISITORS_QUERY).toContain('requestSource: "eyeball"')
   })
 
-  it('shows a window the free plan does not keep as not kept, and needs the last 24 hours', async () => {
+  it('reads what the traffic was made of, without addresses or full browser strings', () => {
+    const rows = parseBreakdown({ data: { viewer: { zones: [{ httpRequestsAdaptiveGroups: [
+      { count: 40, sum: { visits: 40 }, avg: { sampleInterval: 1 }, dimensions: { clientRequestPath: '/wp-login.php', edgeResponseStatus: 404, userAgentBrowser: 'unknown', clientASNDescription: 'FICTIONAL-CLOUD', verifiedBotCategory: '', clientDeviceType: 'desktop' } },
+      { count: 4, sum: { visits: 1 }, dimensions: { clientRequestPath: '/', edgeResponseStatus: 200, userAgentBrowser: 'Chrome', clientASNDescription: 'FICTIONAL-ISP', verifiedBotCategory: '', clientDeviceType: 'mobile' } },
+    ] }] } } })
+    expect(rows[0]).toEqual({ path: '/wp-login.php', status: 404, browser: 'unknown', network: 'FICTIONAL-CLOUD', bot: '', device: 'desktop', requests: 40, visits: 40 })
+    expect(rows[1].browser).toBe('Chrome')
+    expect(BREAKDOWN_QUERY).toContain('orderBy: [count_DESC]')
+    expect(BREAKDOWN_QUERY).not.toMatch(/clientIP|userAgent[^BO]/)
+  })
+
+  it('loads 24 hours and 7 days, shows a refused 7 days as not kept, and needs the last 24 hours', async () => {
     const asked: Array<{ start: string; hosts: string[]; zone: string }> = []
     const fetcher = (async (_url: string, init: RequestInit) => {
-      const variables = JSON.parse(String(init.body)).variables
-      asked.push(variables)
-      if (variables.start === '2026-09-26T12:00:00.000Z') return Response.json({ data: null, errors: [{ message: 'cannot request data older than 7 days' }] })
+      const body = JSON.parse(String(init.body))
+      asked.push(body.variables)
+      if (body.query.includes('count_DESC')) return Response.json({ data: { viewer: { zones: [{ httpRequestsAdaptiveGroups: [{ count: 9, sum: { visits: 3 }, avg: { sampleInterval: 10 }, dimensions: { clientRequestPath: '/', edgeResponseStatus: 200 } }] }] } } })
+      if (body.variables.start === '2026-10-19T12:00:00.000Z') return Response.json({ data: null, errors: [{ message: 'cannot request data older than 1 day' }] })
       return Response.json({ data: { viewer: { zones: [{ httpRequestsAdaptiveGroups: [{ count: 9, sum: { visits: 3 }, dimensions: { edgeResponseStatus: 200 } }] }] } } })
     }) as unknown as typeof fetch
     const result = await loadVisitors({ accountId: 'acc', token: TOKEN, zoneId: 'fictional-zone', fetcher }, NOW)
-    expect(result).toEqual({ ok: true, value: { '24h': { requests: 9, visits: 3, serverErrors: 0 }, '7d': { requests: 9, visits: 3, serverErrors: 0 }, '30d': null } })
-    expect(asked.map((variables) => variables.start)).toEqual(['2026-10-25T12:00:00.000Z', '2026-10-19T12:00:00.000Z', '2026-09-26T12:00:00.000Z'])
+    expect(result.ok && result.value.windows).toEqual({ '24h': { requests: 9, visits: 3, serverErrors: 0 }, '7d': null, '30d': null })
+    expect(result.ok && result.value.top).toHaveLength(1)
+    expect(result.ok && result.value.sampled).toBe(true)
+    expect(asked.map((variables) => variables.start).sort()).toEqual(['2026-10-19T12:00:00.000Z', '2026-10-25T12:00:00.000Z', '2026-10-25T12:00:00.000Z'])
     expect(asked[0]).toMatchObject({ zone: 'fictional-zone', hosts: ['tallywithus.com', 'www.tallywithus.com'] })
 
     const refused = (async () => Response.json({ data: null, errors: [{ message: 'not authorized' }] })) as unknown as typeof fetch

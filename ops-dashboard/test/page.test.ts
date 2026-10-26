@@ -32,7 +32,10 @@ function cloudflareFetcher(seen: string[]) {
     const query = JSON.parse(String(init?.body)).query as string
     if (query.includes('workersInvocationsAdaptive')) return Response.json({ data: { viewer: { accounts: [{ w24h: [{ sum: { requests: 1234, errors: 0 }, dimensions: { scriptName: 'split-ledger-production' } }] }] } } })
     if (query.includes('d1AnalyticsAdaptiveGroups')) return Response.json({ data: { viewer: { accounts: [{ w24h: [{ sum: { rowsRead: 77, rowsWritten: 5 }, dimensions: { databaseId: 'tele' } }] }] } } })
-    return Response.json({ data: { viewer: { zones: [{ httpRequestsAdaptiveGroups: [{ count: 50, sum: { visits: 7 }, dimensions: { edgeResponseStatus: 200 } }] }] } } })
+    return Response.json({ data: { viewer: { zones: [{ httpRequestsAdaptiveGroups: [
+      { count: 40, sum: { visits: 6 }, dimensions: { clientRequestPath: '/.env', edgeResponseStatus: 404, userAgentBrowser: 'unknown', clientASNDescription: 'FICTIONAL-CLOUD' } },
+      { count: 10, sum: { visits: 1 }, dimensions: { clientRequestPath: '/', edgeResponseStatus: 200, userAgentBrowser: 'Chrome', clientASNDescription: 'FICTIONAL-ISP' } },
+    ] }] } } })
   }) as unknown as typeof fetch
 }
 
@@ -91,7 +94,10 @@ describe('dashboard page', () => {
     expect(body).toContain('1,234')
     expect(body).toContain('split-ledger-telemetry')
     expect(body).toContain('37 KB')
-    expect(body).toContain('7 visits in the last 24 hours')
+    expect(body).toContain('7 visits recorded in the last 24 hours')
+    expect(body).toContain('80% asked for pages that do not exist')
+    expect(body).toContain('Not found or refused (404)')
+    expect(body).not.toContain('Last 30 days</div><div class="big">7')
     expect(seen.filter((url) => url.includes('api.cloudflare.com'))).toHaveLength(6)
   })
 

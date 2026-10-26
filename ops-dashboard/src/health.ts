@@ -1,7 +1,7 @@
 // The "at a glance" box at the top of the page: the owner's four questions, each answered in
 // one line, worked out only from the numbers already on the page.
 
-import type { DatabaseUsage, Loaded, PerWindow, VisitorCounts, WorkerCounts } from './cloudflare'
+import type { DatabaseUsage, Loaded, PerWindow, PublicTraffic, WorkerCounts } from './cloudflare'
 import { count, torontoTime } from './format'
 import type { LogbookName, LogbookView } from './logbook'
 
@@ -32,7 +32,7 @@ export interface HealthInput {
   logbook: Loaded<LogbookView>
   workers: Loaded<Record<string, PerWindow<WorkerCounts>>>
   databases: Loaded<DatabaseUsage[]>
-  visitors: Loaded<PerWindow<VisitorCounts | null>>
+  visitors: Loaded<PublicTraffic>
 }
 
 function plural(value: number, word: string): string {
@@ -96,13 +96,13 @@ function plan(input: HealthInput): Answer {
 
 function visitors(input: HealthInput): Answer {
   const question = QUESTIONS.visitors
-  if (!input.visitors.ok || !input.visitors.value['24h']) return { question, level: 'info', answer: 'Can’t tell yet: public page numbers are not available (see Public page).' }
-  const day = input.visitors.value['24h']
-  const week = input.visitors.value['7d']
+  if (!input.visitors.ok || !input.visitors.value.windows['24h']) return { question, level: 'info', answer: 'Can’t tell yet: public page numbers are not available (see Public page).' }
+  const day = input.visitors.value.windows['24h']
+  const week = input.visitors.value.windows['7d']
   const longest = week ?? day
   if (longest.visits === 0) return { question, level: 'info', answer: `No visits recorded in the last ${week ? '7 days' : '24 hours'}.` }
-  const weekPart = week ? `, ${plural(week.visits, 'visit')} in 7 days` : ''
-  return { question, level: 'good', answer: `Yes: ${plural(day.visits, 'visit')} in the last 24 hours${weekPart} (bots included).` }
+  // Cloudflare's visits include robots and scanners, so this stays an honest "unclear".
+  return { question, level: 'info', answer: `Unclear: ${plural(day.visits, 'visit')} recorded in the last 24 hours, but robots and scanners are included. See what made up the traffic in section 4.` }
 }
 
 export function assessHealth(input: HealthInput): Health {

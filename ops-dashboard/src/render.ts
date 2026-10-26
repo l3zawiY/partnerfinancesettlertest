@@ -1,7 +1,7 @@
 // Server-rendered HTML for the one dashboard page. Every value passes through escapeHtml.
 // The page shows only logbook fields and Cloudflare operational counts.
 
-import type { DatabaseUsage, Loaded, PerWindow, VisitorCounts, WorkerCounts } from './cloudflare'
+import { PUBLIC_WINDOWS, type DatabaseUsage, type Loaded, type PerWindow, type PublicTraffic, type TrafficRow, type WorkerCounts } from './cloudflare'
 import { bytes, count, escapeHtml, percentOf, torontoTime } from './format'
 import { FREE_LIMITS, assessHealth, type Health } from './health'
 import { ACTIVITY_LABELS, DATABASE_LABELS, SCREEN_LABELS, WORKER_LABELS, errorLabel, label } from './labels'
@@ -20,7 +20,7 @@ export interface PageData {
   logbook: Loaded<LogbookView>
   workers: Loaded<Record<string, PerWindow<WorkerCounts>>>
   databases: Loaded<DatabaseUsage[]>
-  visitors: Loaded<PerWindow<VisitorCounts | null>>
+  visitors: Loaded<PublicTraffic>
 }
 
 const STYLE = `
@@ -55,6 +55,7 @@ tbody tr:last-child td { border-bottom: none; }
 .choices { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
 .choices a, .choices strong { font-size: 0.85rem; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); text-decoration: none; }
 .choices strong { background: var(--text); color: var(--card); border-color: var(--text); font-weight: 600; }
+.plain { margin: 0 0 10px; padding-left: 18px; }
 .failed { color: var(--watch); background: var(--watch-bg); border-radius: 8px; padding: 8px 12px; margin: 0; }
 code { font-size: 0.82rem; white-space: nowrap; }
 .glance { border-width: 2px; }
@@ -180,17 +181,47 @@ export function renderDatabases(databases: PageData['databases']): string {
 <p class="note">These numbers come from Cloudflare's records about the databases. This page never reads what is inside the app's databases.</p></section>`
 }
 
+const STATUS_WORDS: Record<string, string> = { '2': 'Found', '3': 'Redirected', '4': 'Not found or refused', '5': 'Server error' }
+
+function statusWord(status: number | null): string {
+  if (status === null) return '—'
+  return `${STATUS_WORDS[String(status)[0]] ?? 'Other'} (${status})`
+}
+
+/** Plain summary lines for the breakdown: how much was refused, from bots, or from browsers. */
+export function trafficSummary(rows: TrafficRow[]): string[] {
+  const total = rows.reduce((sum, row) => sum + row.requests, 0)
+  if (!total) return []
+  const share = (value: number) => `${Math.round((value / total) * 100)}%`
+  const notFound = rows.filter((row) => row.status !== null && row.status >= 400).reduce((sum, row) => sum + row.requests, 0)
+  const bots = rows.filter((row) => row.bot).reduce((sum, row) => sum + row.requests, 0)
+  const noBrowser = rows.filter((row) => !row.bot && /^(unknown|other)$/i.test(row.browser)).reduce((sum, row) => sum + row.requests, 0)
+  return [
+    `${share(notFound)} asked for pages that do not exist or were refused (typical of automated scanners).`,
+    `${share(bots)} came from known robots such as search engines.`,
+    `${share(noBrowser)} came from programs that are not a recognised browser.`,
+  ]
+}
+
 export function renderVisitors(visitors: PageData['visitors']): string {
   const heading = `<h2>4. Public page: visits and traffic</h2>
-<p class="how">How often tallywithus.com was opened. A visit is someone arriving from another site or a typed address; requests count every file loaded. Search engines and other bots are included, so real people are fewer.</p>`
+<p class="how">How often tallywithus.com was opened. Cloudflare's "visits" include robots and scanners, which find every new website within hours, so the table below shows what the traffic was made of.</p>`
   if (!visitors.ok) return `<section id="visitors">${heading}${failed(visitors.reason)}</section>`
-  const tiles = WINDOW_NAMES.map((window) => {
-    const counts = visitors.value[window]
+  const traffic = visitors.value
+  const tiles = PUBLIC_WINDOWS.map((window) => {
+    const counts = traffic.windows[window]
     if (!counts) return `<div class="tile"><div class="muted small">${WINDOW_LABELS[window]}</div><div class="big muted">—</div><div class="muted small">Not kept on the free plan</div></div>`
     const errors = counts.serverErrors > 0 ? `<div class="some small">${count(counts.serverErrors)} server error${counts.serverErrors === 1 ? '' : 's'}</div>` : ''
-    return `<div class="tile"><div class="muted small">${WINDOW_LABELS[window]}</div><div class="big">${count(counts.visits)}</div><div>visit${counts.visits === 1 ? '' : 's'}</div><div class="muted small">${count(counts.requests)} requests</div>${errors}</div>`
+    return `<div class="tile"><div class="muted small">${WINDOW_LABELS[window]}</div><div class="big">${count(counts.visits)}</div><div>visit${counts.visits === 1 ? '' : 's'} recorded</div><div class="muted small">${count(counts.requests)} requests</div>${errors}</div>`
   }).join('')
-  return `<section id="visitors">${heading}<div class="tiles">${tiles}</div><p class="note">From Cloudflare's traffic records for tallywithus.com and www.tallywithus.com. Counts only; no visitor is identified.</p></section>`
+  const summary = trafficSummary(traffic.top).map((line) => `<li>${escapeHtml(line)}</li>`).join('')
+  const rows = traffic.top.map((row) => `<tr><td><code>${escapeHtml(row.path)}</code></td><td>${escapeHtml(statusWord(row.status))}</td><td>${escapeHtml(row.bot ? `Robot: ${row.bot}` : row.browser)}<br><span class="muted small">${escapeHtml(row.device)}</span></td><td>${escapeHtml(row.network)}</td><td class="num">${count(row.requests)}</td><td class="num">${count(row.visits)}</td></tr>`).join('')
+  const breakdown = traffic.top.length
+    ? `<h3>What made up the last 24 hours</h3><ul class="plain">${summary}</ul><div class="scroll"><table><thead><tr><th>Page address</th><th>Answer</th><th>Browser or robot</th><th>Network</th><th class="num">Requests</th><th class="num">Visits</th></tr></thead><tbody>${rows}</tbody></table></div>
+<p class="note">The ${traffic.top.length} biggest groups. A real person opening the page usually shows as "/" found, from a home or mobile internet provider, in a normal browser.</p>`
+    : ''
+  const sampled = traffic.sampled ? ' Cloudflare estimated some of these numbers from a sample.' : ''
+  return `<section id="visitors">${heading}<div class="tiles">${tiles}</div>${breakdown}<p class="note">From Cloudflare's traffic records for tallywithus.com and www.tallywithus.com. Counts only; no visitor is identified.${sampled}</p></section>`
 }
 
 export function renderPage(data: PageData): string {

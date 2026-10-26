@@ -236,8 +236,8 @@ without hiding the others.
   real browser engine). People are now split by country (`HOME_COUNTRIES` in
   `src/traffic.ts`): "Visits from Canada" is the main number, chart, and top-box answer;
   other countries are shown apart as "probably automated", since real visitors abroad
-  land there too. A test reproduces the live reading (3 and 11). 61 tests pass. Not
-  deployed yet.
+  land there too. A test reproduces the live reading (3 and 11). 61 tests pass. Deployed
+  (owner approved).
 - **2026-10-26 (81 "people"):** live, without the network field the page counted 81 visits by
   people, mostly Chrome and Firefox from Germany, the US, Poland, and the Netherlands:
   scanners posing as browsers. A page load now counts as a person only when the same

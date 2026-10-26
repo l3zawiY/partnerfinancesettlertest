@@ -18,8 +18,9 @@ it current instead of creating session handoffs or a separate plan for every bat
   `tallywithus.com` and `*.tallywithus.com`.
 - *Done 2026-10-26:* **R5**: production databases created and migrated; the app is
   deployed at `https://app.tallywithus.com` (see "R5 done").
-- *Next:* **R6**: the owner pastes the production `CLERK_SECRET_KEY` into Cloudflare; until
-  then every `/api` call answers 503 by design. Then R6 (owner pastes the production secret into Cloudflare),
+- *Done 2026-10-26:* **R6** (production secret stored as a Cloudflare Secret).
+- *Next:* finish **R7** (see "R7 in progress"): redeploy production with the Clerk
+  protection fix after owner approval, Web Analytics off, Always Use HTTPS decided. Then R6 (owner pastes the production secret into Cloudflare),
   R7, R8 (spot-check), R9, R10, R11 (go/no-go). Target pilot start about 2026-10-31.
 - *In parallel, not part of the pilot:* the owner started a separate session for a simple
   public page at `tallywithus.com` and `www.tallywithus.com`, on branch `landing-page`, in a
@@ -645,7 +646,7 @@ same check is part of R7 for production.
 | R4 ✓ | WEB-048: logbook built, tested, deployed to staging; WEB-031 suite rerun; privacy probe (done 2026-10-25) | Agent | none | Suite green; logbook rows hold only allowlisted fields |
 | 7b-1 to 7b-4 ✓ | Domain in Cloudflare, Clerk Production, DNS records, production publishable key (done 2026-10-26) | Owner (parallel with R1–R4) | ~30–40 min | Clerk shows tallywithus.com verified; new session started |
 | R5 ✓ | Production (done 2026-10-26): create `split-ledger-production` and `split-ledger-telemetry`, migrate, deploy to app.tallywithus.com | Agent | none | Guard passes; deploy names production |
-| R6 | Owner pastes the production `CLERK_SECRET_KEY` in Cloudflare | Owner | ~2 min | Agent sees `/api/me` answer 401 |
+| R6 ✓ | (done 2026-10-26) Owner pastes the production `CLERK_SECRET_KEY` in Cloudflare | Owner | ~2 min | Agent sees `/api/me` answer 401 |
 | R7 | Unauthenticated production checks (HTTPS, headers, 401, no console errors, logbook receives a test error) | Agent | none | All pass |
 | R8 | Owner spot-check 7b-6 | Owner + partner | ~15 min each | Same result on both laptops; self-test passes |
 | R9 | 7b-5: in Clerk Production set **Access mode** to invitation-only (Restricted) and turn **Allow user-created organizations** off; then both people sign out and back in (R3 option b) | Owner + partner | ~5 min | Both still sign in and see the household |
@@ -677,6 +678,33 @@ staging). `CONFIRM_PRODUCTION=yes npm run deploy:production` deployed Worker
 the `workers.dev` address answers 404; `wrangler secret list --env production` is empty
 (the build's "Using secrets defined in .env.local" refers only to the ignored local
 `.dev.vars`); the content-security policy names `clerk.tallywithus.com`. Next: R6.
+
+**R6 done 2026-10-26.** The owner first saved `CLERK_SECRET_KEY` as a plain **Text**
+variable (Cloudflare then offered a `vars` snippet naming it), then replaced it with a
+**Secret** and, as advised, a freshly created Clerk secret key. `wrangler secret list --env
+production` shows exactly one secret, `CLERK_SECRET_KEY` (`secret_text`); `/api/me`
+answers 401. Worker version `ae3e1f2c-396a-48d0-9ab7-e2899efd1689` ("Updated secret").
+
+**R7 in progress 2026-10-26.** Passing: HTTPS with HSTS and all security headers on
+`app.tallywithus.com`; signed out, `/api/me`, `/api/household`, `/api/workflows`, and
+`/api/workflows/export` answer 401, `POST /api/logbook` 401, the retired
+`/api/shared-entries` 410; the page shows the sign-in screen. The logbook received the one
+pre-R6 request as a privacy-safe row (`server_error`, `/api/me`, 503,
+`AuthenticationUnavailable`, no household or role). Found:
+
+- Clerk Production loads its abuse and fraud protection script from
+  `cdn.protect.clerk.com`, which the policy blocked (staging's Development instance never
+  loads it). Clerk's CSP guide requires `https://*.protect.clerk.com` in `script-src`,
+  `frame-src`, and `connect-src` (any port); added in `webapp/securityHeaders.ts` with its
+  test. Staging redeployed (version `99d39009-6079-44c4-8eab-aaba986b4487`) and the WEB-031
+  suite passed 14/14 with a clean console. The production redeploy waits on owner approval.
+- Cloudflare injects its Web Analytics beacon (`static.cloudflareinsights.com`) into
+  pages on the zone; the policy blocks it, which logs a console error. Not allowed in the
+  policy on purpose (no third-party analytics on the app); the owner is asked to turn the
+  zone's automatic Web Analytics off.
+- Plain `http://app.tallywithus.com` answers 200 instead of redirecting, because the zone
+  setting **Always Use HTTPS** is off (read through the API). It is zone-wide, so it also
+  affects the public page; the owner is asked before it is changed.
 
 **R5 notes for the agent (written 2026-10-26).**
 

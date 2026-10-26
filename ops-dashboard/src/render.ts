@@ -3,7 +3,7 @@
 
 import type { DatabaseUsage, Loaded, PerWindow, WorkerCounts } from './cloudflare'
 import { CHART_STYLE, PEOPLE_SERIES, renderChartTable, renderStackedChart } from './chart'
-import { TRAFFIC_RANGES, type TrafficRange, type TrafficReport } from './traffic'
+import { HOME_NAME, TRAFFIC_RANGES, isHome, type TrafficRange, type TrafficReport } from './traffic'
 import { bytes, count, escapeHtml, percentOf, torontoTime } from './format'
 import { FREE_LIMITS, assessHealth, type Health } from './health'
 import { ACTIVITY_LABELS, DATABASE_LABELS, SCREEN_LABELS, WORKER_LABELS, errorLabel, label } from './labels'
@@ -207,18 +207,20 @@ export function renderVisitors(data: PageData): string {
   const { report, sampled, truncated, missing } = data.visitors.value
   const others = report.requests.robots + report.requests.automated
   const share = report.totalRequests ? Math.round((others / report.totalRequests) * 100) : 0
-  const visits = report.people.visits || report.people.pageViews
-  const takeaway = `<p class="takeaway"><strong>${count(visits)} visit${visits === 1 ? '' : 's'} by people</strong> in ${period}. ${others ? `${share}% of all traffic was robots and scanners: normal for any new website, and nothing to do (the page refuses what doesn't exist).` : ''}</p>`
+  const home = report.people.home
+  const abroad = report.people.abroad
+  const takeaway = `<p class="takeaway"><strong>${count(home)} visit${home === 1 ? '' : 's'} from ${HOME_NAME}</strong> in ${period}.${abroad ? ` ${count(abroad)} more from other countries, probably automated tools.` : ''} ${others ? `${share}% of all traffic was robots and scanners: normal for any new website, and nothing to do.` : ''}</p>`
   const tiles = [
-    ['Visits by people', count(visits), 'page loads that also loaded the style', 'hero'],
+    [`Visits from ${HOME_NAME}`, count(home), 'people, confirmed by the page style loading', 'hero'],
+    ['Other countries', count(abroad), 'probably automated; real visitors abroad show here too', ''],
     ['Robots and scanners', count(others), `requests · ${share}% of traffic`, ''],
     ['Claude’s checks', count(report.requests.agent), 'requests from my tests', ''],
   ].map(([name, value, sub, cls]) => `<div class="tile ${cls}"><div class="muted small">${escapeHtml(name)}</div><div class="big">${escapeHtml(value)}</div><div class="muted small">${escapeHtml(sub)}</div></div>`).join('')
   const step = range === '24h' ? 'per hour' : 'per day'
-  const peopleChart = renderStackedChart(report.buckets, `Visits by people ${step} (Toronto time)`, PEOPLE_SERIES, 140)
+  const peopleChart = renderStackedChart(report.buckets, `Visits from ${HOME_NAME} ${step} (Toronto time)`, PEOPLE_SERIES, 140)
   const otherChart = renderStackedChart(report.buckets, `Robots, scanners, and Claude’s checks: requests ${step}`, undefined, 90)
   const errors = report.serverErrors ? `<p class="failed">The public page answered ${count(report.serverErrors)} request${report.serverErrors === 1 ? '' : 's'} with a server error. Tell Claude.</p>` : ''
-  const peopleRows = report.peopleGroups.map((group) => `<tr><td>${escapeHtml(group.label)}<br><span class="muted small">${escapeHtml(group.detail)}</span></td><td class="num">${count(group.visits)}</td><td>${escapeHtml(lastSeen(group.lastHour))}</td></tr>`).join('')
+  const peopleRows = report.peopleGroups.map((group) => `<tr><td>${escapeHtml(group.label)}<br><span class="muted small">${escapeHtml(isHome(group.detail) ? HOME_NAME : `${group.detail} · probably automated`)}</span></td><td class="num">${count(group.visits)}</td><td>${escapeHtml(lastSeen(group.lastHour))}</td></tr>`).join('')
   const peopleTable = report.peopleGroups.length
     ? `<div class="scroll"><table><thead><tr><th>Browser and device</th><th class="num">Visits</th><th>Last visit (hour)</th></tr></thead><tbody>${peopleRows}</tbody></table></div>`
     : '<p class="muted small">No people in this period.</p>'

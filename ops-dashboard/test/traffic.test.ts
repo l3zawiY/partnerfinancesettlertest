@@ -63,7 +63,7 @@ describe('the public page report', () => {
   const report = buildReport(rows, '24h', NOW)
 
   it('lands near the real answer: about 4 visits by people', () => {
-    expect(report.people).toEqual({ visits: 4, pageViews: 4 })
+    expect(report.people).toEqual({ visits: 4, pageViews: 4, home: 4, abroad: 0 })
     expect(report.requests).toEqual({ people: 12, robots: 12, automated: 379, agent: 6 })
     expect(report.agentLikely).toBe(6)
     expect(report.totalRequests).toBe(409)
@@ -72,6 +72,15 @@ describe('the public page report', () => {
   it('counts a page load without its style as a program posing as a browser', () => {
     expect(report.peopleGroups.some((group) => group.detail === 'DE')).toBe(false)
     expect(report.automatedGroups.find((group) => group.detail.startsWith('page only'))).toMatchObject({ label: '/', requests: 29 })
+  })
+
+  it('splits the live 2026-10-26 reading into 3 from Canada and 11 elsewhere', () => {
+    const live = ([['CA', 'desktop', 'Chrome', 2], ['CA', 'mobile', 'ChromeMobile', 1], ['US', 'desktop', 'Chrome', 4], ['US', 'mobile', 'ChromeMobile', 3], ['US', 'mobile', 'MobileSafari', 1], ['CH', 'mobile', 'ChromeMobile', 2], ['NL', 'desktop', 'Chrome', 1]] as const)
+      .flatMap(([country, device, browser, n]) => [row({ country, device, browser, network: 'unknown', requests: n, visits: n }), row({ country, device, browser, network: 'unknown', path: '/style.css', requests: n, visits: 0 })])
+    const split = buildReport(live, '24h', NOW)
+    expect(split.people).toMatchObject({ home: 3, abroad: 11 })
+    expect(split.peopleGroups.slice(0, 2).map((group) => group.detail)).toEqual(['CA', 'CA'])
+    expect(split.buckets.find((bucket) => bucket.key === '2026-10-26T14')!.peopleVisits).toBe(3)
   })
 
   it('leans low for a repeat visit that reuses the cached style', () => {

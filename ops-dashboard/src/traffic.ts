@@ -71,7 +71,8 @@ export interface Group { label: string; detail: string; visits: number; pageView
 
 export interface TrafficReport {
   range: TrafficRange
-  people: { visits: number; pageViews: number }
+  /** visits = home + abroad; only home visits feed the chart and the top answer. */
+  people: { visits: number; pageViews: number; home: number; abroad: number }
   requests: Record<Kind, number>
   totalRequests: number
   /** Requests counted as Claude's checks only because they came from curl or Node. */
@@ -138,6 +139,16 @@ export function statusWord(status: number | null): string {
 
 export const GROUP_LIMIT = 8
 
+/** Where the owner's audience is for now (owner decision 2026-10-26). People elsewhere are shown
+ * apart: mostly automated tools running a real browser, but real visitors abroad land there too.
+ * Cloudflare reports the country as a code (CA) or a name, depending on the field. */
+export const HOME_COUNTRIES = ['CA', 'Canada']
+export const HOME_NAME = 'Canada'
+
+export function isHome(country: string): boolean {
+  return HOME_COUNTRIES.includes(country)
+}
+
 /** The page's style and font: real browsers download them with the page; scanners skip them. */
 export const PAGE_ASSETS = ['/style.css', '/fonts/inter.woff2']
 
@@ -178,7 +189,7 @@ export function buildReport(rows: TrafficRow[], range: TrafficRange, now: Date):
   const byKey = new Map(buckets.map((bucket) => [bucket.key, bucket]))
   const requests: Record<Kind, number> = { people: 0, robots: 0, automated: 0, agent: 0 }
   let agentLikely = 0
-  const people = { visits: 0, pageViews: 0 }
+  const people = { visits: 0, pageViews: 0, home: 0, abroad: 0 }
   const peopleGroups = new Map<string, Group>()
   const automatedGroups = new Map<string, Group>()
   const remaining = confirmedPages(rows)
@@ -201,7 +212,9 @@ export function buildReport(rows: TrafficRow[], range: TrafficRange, now: Date):
         count('people', row, real, bucket)
         people.visits += real
         people.pageViews += real
-        if (bucket) bucket.peopleVisits += real
+        if (isHome(row.country)) people.home += real
+        else people.abroad += real
+        if (bucket && isHome(row.country)) bucket.peopleVisits += real
         addTo(peopleGroups, `${row.device}|${row.browser}|${row.country}`, `${row.browser} on ${row.device}`, row.country, { ...row, requests: real, visits: real }, true)
       }
       if (row.requests > real) {
@@ -234,7 +247,7 @@ export function buildReport(rows: TrafficRow[], range: TrafficRange, now: Date):
     agentLikely,
     serverErrors,
     buckets,
-    peopleGroups: top(peopleGroups, (group) => group.pageViews || group.requests),
+    peopleGroups: top(peopleGroups, (group) => (isHome(group.detail) ? 1_000_000 : 0) + (group.pageViews || group.requests)),
     automatedGroups: top(automatedGroups, (group) => group.requests),
   }
 }

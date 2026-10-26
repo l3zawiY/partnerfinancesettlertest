@@ -230,6 +230,14 @@ without hiding the others.
 
 ## Status log
 
+- **2026-10-26 (Canada split, owner decision):** with the style rule, the live page showed 14
+  visits by people: 3 from Canada (matching the owner's 2–3 desktop visits and one phone
+  visit by his wife) and 11 from the US, Switzerland, and the Netherlands (tools running a
+  real browser engine). People are now split by country (`HOME_COUNTRIES` in
+  `src/traffic.ts`): "Visits from Canada" is the main number, chart, and top-box answer;
+  other countries are shown apart as "probably automated", since real visitors abroad
+  land there too. A test reproduces the live reading (3 and 11). 61 tests pass. Not
+  deployed yet.
 - **2026-10-26 (81 "people"):** live, without the network field the page counted 81 visits by
   people, mostly Chrome and Firefox from Germany, the US, Poland, and the Netherlands:
   scanners posing as browsers. A page load now counts as a person only when the same

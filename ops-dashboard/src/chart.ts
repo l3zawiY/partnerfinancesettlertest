@@ -26,7 +26,7 @@ export function compact(value: number): string {
 /** One colored part of a column: which color class, its label, and its value per bucket. */
 export interface Series { kind: Kind; label: string; value: (bucket: Bucket) => number }
 
-export const PEOPLE_SERIES: Series[] = [{ kind: 'people', label: 'Visits by people', value: (bucket) => bucket.peopleVisits }]
+export const PEOPLE_SERIES: Series[] = [{ kind: 'people', label: 'Visits from Canada', value: (bucket) => bucket.peopleVisits }]
 export const OTHER_SERIES: Series[] = (['robots', 'automated', 'agent'] as Kind[]).map((kind) => ({ kind, label: KIND_LABELS[kind], value: (bucket: Bucket) => bucket.counts[kind] }))
 
 function tooltip(bucket: Bucket, series: Series[]): string {

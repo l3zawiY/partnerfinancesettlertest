@@ -8,7 +8,7 @@ const ago = (hours: number) => new Date(NOW.getTime() - hours * 3_600_000).toISO
 const quietWorkers = { 'split-ledger-production': { '24h': { requests: 300, errors: 0 }, '7d': { requests: 900, errors: 0 }, '30d': { requests: 2000, errors: 0 } } }
 const smallDatabases = [{ name: 'split-ledger-telemetry', id: 'x', sizeBytes: 40_000, rowsRead: { '24h': 100, '7d': 500, '30d': 900 }, rowsWritten: { '24h': 2_000, '7d': 5_000, '30d': 9_000 } }]
 function report(peopleVisits: number, robots: number, automated: number) {
-  return { ok: true as const, value: { sampled: false, truncated: false, missing: [], report: { range: '24h' as const, people: { visits: peopleVisits, pageViews: peopleVisits }, requests: { people: peopleVisits * 4, robots, automated, agent: 0 }, totalRequests: peopleVisits * 4 + robots + automated, agentLikely: 0, serverErrors: 0, buckets: [], peopleGroups: [], automatedGroups: [] } } }
+  return { ok: true as const, value: { sampled: false, truncated: false, missing: [], report: { range: '24h' as const, people: { visits: peopleVisits + 2, pageViews: peopleVisits + 2, home: peopleVisits, abroad: 2 }, requests: { people: peopleVisits * 4, robots, automated, agent: 0 }, totalRequests: peopleVisits * 4 + robots + automated, agentLikely: 0, serverErrors: 0, buckets: [], peopleGroups: [], automatedGroups: [] } } }
 }
 const someVisitors = report(3, 20, 700)
 
@@ -41,7 +41,7 @@ describe('at a glance: the four questions', () => {
     expect(answer(health, QUESTIONS.broken).answer).toBe('No. No errors in the real pilot in the last 7 days.')
     expect(answer(health, QUESTIONS.partner).answer).toBe('Yes: last active today (Oct 27, 2026, 06:00 EDT), 5 actions in 30 days.')
     expect(answer(health, QUESTIONS.plan).answer).toBe('Yes. The most-used limit today is database writing, at 2%.')
-    expect(answer(health, QUESTIONS.visitors).answer).toBe('Yes: about 3 visits by people in the last 24 hours. Robots and scanners sent 720 requests.')
+    expect(answer(health, QUESTIONS.visitors).answer).toBe('Yes: 3 visits from Canada in the last 24 hours. 2 more visits from other countries, probably automated. Robots and scanners sent 720 requests.')
   })
 
   it('is something broken: earlier errors, one error, many errors, crashes', () => {
@@ -72,8 +72,8 @@ describe('at a glance: the four questions', () => {
   })
 
   it('is anyone visiting: none yet, or counts', () => {
-    expect(answer(assessHealth(input(0, 0, 5, { visitors: report(0, 5, 100) })), QUESTIONS.visitors)).toEqual({ question: QUESTIONS.visitors, level: 'info', answer: 'No people in the last 24 hours. Robots and scanners sent 105 requests.' })
-    expect(answer(assessHealth(input(0, 0, 5, { visitors: report(0, 0, 0) })), QUESTIONS.visitors).answer).toBe('No people in the last 24 hours.')
+    expect(answer(assessHealth(input(0, 0, 5, { visitors: report(0, 5, 100) })), QUESTIONS.visitors)).toEqual({ question: QUESTIONS.visitors, level: 'info', answer: 'No visits from Canada in the last 24 hours. 2 more visits from other countries, probably automated. Robots and scanners sent 105 requests.' })
+    expect(answer(assessHealth(input(0, 0, 5, { visitors: report(0, 0, 0) })), QUESTIONS.visitors).answer).toBe('No visits from Canada in the last 24 hours. 2 more visits from other countries, probably automated.')
   })
 
   it('says it cannot tell when numbers are missing, without alarming', () => {

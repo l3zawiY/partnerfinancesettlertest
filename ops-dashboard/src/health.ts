@@ -102,8 +102,9 @@ function visitors(input: HealthInput): Answer {
   const period = report.range === '24h' ? 'the last 24 hours' : 'the last 7 days'
   const others = report.requests.robots + report.requests.automated
   const otherPart = others ? ` Robots and scanners sent ${plural(others, 'request')}.` : ''
-  if (report.people.visits === 0 && report.people.pageViews === 0) return { question, level: 'info', answer: `No people in ${period}.${otherPart}` }
-  return { question, level: 'good', answer: `Yes: about ${plural(report.people.visits || report.people.pageViews, 'visit')} by people in ${period}.${otherPart}` }
+  const abroad = report.people.abroad ? ` ${plural(report.people.abroad, 'more visit')} from other countries, probably automated.` : ''
+  if (report.people.home === 0) return { question, level: 'info', answer: `No visits from Canada in ${period}.${abroad}${otherPart}` }
+  return { question, level: 'good', answer: `Yes: ${plural(report.people.home, 'visit')} from Canada in ${period}.${abroad}${otherPart}` }
 }
 
 export function assessHealth(input: HealthInput): Health {

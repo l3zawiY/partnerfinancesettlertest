@@ -549,6 +549,15 @@ plan, nameservers `agustin.ns.cloudflare.com` and `magali.ns.cloudflare.com` (pr
 Namecheap's `dns1/dns2.registrar-servers.com`), and the API token can see the zone. Next:
 7b-2 (Clerk Production).
 
+**7b-2 and 7b-3 done 2026-10-26.** Clerk Production instance created on the Hobby plan for
+`tallywithus.com`, cloned from Development. Its five DNS records (`clerk`, `accounts`,
+`clkmail`, `clk._domainkey`, `clk2._domainkey`, all CNAME) were added with Clerk's
+**Configure automatically** (Cloudflare Domain Connect); Clerk shows Frontend API, Account
+portal, and Email 3/3 **Verified**, SSL certificates issuing. From the container,
+`https://clerk.tallywithus.com/v1/environment` answers 200 with a valid certificate. The
+Cloudflare API token has no DNS read permission, so the agent cannot list the records;
+the owner checks their proxy status in the dashboard. Next: 7b-4.
+
 **R4 done 2026-10-25 (WEB-048).** Commits `cc77f2b` (logbook) and the staging logbook id.
 Staging logbook database `split-ledger-telemetry-staging`, id
 `6b9bcb10-2668-4d32-b348-812543979ee0`, migration `0001_logbook.sql` applied; Worker

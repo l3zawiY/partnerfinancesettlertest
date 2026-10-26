@@ -12,17 +12,20 @@ export function clerkFrontendApi(publishableKey: string): string {
   return host
 }
 
+/** Clerk's abuse and fraud protection (Production instances); served on several ports. */
+const CLERK_PROTECT = 'https://*.protect.clerk.com'
+
 /** Security headers for every static response, following Clerk's documented CSP needs. */
 export function headersFile(publishableKey: string): string {
   const clerk = 'https://' + clerkFrontendApi(publishableKey)
   const csp = [
     "default-src 'self'",
-    "script-src 'self' " + clerk + ' https://challenges.cloudflare.com',
-    "connect-src 'self' " + clerk + ' https://img.clerk.com',
+    "script-src 'self' " + clerk + ' https://challenges.cloudflare.com ' + CLERK_PROTECT,
+    "connect-src 'self' " + clerk + ' https://img.clerk.com ' + CLERK_PROTECT + ':*',
     "img-src 'self' https://img.clerk.com data:",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
-    "frame-src 'self' https://challenges.cloudflare.com",
+    "frame-src 'self' https://challenges.cloudflare.com " + CLERK_PROTECT,
     "worker-src 'self' blob:",
     "form-action 'self'",
     "base-uri 'self'",

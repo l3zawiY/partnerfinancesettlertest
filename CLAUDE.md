@@ -5,6 +5,10 @@ what the request requires before opening files, inspect directly relevant source
 search or skim when sufficient. Broader review belongs to cross-cutting changes or
 evidence-driven investigations, not every new session.
 
+**Where things stand:** for the web pilot's current state and next actions, read
+`docs/STATUS.md` first (short). Do not read `docs/WEBAPP.md` in full; open only the
+sections a task needs.
+
 ## Working with the owner
 
 The owner is a product manager and a beginner with coding and GitHub. Use plain language
@@ -39,7 +43,8 @@ restart it. Small questions and routine documentation work should stay concise.
 | Unresolved released-app work | `docs/BACKLOG.md` |
 | Current verification contract | `docs/TESTING.md` |
 | Persisted and diagnostic contracts | `docs/DATA-FORMATS.md` |
-| Experimental web-service architecture and status | `docs/WEBAPP.md` |
+| Web pilot: where things stand and next actions (read first) | `docs/STATUS.md` |
+| Experimental web-service architecture, detailed status, and runbook | `docs/WEBAPP.md` |
 | Unresolved web-service work | `docs/WEBAPP-BACKLOG.md` |
 
 Open only documents relevant to the request. Check `VERSION` and `CHANGELOG.md` for

@@ -4,6 +4,10 @@ Codex entry point for Split Ledger. Use proportional context: decide what the re
 requires before opening files, then inspect only directly relevant sources. Search or skim
 when sufficient. Do not load project history merely to answer a small question.
 
+**Where things stand:** for the web pilot's current state and next actions, read
+`docs/STATUS.md` first (short). Do not read `docs/WEBAPP.md` in full; open only the
+sections a task needs.
+
 ## Working with the owner
 
 The owner is a product manager and a beginner with coding and GitHub. Use plain language

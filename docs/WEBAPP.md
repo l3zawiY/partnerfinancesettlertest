@@ -5,7 +5,10 @@ it current instead of creating session handoffs or a separate plan for every bat
 
 ## Current status — 2026-10-26
 
-**Where things stand (read this first).**
+**Short snapshot and next actions: `docs/STATUS.md` (read that first).** The detail below
+stays the record until WEB-054 restructures this document.
+
+**Where things stand.**
 
 - **First action for the next session (owner, 2026-10-26, "super important"):** do
   WEB-054 in `docs/WEBAPP-BACKLOG.md` (split this document into an owner TL;DR, a short

@@ -244,7 +244,9 @@ about 25 minutes, before other work):**
 7. Upkeep rule in the documentation policy: each session pulls first; writes step details
    straight into the history file and keeps one line on the main page; refreshes the
    TL;DR; pushes at the end.
-8. The owner's handover becomes one line: "Continue the Split Ledger web pilot on branch
+8. Fold the quick-fix page `docs/STATUS.md` (added 2026-10-26) into the new main page's
+   TL;DR, or keep it as the TL;DR and point to it; keep only one.
+9. The owner's handover becomes one line: "Continue the Split Ledger web pilot on branch
    mac-unpushed-work. Start at docs/WEBAPP.md."
 
 Not in scope: the app, production, the `landing-page` and `ops-dashboard` branches (they

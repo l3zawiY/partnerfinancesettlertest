@@ -87,6 +87,17 @@ the R5 notes there.
 - *Branches:* `main` is the released v1 (`index.html` v1.0.0) and is contained in
   `mac-unpushed-work`. `origin/experiment/web-service` is an older point of this branch
   (35 commits behind, none of its own). Merging into `main` waits for the Batch 7c decision.
+- *Branch plan (owner decision 2026-10-26).* Several branches are normal; branches are saved
+  copies on GitHub, and what is live is whatever was last deployed to Cloudflare, which
+  merging or deleting a branch never changes. Today: `main` = v1 backup (not hosted);
+  `mac-unpushed-work` = web app and docs (staging now, `app.tallywithus.com` from R5);
+  `landing-page` = public page only (live at `tallywithus.com` and `www`). Plan: (1) no merge
+  before go-live; (2) after go-live, early November, merge `landing-page` into
+  `mac-unpushed-work` by pull request (it only adds `landing/`), with the agent preparing it
+  and guiding the owner through **Merge** on GitHub; (3) after the Batch 7c decision, if
+  the web app becomes the product, merge `mac-unpushed-work` into `main` the same way; until
+  then `main` stays untouched as the v1 fallback. `experiment/web-service` can be deleted
+  whenever the owner wants.
 
 ## Status — 2026-10-24 (superseded by the status above)
 
@@ -641,6 +652,7 @@ same check is part of R7 for production.
 | R11 | Go/no-go review written; owner decides | Agent writes, owner reads | ~10 min | Owner says go |
 | Go-live | Pilot month 1: October 2026, settled in early November (Batch 7c) | Owner + partner | normal | Month closes |
 | R12 | WEB-049 Pilot activity page, after October is closed and archived | Agent | none | Both people see the same rows; CSV downloads |
+| R13 | Merge `landing-page` into `mac-unpushed-work` by pull request (branch plan, step 2) | Agent prepares, owner clicks Merge | ~5 min | `landing/` present on `mac-unpushed-work`; live sites unchanged |
 
 **R5 notes for the agent (written 2026-10-26).**
 

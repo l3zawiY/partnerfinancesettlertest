@@ -8,12 +8,13 @@ one screen:
    route or screen, status, error type, and reference code. A link switches to the fictional
    staging logbook.
 2. **Workers**: requests and failures for `split-ledger-production`, `split-ledger-staging`,
-   `tallywithus-landing`, and this page's own Worker, from Cloudflare's analytics.
+   and this page's own Worker, from Cloudflare's analytics. The public page runs no code, so
+   it never appears here (see 4).
 3. **Databases (D1)**: size, rows read, and rows written for each database, from
    Cloudflare's records *about* the databases, plus how much of the free daily limits is used.
-4. **Visitors to the public page**: visits and page views for `tallywithus.com` and
-   `www.tallywithus.com` from Cloudflare Web Analytics. Until Cloudflare has recorded
-   visits, the section says "No visitor statistics yet".
+4. **Public page**: visits and requests for `tallywithus.com` and `www.tallywithus.com`
+   from the zone's traffic records (bots included). Windows the free plan does not keep
+   show "Not kept on the free plan".
 
 It is its own Cloudflare Worker, `tallywithus-ops`, kept in this `ops-dashboard/` folder. It is
 separate from the app (`webapp/`) and the public page (`landing/`). Nothing here changes them.
@@ -55,7 +56,8 @@ Then, only if you need detail:
    100,000 requests a day.
 3. **Databases.** Three boxes show how much of the free database limits is used today
    (reading, writing, storage). The table shows each database's size and use.
-4. **Visitors.** Visits and page views of tallywithus.com.
+4. **Public page.** Visits and requests for tallywithus.com. Search engines and other bots
+   are included, so real people are fewer.
 
 Decisions the page helps with: is something broken that I should report, is the partner
 using the app, is the free plan still enough, is anyone visiting the public page.
@@ -164,11 +166,13 @@ Do this after I tell you the Worker `tallywithus-ops` is deployed.
 4. **Permissions**, set two rows (use **+ Add more** for the second):
    - `Account` | `Account Analytics` | `Read`
    - `Account` | `D1` | `Read`
+   - `Zone` | `Analytics` | `Read`
 
    Nothing else. No "Edit" permissions.
-5. **Account Resources:** `Include` | `Hydrapeak8@gmail.com's Account`.
+5. **Account Resources:** `Include` | `Hydrapeak8@gmail.com's Account`. **Zone Resources:**
+   `Include` | `Specific zone` | `tallywithus.com`.
 6. Leave the other fields as they are. Click **Continue to summary**, check that it lists
-   only the two "Read" permissions, then click **Create Token**.
+   only the three "Read" permissions, then click **Create Token**.
 7. Click **Copy** to copy the token. Cloudflare shows it only once. Don't paste it into the
    chat, an email, or a file.
 8. Go to **Workers & Pages** → **tallywithus-ops** → **Settings** → **Variables and
@@ -209,17 +213,25 @@ two permissions in step 4 is missing.
    The email in Access and the email I deployed with don't match. It must be
    Hydrapeak8@gmail.com. If it says "Access is not configured yet.", I haven't entered the AUD tag yet.
 
-## Visitor statistics (section 4)
+## Public page numbers (section 4)
 
-Cloudflare Web Analytics on the zone already adds its counting script to pages on
-`tallywithus.com` (recorded in `docs/WEBAPP.md`, R7). Section 4 reads those counts for
-`tallywithus.com` and `www.tallywithus.com` only. If it keeps saying "No visitor statistics
-yet" after people have visited, check Cloudflare → **Analytics & Logs** → **Web
-Analytics** to see whether a site for `tallywithus.com` exists and is collecting. No code
-change should be needed.
+The public page (`tallywithus-landing`) serves static files only, and its security policy
+blocks Cloudflare's Web Analytics script. So neither Worker counts nor Web Analytics can see
+it. Section 4 instead reads the zone's request records (`httpRequestsAdaptiveGroups`) for
+`tallywithus.com` and `www.tallywithus.com`, leaving out Cloudflare's own traffic
+(`requestSource: "eyeball"`). This needs **Zone · Analytics · Read** on the read-only token
+(added by the owner 2026-10-26) and the zone id in `wrangler.jsonc` (not secret). Each
+window is a separate request, so a window the free plan does not keep shows "Not kept"
+without hiding the others.
 
 ## Status log
 
+- **2026-10-26 (public page numbers, option A):** the owner added `Zone · Analytics · Read`
+  for `tallywithus.com` to the read-only token. Section 4 and the top-box answer now use the
+  zone's request records. The public page was removed from the Worker table, where it
+  always showed 0. Field names were checked against Cloudflare's published schema; the live
+  query could not be run from the agent's container (its own token lacks that permission),
+  so it is first proven on the deployed page. 49 tests pass. Not deployed yet.
 - **2026-10-26 (live, first findings):** the owner set `OPS_PASSWORD` and `CF_ANALYTICS_TOKEN`
   (both stored as Secrets) and opened the page. First findings from the real numbers:
   - Production logbook: household created, partner invited, and partner joined within 8

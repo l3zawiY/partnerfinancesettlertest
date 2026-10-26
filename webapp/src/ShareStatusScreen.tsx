@@ -1,6 +1,7 @@
 import { HandoverMessage, turnMessage } from './handover'
 import type { PeriodWorkflow, WorkflowEvent, WorkflowStatus } from '../shared/workflow'
 import type { PrivateWorkspace } from './usePrivateWorkspace'
+import { environmentLabels } from './environment'
 
 const LABELS: Record<WorkflowStatus, string> = { draft: 'Draft', ready: 'Ready to submit', submitted: 'Submitted', replaced: 'Replaced', withdrawn: 'Withdrawn', 'partner-ready': 'Both submissions ready', stale: 'Shared status changed — review needed', closing: 'Closing', 'retryable-error': 'Retryable error', closed: 'Closed', 'recovery-required': 'Recovery required' }
 
@@ -63,7 +64,7 @@ export default function ShareStatusScreen(props: {
           : workflow.mine
             ? 'Waiting for ' + partnerName
             : 'Nothing submitted yet'
-  return <section className="screen screen-frame share-page" aria-labelledby="share-title"><header className="page-heading"><div><p className="eyebrow">{props.workspace.period} · Share / Status</p><h1 id="share-title" className="page-title">Share only what you decided</h1><p className="page-subtitle">Review the privacy-filtered projection, submit it to hand the month to {partnerName}, and see who is expected to act next.</p></div><span className="fiction-pill">{props.connected ? 'Local API · fictional data only' : 'Fictional local simulation'}</span></header>
+  return <section className="screen screen-frame share-page" aria-labelledby="share-title"><header className="page-heading"><div><p className="eyebrow">{props.workspace.period} · Share / Status</p><h1 id="share-title" className="page-title">Share only what you decided</h1><p className="page-subtitle">Review the privacy-filtered projection, submit it to hand the month to {partnerName}, and see who is expected to act next.</p></div><span className="fiction-pill">{props.connected ? environmentLabels().pill : 'Fictional local simulation'}</span></header>
     <div className="share-grid"><main className="share-main"><section className="panel submission-card"><div className="submission-heading"><div><p className="eyebrow">Your submission{workflow.participants ? ' as ' + workflow.participants.me.alias : ''}</p><h2>{LABELS[props.displayStatus]}</h2></div><span>Version {workflow.version}{workflow.mine ? ' · submitted ' + when(workflow.mine.submittedAt) : ''}</span></div>
       {workflow.status === 'stale' ? <div className="notice warn" role="status"><strong>Shared status changed after this screen loaded.</strong> {workflow.staleReason} Your private draft in this browser is safe and unchanged. Load the latest shared status, review it, then retry your action if you still want it.</div> : null}
       {workflow.status === 'recovery-required' ? <p className="notice warn" role="status">{workflow.recoveryReason}</p> : null}

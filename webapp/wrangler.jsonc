@@ -41,14 +41,15 @@
       "assets": { "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] }
     },
     // Real pilot on the owner's domain (Batch 7b). Separate name, database, keys, and address;
-    // no workers.dev address. The guard refuses the placeholders below.
+    // no workers.dev address. Both databases created 2026-10-26 with `wrangler d1 create`;
+    // the ids are not secret.
     "production": {
       "name": "split-ledger-production",
       "workers_dev": false,
       "routes": [{ "pattern": "app.tallywithus.com", "custom_domain": true }],
       "d1_databases": [
-        { "binding": "DB", "database_name": "split-ledger-production", "database_id": "PRODUCTION-DATABASE-ID-NOT-SET", "migrations_dir": "migrations" },
-        { "binding": "LOGBOOK", "database_name": "split-ledger-telemetry", "database_id": "PRODUCTION-LOGBOOK-ID-NOT-SET", "migrations_dir": "logbook-migrations" }
+        { "binding": "DB", "database_name": "split-ledger-production", "database_id": "4fd32d21-5ec9-4371-8fa5-4e6d9dbef2cb", "migrations_dir": "migrations" },
+        { "binding": "LOGBOOK", "database_name": "split-ledger-telemetry", "database_id": "43b0c195-6fa9-4221-ad97-6da46c9a2641", "migrations_dir": "logbook-migrations" }
       ],
       "triggers": { "crons": ["17 3 * * *"] },
       "assets": { "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] }

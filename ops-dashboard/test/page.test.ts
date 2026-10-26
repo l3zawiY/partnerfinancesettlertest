@@ -81,6 +81,7 @@ describe('dashboard page', () => {
     expect(body).toContain('StorageUnavailable')
     expect(body).toContain('Database was briefly unavailable')
     expect(body).toContain('Worth a look')
+    expect(body).toContain('Is my partner using the app?')
     expect(body).toContain('The app (real pilot)')
     expect(body).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
     expect(body).not.toContain('<script>')

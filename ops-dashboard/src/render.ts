@@ -61,12 +61,15 @@ code { font-size: 0.82rem; white-space: nowrap; }
 .glance.good, .glance.info { border-color: var(--good); }
 .glance.watch { border-color: var(--watch); }
 .glance.act { border-color: var(--act); }
-.verdict { display: flex; align-items: center; gap: 10px; font-size: 1.25rem; font-weight: 650; margin: 0 0 8px; }
-.dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
-.dot.good, .dot.info { background: var(--good); } .dot.watch { background: var(--watch); } .dot.act { background: var(--act); }
-.glance ul { list-style: none; margin: 0; padding: 0; }
-.glance li { padding: 6px 10px; border-radius: 8px; margin: 4px 0; }
-.glance li.good { background: var(--good-bg); } .glance li.info { background: var(--info-bg); } .glance li.watch { background: var(--watch-bg); } .glance li.act { background: var(--act-bg); }
+.verdict { font-size: 1.25rem; font-weight: 650; margin: 0 0 10px; }
+.glance.watch .verdict { color: var(--watch); } .glance.act .verdict { color: var(--act); } .glance.good .verdict, .glance.info .verdict { color: var(--good); }
+.answers { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 8px; }
+.answer { border-radius: 10px; padding: 10px 12px; }
+.answer p { margin: 0; }
+.answer .question { display: flex; align-items: center; gap: 8px; font-weight: 650; margin-bottom: 2px; }
+.answer.good { background: var(--good-bg); } .answer.info { background: var(--info-bg); } .answer.watch { background: var(--watch-bg); } .answer.act { background: var(--act-bg); }
+.dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+.dot.good { background: var(--good); } .dot.info { background: var(--info); } .dot.watch { background: var(--watch); } .dot.act { background: var(--act); }
 nav { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.9rem; margin: 0 0 4px; }
 `
 
@@ -92,8 +95,8 @@ function named(friendly: string, technical: string): string {
 }
 
 export function renderGlance(health: Health): string {
-  const items = health.items.map((item) => `<li class="${item.level}">${escapeHtml(item.text)}</li>`).join('')
-  return `<section class="glance ${health.level}" id="glance"><p class="verdict"><span class="dot ${health.level}"></span>${escapeHtml(health.headline)}</p><ul>${items}</ul></section>`
+  const answers = health.answers.map((answer) => `<div class="answer ${answer.level}"><p class="question"><span class="dot ${answer.level}"></span>${escapeHtml(answer.question)}</p><p>${escapeHtml(answer.answer)}</p></div>`).join('')
+  return `<section class="glance ${health.level}" id="glance"><p class="verdict">${escapeHtml(health.headline)}</p><div class="answers">${answers}</div></section>`
 }
 
 export function renderLogbook(data: PageData): string {

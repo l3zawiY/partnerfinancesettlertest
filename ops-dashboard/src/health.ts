@@ -1,83 +1,110 @@
-// The "at a glance" verdict at the top of the page: a few plain sentences, each with what to
-// do, worked out only from the numbers already on the page.
+// The "at a glance" box at the top of the page: the owner's four questions, each answered in
+// one line, worked out only from the numbers already on the page.
 
-import type { DatabaseUsage, Loaded, PerWindow, WorkerCounts } from './cloudflare'
+import type { DatabaseUsage, Loaded, PerWindow, VisitorCounts, WorkerCounts } from './cloudflare'
+import { count, torontoTime } from './format'
 import type { LogbookName, LogbookView } from './logbook'
 
 export type Level = 'good' | 'info' | 'watch' | 'act'
-export interface HealthItem { level: Level; text: string }
-export interface Health { level: Level; headline: string; items: HealthItem[] }
+export interface Answer { question: string; answer: string; level: Level }
+export interface Health { level: Level; headline: string; answers: Answer[] }
 
 // Workers Free daily limits (checked 2026-10-26 in Cloudflare's pricing pages).
 export const FREE_LIMITS = { workerRequestsPerDay: 100_000, d1RowsReadPerDay: 5_000_000, d1RowsWrittenPerDay: 100_000, d1StorageBytes: 5_000_000_000 }
 export const WATCH_SHARE = 0.5
 export const ACT_SHARE = 0.8
 export const MANY_ERRORS = 5
+export const ACTIVE_DAYS = 7
+
+export const QUESTIONS = {
+  broken: 'Is something broken?',
+  partner: 'Is my partner using the app?',
+  plan: 'Is the free plan enough?',
+  visitors: 'Is anyone visiting the public page?',
+} as const
 
 const ORDER: Level[] = ['good', 'info', 'watch', 'act']
 const HEADLINES: Record<Level, string> = { good: 'All good', info: 'All good', watch: 'Worth a look', act: 'Needs action' }
 
 export interface HealthInput {
+  now: Date
   logbookName: LogbookName
   logbook: Loaded<LogbookView>
   workers: Loaded<Record<string, PerWindow<WorkerCounts>>>
   databases: Loaded<DatabaseUsage[]>
+  visitors: Loaded<PerWindow<VisitorCounts>>
 }
 
-function limitItem(what: string, used: number, limit: number, daily = true): HealthItem | null {
-  const share = used / limit
-  const percent = Math.round(share * 100)
-  const kind = daily ? 'daily' : 'storage'
-  if (share >= ACT_SHARE) return { level: 'act', text: `${what} is at ${percent}% of the free ${kind} limit. Ask Claude to look before it runs out${daily ? ' (the app would pause until the limit resets at midnight UTC)' : ''}.` }
-  if (share >= WATCH_SHARE) return { level: 'watch', text: `${what} is at ${percent}% of the free ${kind} limit. Fine for now; check again ${daily ? 'tomorrow' : 'next week'}.` }
-  return null
+function plural(value: number, word: string): string {
+  return `${count(value)} ${word}${value === 1 ? '' : 's'}`
+}
+
+/** "today", "yesterday", or "N days ago", counted in Toronto calendar days. */
+export function daysAgo(now: Date, iso: string): string {
+  const day = (time: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto' }).format(time)
+  const difference = Math.round((Date.parse(day(now)) - Date.parse(day(new Date(iso)))) / 86_400_000)
+  if (difference <= 0) return 'today'
+  if (difference === 1) return 'yesterday'
+  return `${difference} days ago`
+}
+
+function broken(input: HealthInput, where: string): Answer {
+  const question = QUESTIONS.broken
+  if (!input.logbook.ok) return { question, level: 'watch', answer: 'Can’t tell right now: the logbook could not be read. Refresh in a minute; if it stays, tell Claude.' }
+  const { summary } = input.logbook.value
+  const today = summary['24h'].errors
+  const week = summary['7d'].errors
+  const failures = input.workers.ok ? Object.values(input.workers.value).reduce((sum, counts) => sum + counts['24h'].errors, 0) : 0
+  if (today >= MANY_ERRORS) return { question, level: 'act', answer: `Probably: ${plural(today, 'error')} in ${where} in the last 24 hours. Send Claude the reference codes from the list below.` }
+  if (today > 0) return { question, level: 'watch', answer: `Maybe: ${plural(today, 'error')} in ${where} in the last 24 hours. Check whether someone was blocked; send Claude the reference code.` }
+  if (failures > 0) return { question, level: 'watch', answer: `Maybe: a part crashed ${plural(failures, 'time')} in the last 24 hours (see Traffic). Tell Claude if it repeats.` }
+  if (week > 0) return { question, level: 'good', answer: `No. No errors in the last 24 hours (${count(week)} earlier this week, see below).` }
+  return { question, level: 'good', answer: `No. No errors in ${where} in the last 7 days.` }
+}
+
+function partner(input: HealthInput, where: string): Answer {
+  const question = QUESTIONS.partner
+  if (!input.logbook.ok) return { question, level: 'info', answer: 'Can’t tell right now: the logbook could not be read.' }
+  const rows = input.logbook.value.activity.filter((row) => row.role === 'partner')
+  const times = rows.reduce((sum, row) => sum + row.times, 0)
+  const last = rows.map((row) => row.lastAt).filter((value): value is string => Boolean(value)).sort().pop()
+  if (!last) return { question, level: 'info', answer: `Not in the last 30 days: no partner activity in ${where}. Expected before they join or between months.` }
+  const recent = input.now.getTime() - Date.parse(last) <= ACTIVE_DAYS * 86_400_000
+  const when = `last active ${daysAgo(input.now, last)} (${torontoTime(last)})`
+  return recent
+    ? { question, level: 'good', answer: `Yes: ${when}, ${plural(times, 'action')} in 30 days.` }
+    : { question, level: 'info', answer: `Not lately: ${when}. A nudge may help near month end.` }
+}
+
+function plan(input: HealthInput): Answer {
+  const question = QUESTIONS.plan
+  if (!input.workers.ok || !input.databases.ok) return { question, level: 'info', answer: 'Can’t tell yet: the Cloudflare numbers are not available (see Traffic and Databases).' }
+  const sum = (values: number[]) => values.reduce((total, value) => total + value, 0)
+  const uses = [
+    { what: 'traffic', share: sum(Object.values(input.workers.value).map((counts) => counts['24h'].requests)) / FREE_LIMITS.workerRequestsPerDay, daily: true },
+    { what: 'database reading', share: sum(input.databases.value.map((database) => database.rowsRead['24h'])) / FREE_LIMITS.d1RowsReadPerDay, daily: true },
+    { what: 'database writing', share: sum(input.databases.value.map((database) => database.rowsWritten['24h'])) / FREE_LIMITS.d1RowsWrittenPerDay, daily: true },
+    { what: 'database storage', share: sum(input.databases.value.map((database) => database.sizeBytes ?? 0)) / FREE_LIMITS.d1StorageBytes, daily: false },
+  ]
+  const top = uses.reduce((highest, use) => (use.share > highest.share ? use : highest))
+  const percent = top.share > 0 && top.share < 0.01 ? 'under 1%' : `${Math.round(top.share * 100)}%`
+  const limit = top.daily ? 'its free daily limit' : 'its free limit'
+  if (top.share >= ACT_SHARE) return { question, level: 'act', answer: `Not for long: ${top.what} is at ${percent} of ${limit}. Ask Claude to look today${top.daily ? ' (the app would pause until the limit resets at 8 pm Toronto, 7 pm in winter)' : ''}.` }
+  if (top.share >= WATCH_SHARE) return { question, level: 'watch', answer: `Yes, for now: ${top.what} is at ${percent} of ${limit}. Check again ${top.daily ? 'tomorrow' : 'next week'}.` }
+  return { question, level: 'good', answer: `Yes. The most-used limit today is ${top.what}, at ${percent}.` }
+}
+
+function visitors(input: HealthInput): Answer {
+  const question = QUESTIONS.visitors
+  if (!input.visitors.ok) return { question, level: 'info', answer: 'Can’t tell yet: visitor numbers are not available (see Visitors).' }
+  const { '24h': day, '7d': week } = input.visitors.value
+  if (week.visits === 0 && input.visitors.value['30d'].visits === 0) return { question, level: 'info', answer: 'None recorded yet.' }
+  return { question, level: 'good', answer: `Yes: ${plural(day.visits, 'visit')} in the last 24 hours, ${plural(week.visits, 'visit')} in 7 days.` }
 }
 
 export function assessHealth(input: HealthInput): Health {
-  const items: HealthItem[] = []
   const where = input.logbookName === 'production' ? 'the real pilot' : 'the test copy'
-
-  if (!input.logbook.ok) {
-    items.push({ level: 'watch', text: 'The logbook could not be read just now. Refresh in a minute; if it stays, tell Claude.' })
-  } else {
-    const { summary, activity } = input.logbook.value
-    const day = summary['24h'].errors
-    const week = summary['7d'].errors
-    if (day >= MANY_ERRORS) items.push({ level: 'act', text: `${day} errors in ${where} in the last 24 hours. Open the error list below and send Claude the reference codes.` })
-    else if (day > 0) items.push({ level: 'watch', text: `${day} error${day === 1 ? '' : 's'} in ${where} in the last 24 hours. Check whether someone was blocked; send Claude the reference code if so.` })
-    else if (week > 0) items.push({ level: 'good', text: `No errors in ${where} in the last 24 hours (${week} earlier this week).` })
-    else items.push({ level: 'good', text: `No errors in ${where} in the last 7 days.` })
-    if (input.logbookName === 'production' && summary['7d'].activity === 0) {
-      items.push({ level: 'info', text: 'Nobody used the app in the last 7 days. Expected between months; a nudge may help near month end.' })
-    } else if (activity.length) {
-      items.push({ level: 'good', text: `${summary['7d'].activity} activity records in ${where} this week.` })
-    }
-  }
-
-  if (!input.workers.ok || !input.databases.ok) {
-    items.push({ level: 'info', text: 'Traffic and database numbers are not available yet (see the message in those sections).' })
-  }
-  let nearLimit = false
-  if (input.workers.ok) {
-    const failures = Object.values(input.workers.value).reduce((sum, counts) => sum + counts['24h'].errors, 0)
-    if (failures > 0) items.push({ level: 'watch', text: `${failures} Worker failure${failures === 1 ? '' : 's'} in the last 24 hours (section 2). Tell Claude if it repeats.` })
-    const requests = Object.values(input.workers.value).reduce((sum, counts) => sum + counts['24h'].requests, 0)
-    const item = limitItem('Traffic', requests, FREE_LIMITS.workerRequestsPerDay)
-    if (item) { items.push(item); nearLimit = true }
-  }
-  if (input.databases.ok) {
-    const total = (pick: (database: DatabaseUsage) => number) => input.databases.ok ? input.databases.value.reduce((sum, database) => sum + pick(database), 0) : 0
-    for (const item of [
-      limitItem('Database reading', total((database) => database.rowsRead['24h']), FREE_LIMITS.d1RowsReadPerDay),
-      limitItem('Database writing', total((database) => database.rowsWritten['24h']), FREE_LIMITS.d1RowsWrittenPerDay),
-      limitItem('Database storage', total((database) => database.sizeBytes ?? 0), FREE_LIMITS.d1StorageBytes, false),
-    ]) if (item) { items.push(item); nearLimit = true }
-    if (input.workers.ok && !nearLimit) {
-      items.push({ level: 'good', text: 'Well within the free plan limits.' })
-    }
-  }
-
-  const level = items.reduce<Level>((worst, item) => (ORDER.indexOf(item.level) > ORDER.indexOf(worst) ? item.level : worst), 'good')
-  items.sort((a, b) => ORDER.indexOf(b.level) - ORDER.indexOf(a.level))
-  return { level, headline: HEADLINES[level], items }
+  const answers = [broken(input, where), partner(input, where), plan(input), visitors(input)]
+  const level = answers.reduce<Level>((worst, answer) => (ORDER.indexOf(answer.level) > ORDER.indexOf(worst) ? answer.level : worst), 'good')
+  return { level, headline: HEADLINES[level], answers }
 }

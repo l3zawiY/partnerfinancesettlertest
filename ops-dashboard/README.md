@@ -24,15 +24,23 @@ separate from the app (`webapp/`) and the public page (`landing/`). Nothing here
 
 ## How to read the page
 
-Start at the top box. It sums up the page in one word and says what to do, if anything:
+Start at the top box. It answers your four questions in one line each, with a colored dot:
 
-| Top box | Means | What to do |
+| Question | Example answers |
+|---|---|
+| **Is something broken?** | "No. No errors in the real pilot in the last 7 days." / "Maybe: 1 error … send Claude the reference code." / "Probably: 6 errors …" |
+| **Is my partner using the app?** | "Yes: last active today (time), 7 actions in 30 days." / "Not lately: last active 12 days ago." |
+| **Is the free plan enough?** | "Yes. The most-used limit today is traffic, at under 1%." / "Yes, for now: … at 60%." / "Not for long: … at 85%." |
+| **Is anyone visiting the public page?** | "Yes: 18 visits in the last 24 hours, 120 visits in 7 days." / "None recorded yet." |
+
+Green dot: fine. Blue: information only. Amber: worth a look. Red: needs action.
+The word above the answers sums them up:
+
+| Word | Means | What to do |
 |---|---|---|
-| **All good** (green) | No errors in the last 24 hours, Workers not failing, far from the free limits | Nothing |
-| **Worth a look** (amber) | 1–4 errors in the last 24 hours, a Worker failure, or a free limit over 50% | Read the amber line. For an error, check whether someone was blocked; send Claude the reference code |
+| **All good** (green) | No answer is amber or red | Nothing |
+| **Worth a look** (amber) | 1–4 errors in 24 hours, a crash, or a free limit over 50% | Read the amber answer and do what it says |
 | **Needs action** (red) | 5 or more errors in 24 hours, or a free limit over 80% | Send Claude the reference codes or a screenshot of the box the same day |
-
-A blue line ("Nobody used the app in the last 7 days") is information, not a problem.
 
 Then, only if you need detail:
 
@@ -215,7 +223,8 @@ change should be needed.
 - **2026-10-26 (later):** made easier to read after the owner's review: an "at a glance"
   box with a verdict and what to do (`src/health.ts`), plain names for events, errors,
   screens, Workers, and databases (`src/labels.ts`), a one-line "how to read" under each
-  section, and the phone layout. 46 tests pass. Fictional previews in `preview/`. Access code
+  section, and the phone layout. Then the box was changed to answer the owner's four
+  questions directly, one line each. 48 tests pass. Fictional previews in `preview/`. Access code
   email: Hydrapeak8@gmail.com. Still not deployed.
 - **2026-10-26:** built on branch `ops-dashboard`. 39 tests pass. Tried locally with
   fictional logbook rows (password mode, local database copies only) at desktop and phone

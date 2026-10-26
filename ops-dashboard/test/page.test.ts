@@ -95,7 +95,7 @@ describe('dashboard page', () => {
     expect(body).toContain('1,234')
     expect(body).toContain('split-ledger-telemetry')
     expect(body).toContain('37 KB')
-    expect(body).toContain('Yes: 1 visit from Canada in the last 24 hours. Robots and scanners sent 40 requests.')
+    expect(body).toContain('<p class="short">Yes</p><p class="long">1 visit from Canada in the last 24 hours. Robots and scanners sent 40 requests.</p>')
     expect(body).toContain('does not exist on the site')
     expect(body).toContain('1 visit from Canada</strong> in the last 24 hours')
     expect(body).toContain('Chrome on desktop')

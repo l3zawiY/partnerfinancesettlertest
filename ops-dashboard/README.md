@@ -241,12 +241,18 @@ without hiding the others.
    - **Cloudflare Web Analytics:** free, cookie-free script that counts real browsers only.
      Needs the same policy change, but no cookie notice, and keeps data in Cloudflare.
    - Then section 4 reads that tool's numbers, or links to its dashboard.
-2. **SaaS-style redesign of the whole dashboard:** owner request, not started.
+2. **SaaS-style redesign:** done 2026-10-26 (see the log).
 3. **Moving these notes into `docs/`:** when the owner asks to merge `ops-dashboard` by pull
    request.
 
 ## Status log
 
+- **2026-10-26 (SaaS redesign):** light SaaS look after two references: Vercel's dashboard
+  (sidebar, grey canvas, hairline white cards, one accent) and Stripe's home (overview row
+  of status cards). The four questions are cards with a status pill and a big short answer
+  ("Yes", "Maybe") over the detail; segmented time switches; quieter tables. System font
+  only, no scripts (the security policy allows neither). Works at phone width and in dark
+  mode. 62 tests pass. Not deployed yet.
 - **2026-10-26 (Canada split, owner decision):** with the style rule, the live page showed 14
   visits by people: 3 from Canada (matching the owner's 2–3 desktop visits and one phone
   visit by his wife) and 11 from the US, Switzerland, and the Netherlands (tools running a

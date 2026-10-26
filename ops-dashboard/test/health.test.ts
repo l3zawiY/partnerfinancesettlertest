@@ -104,3 +104,12 @@ describe('plain-language labels', () => {
     expect(errorLabel('worker', null)).toBe('Unknown problem')
   })
 })
+
+describe('overview cards', () => {
+  it('lead with a short answer', async () => {
+    const { splitAnswer } = await import('../src/render')
+    expect(splitAnswer('Maybe: 1 error in the real pilot.')).toEqual({ short: 'Maybe', long: '1 error in the real pilot.' })
+    expect(splitAnswer('Yes. The most-used limit today is traffic, at under 1%.')).toEqual({ short: 'Yes', long: 'The most-used limit today is traffic, at under 1%.' })
+    expect(splitAnswer('No visits from Canada in the last 24 hours.')).toEqual({ short: 'No visits from Canada in the last 24 hours.', long: '' })
+  })
+})

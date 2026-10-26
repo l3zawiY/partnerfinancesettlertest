@@ -544,6 +544,11 @@ SPF `TXT` records. Advice given: delete the two parking records, keep the email 
 add nothing for `app` (the Worker custom domain creates it in R5), and keep DNSSEC off
 at Namecheap while switching nameservers.
 
+**7b-1 done 2026-10-26.** The Cloudflare API shows `tallywithus.com` **active** on the Free
+plan, nameservers `agustin.ns.cloudflare.com` and `magali.ns.cloudflare.com` (previously
+Namecheap's `dns1/dns2.registrar-servers.com`), and the API token can see the zone. Next:
+7b-2 (Clerk Production).
+
 **R4 done 2026-10-25 (WEB-048).** Commits `cc77f2b` (logbook) and the staging logbook id.
 Staging logbook database `split-ledger-telemetry-staging`, id
 `6b9bcb10-2668-4d32-b348-812543979ee0`, migration `0001_logbook.sql` applied; Worker

@@ -19,8 +19,11 @@ it current instead of creating session handoffs or a separate plan for every bat
 - *Done 2026-10-26:* **R5**: production databases created and migrated; the app is
   deployed at `https://app.tallywithus.com` (see "R5 done").
 - *Done 2026-10-26:* **R6** (production secret stored as a Cloudflare Secret).
-- *Next:* finish **R7** (see "R7 in progress"): redeploy production with the Clerk
-  protection fix after owner approval, Web Analytics off, Always Use HTTPS decided. Then R6 (owner pastes the production secret into Cloudflare),
+- *Done 2026-10-26:* **R7** (see "R7 done"; one recorded exception for Cloudflare's
+  analytics script).
+- *Next:* **R8**, the owner and partner spot-check (7b-6) on `https://app.tallywithus.com`.
+- *Side project in parallel (owner request 2026-10-26):* a private operations dashboard,
+  WEB-052; see "Handover for the operations dashboard side project". Then R6 (owner pastes the production secret into Cloudflare),
   R7, R8 (spot-check), R9, R10, R11 (go/no-go). Target pilot start about 2026-10-31.
 - *In parallel, not part of the pilot:* the owner started a separate session for a simple
   public page at `tallywithus.com` and `www.tallywithus.com`, on branch `landing-page`, in a
@@ -647,7 +650,7 @@ same check is part of R7 for production.
 | 7b-1 to 7b-4 ✓ | Domain in Cloudflare, Clerk Production, DNS records, production publishable key (done 2026-10-26) | Owner (parallel with R1–R4) | ~30–40 min | Clerk shows tallywithus.com verified; new session started |
 | R5 ✓ | Production (done 2026-10-26): create `split-ledger-production` and `split-ledger-telemetry`, migrate, deploy to app.tallywithus.com | Agent | none | Guard passes; deploy names production |
 | R6 ✓ | (done 2026-10-26) Owner pastes the production `CLERK_SECRET_KEY` in Cloudflare | Owner | ~2 min | Agent sees `/api/me` answer 401 |
-| R7 | Unauthenticated production checks (HTTPS, headers, 401, no console errors, logbook receives a test error) | Agent | none | All pass |
+| R7 ✓ | (done 2026-10-26) Unauthenticated production checks (HTTPS, headers, 401, no console errors, logbook receives a test error) | Agent | none | All pass |
 | R8 | Owner spot-check 7b-6 | Owner + partner | ~15 min each | Same result on both laptops; self-test passes |
 | R9 | 7b-5: in Clerk Production set **Access mode** to invitation-only (Restricted) and turn **Allow user-created organizations** off; then both people sign out and back in (R3 option b) | Owner + partner | ~5 min | Both still sign in and see the household |
 | R10 | Set up the weekly and after-close scheduled Claude checks | Agent | none | First check runs |
@@ -705,6 +708,21 @@ pre-R6 request as a privacy-safe row (`server_error`, `/api/me`, 503,
 - Plain `http://app.tallywithus.com` answers 200 instead of redirecting, because the zone
   setting **Always Use HTTPS** is off (read through the API). It is zone-wide, so it also
   affects the public page; the owner is asked before it is changed.
+
+**R7 done 2026-10-26 (one recorded exception).** Owner approved the redeploy: production
+version `96cc22f2-f91e-4983-95b8-8694ff2289f9` carries the Clerk protection hosts, and the
+policy no longer blocks `cdn.protect.clerk.com` (from the container the download still
+fails because the container's own network proxy refuses that host, which is not the app).
+The owner turned on **Always Use HTTPS**: `http://app.` and `http://www.tallywithus.com`
+now answer 301 to `https://`, and both `https://` addresses answer 200 with no redirect
+loop (the app Worker never redirects itself). `/api/me` answers 401. The owner confirmed
+all Clerk SSO connections are off. *Exception:* the owner wants Cloudflare visitor
+statistics for the public page later, so the zone keeps injecting the Web Analytics
+beacon; the app's policy keeps blocking it on purpose, which leaves one browser console
+message from Cloudflare's script, not from the app. To remove it, exclude
+`app.tallywithus.com` in the Web Analytics site rules if Cloudflare offers that, or accept
+it. Still unanswered: whether **Allow new members to delete organizations** is off in Clerk
+Production (check during R8). Next: R8, the owner spot-check.
 
 **R5 notes for the agent (written 2026-10-26).**
 
@@ -2000,6 +2018,54 @@ plain language, exact steps, and ask only for the owner steps the roadmap lists.
 5. Another session may be working on branch landing-page (public page at tallywithus.com);
    do not touch that branch, the landing/ folder, or the tallywithus-landing Worker.
 6. Commit and push per item; update "Current status", the test record, and the backlog.
+```
+
+### Handover for the operations dashboard side project (WEB-052)
+
+Copy-paste for a separate session; it runs in parallel with the go-live session.
+
+```text
+Build a small private operations dashboard for the Split Ledger pilot (WEB-052 in
+docs/WEBAPP-BACKLOG.md). Create branch ops-dashboard from mac-unpushed-work and work
+only there (never main, never mac-unpushed-work, never landing-page).
+
+Read AGENTS.md, CLAUDE.md, docs/WEBAPP.md → "Current status" and "Real-data rule for the
+agent", the logbook section of the operations runbook, and WEB-048 and WEB-052 in
+docs/WEBAPP-BACKLOG.md. The owner is a non-coding product manager: plain language, exact
+click-by-click steps for owner tasks, ask before any production deploy.
+
+Goal: one clear page at https://ops.tallywithus.com that only the owner can open, showing
+on one screen: (1) logbook errors and activity from split-ledger-telemetry (last 24 h,
+7 days, 30 days; errors listed with time in Toronto, route, status, error type,
+reference); (2) traffic and errors for the Workers split-ledger-production,
+split-ledger-staging, and tallywithus-landing from Cloudflare's analytics API; (3) D1
+usage (rows read and written, storage size) for each database; (4) later, visitor
+statistics for the public page once Cloudflare Web Analytics is set up for it. Keep it
+simple: one Worker named tallywithus-ops in a new top-level ops-dashboard/ folder, plain
+server-rendered HTML with a little CSS, no framework unless clearly needed, free plan only.
+
+Rules:
+- Never bind, query, or read split-ledger-production or split-ledger-staging. The only
+  databases the Worker may bind are split-ledger-telemetry and, optionally,
+  split-ledger-telemetry-staging. Use fixed SELECT queries only; no SQL from the browser.
+  Database sizes and row counts come from Cloudflare's analytics/metadata API, never from
+  reading rows.
+- Privacy: show only logbook fields and Cloudflare operational counts; never names,
+  amounts, emails, household ids, or request bodies.
+- Access: protect ops.tallywithus.com with Cloudflare Access (Zero Trust free plan,
+  one-time code sent to the owner's email; guide the owner through creating the Access
+  application). The Worker must also verify the Cf-Access-Jwt-Assertion token against
+  the team's public keys and refuse anything else, so a misconfigured Access policy cannot
+  expose the page. If the owner declines Zero Trust, fall back to one password stored as
+  a Worker secret (HTTP Basic over HTTPS).
+- Secrets: the Cloudflare analytics token must be a new read-only token (Account
+  Analytics Read and D1 Read only) that the owner pastes directly into Cloudflare as a
+  Worker secret; never print or commit it.
+- Do not touch webapp/, landing/, docs/WEBAPP.md, the app Workers, app.tallywithus.com,
+  the Clerk DNS records, or the zone-wide settings. Keep notes in ops-dashboard/README.md;
+  documentation moves into docs/ when the owner asks to merge by pull request.
+- Tests for the query and formatting logic; test with fictional rows locally before
+  deploying. Commit and push per step to ops-dashboard.
 ```
 
 ## Files and commands introduced in Batch 1

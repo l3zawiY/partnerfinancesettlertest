@@ -187,6 +187,20 @@ October 2026 is closed and its archive exported.
 
 *Noticed: 2026-10-25.*
 
+### WEB-052 — Private operations dashboard for the owner
+
+A page at `ops.tallywithus.com` that only the owner can open (Cloudflare Access, with the
+Worker also checking the Access token), showing logbook errors and activity from
+`split-ledger-telemetry`, request and error counts for the app, staging, and public-page
+Workers, D1 usage, and later the public page's visitor statistics. Its own Worker and
+folder; never binds or reads the financial databases. Unlike WEB-049, it is for the owner
+only and covers operations, not one household's activity.
+
+**Priority:** Should; side project in parallel with go-live, owner request 2026-10-26.
+Handover in `docs/WEBAPP.md` ("Handover for the operations dashboard side project").
+
+*Noticed: 2026-10-26.*
+
 ### WEB-036 — Email nudges between the two participants
 
 Notify the other person by email when someone submits, and the coordinator when both

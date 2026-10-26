@@ -28,8 +28,9 @@ it current instead of creating session handoffs or a separate plan for every bat
   agent) and `split-ledger-telemetry` (logbook, one test row from R5); one secret,
   `CLERK_SECRET_KEY`; Clerk Production with SSO off; zone setting **Always Use HTTPS** on.
   Production has held no real data yet.
-- *Next:* **R8**, the owner and partner spot-check (7b-6) on `https://app.tallywithus.com`,
-  when both are free (owner, 2026-10-26: "in a bit"). Then R9 (lock sign-up), R10
+- *Next:* **R8** is partly done (both accounts signed in and paired; see "R8 started"):
+  the owner fixes the Clerk redirect setting, the agent redeploys the wording fix after
+  owner approval, then the fictional-data part of the spot-check. Then R9 (lock sign-up), R10
   (scheduled logbook checks), R11 (go/no-go). Target pilot start about 2026-10-31.
 - *Side project in parallel (owner request 2026-10-26):* a private operations dashboard,
   WEB-052, in its own session and branch `ops-dashboard`; see "Handover for the operations
@@ -735,6 +736,36 @@ message from Cloudflare's script, not from the app. To remove it, exclude
 `app.tallywithus.com` in the Web Analytics site rules if Cloudflare offers that, or accept
 it. The owner chose to leave **Allow new members to delete organizations** unchanged.
 Next: R8, the owner spot-check.
+
+**R8 started 2026-10-26 (sign-in only).** The owner and partner each signed up with their
+real accounts on `https://app.tallywithus.com`, created the household, and paired (the
+header shows "2 of 2 connected · you are the partner"). They stopped before importing.
+Owner findings:
+
+1. *Invitation lands on the public page.* After accepting Clerk's invitation and signing
+   up, the partner arrived at `tallywithus.com`, not `app.tallywithus.com`, and had to
+   type the app address. Cause: the invitation email opens Clerk's Account Portal
+   (`accounts.tallywithus.com`), and in a Production instance Clerk sends people back to
+   the application domain (the bare `tallywithus.com`) unless the dashboard says
+   otherwise. Fix is an owner setting in Clerk Production: set the Account Portal
+   redirects (after sign-up, after sign-in, and logo click) and the Home URL to
+   `https://app.tallywithus.com`. No code change. Matters again for partner replacement
+   (WEB-043).
+2. *Developer wording in production.* Setup showed "Connected to local workflow API";
+   Share / Status and Settle would have shown "Local API · fictional data only", and a
+   service outage told people to restart the development server. All four now come from
+   `src/environment.ts` per deployment (production: "Connected to the household service",
+   "Private pilot", and "The Split Ledger service did not answer. Your private draft in
+   this browser is safe; reload the page in a few minutes."). Staging version
+   `07e4255d-b280-491d-8965-1d3a0de8a802`, WEB-031 suite 14/14 with a clean console;
+   production redeploy waits on owner approval.
+3. *Clerk's blue does not match the app.* Checked only: Clerk's components accept an
+   `appearance` setting on `ClerkProvider` (primary colour, text colours, font, corner
+   radius), so the sign-in window, organization switcher, and account menu can use the
+   app's green and Inter font. Recorded as WEB-053, not built.
+
+The rest of R8 (fictional TD and BMO samples, 50/50, submit, close, compare Settle,
+self-test diagnostics, cleanup, browsers used) is still to do.
 
 **R5 notes for the agent (written 2026-10-26).**
 

@@ -201,6 +201,17 @@ Handover in `docs/WEBAPP.md` ("Handover for the operations dashboard side projec
 
 *Noticed: 2026-10-26.*
 
+### WEB-053 — Match Clerk's sign-in and account windows to the app's look
+
+Clerk's sign-in window, organization switcher, and account menu use Clerk's default blue,
+which does not match the app's green theme. `ClerkProvider` accepts an `appearance`
+setting (primary colour, text colours, font, corner radius) that can reuse the app's
+colour tokens and Inter font. Check contrast and both Clerk instances after the change.
+
+**Priority:** Could; cosmetic, owner noticed during the first production sign-in.
+
+*Noticed: 2026-10-26.*
+
 ### WEB-036 — Email nudges between the two participants
 
 Notify the other person by email when someone submits, and the coordinator when both

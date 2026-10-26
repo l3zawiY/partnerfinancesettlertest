@@ -215,6 +215,10 @@ two permissions in step 4 is missing.
 
 ## Public page numbers (section 4)
 
+**Rule for the agent:** every check the agent makes against a tallywithus.com address sends
+the user agent `tallywithus-agent-check` (for example `curl -A tallywithus-agent-check …`),
+so it shows as "Claude's checks", not as people or scanners.
+
 The public page (`tallywithus-landing`) serves static files only, and its security policy
 blocks Cloudflare's Web Analytics script. So neither Worker counts nor Web Analytics can see
 it. Section 4 instead reads the zone's request records (`httpRequestsAdaptiveGroups`) for
@@ -226,6 +230,18 @@ without hiding the others.
 
 ## Status log
 
+- **2026-10-26 (public page redesign: who visited):** after the owner's ground truth (about
+  3–4 real visits, against 137 "visits" reported), section 4 sorts each request group
+  (`src/traffic.ts`) into **people** (recognised browser, home or mobile network, a real page
+  file, delivered), **known robots** (Cloudflare's verified bot label), **scanners and other
+  automated**, and **Claude's checks** (user agent `tallywithus-agent-check` from now on;
+  earlier curl or Node checks count as "likely"). It shows a one-line takeaway, three
+  tiles, a people-only chart and a robots chart on their own scales (no shared axis), who
+  the people were with their last visit, and folded tables. There is a 24 hours / 7 days
+  switch; one Cloudflare request per load, so all numbers agree. The chart is HTML/CSS (the
+  page allows no scripts), with native tooltips and a table twin; the palette was
+  validated for colour-blind safety in both modes. A fictional test modelled on the
+  owner's case lands on 4 people visits. 57 tests pass. Not deployed yet.
 - **2026-10-26 (public page numbers did not add up):** the first live reading showed 137
   "visits" and 769 requests in 24 hours, where the owner expects about 3 real visits, and
   100 visits for 30 days (fewer than for 7 days, which is impossible). Likely causes:

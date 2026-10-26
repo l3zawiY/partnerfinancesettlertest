@@ -3,6 +3,7 @@
 // rows: sizes come from D1's metadata and row counts from D1's analytics.
 
 import { WINDOWS, type WindowName } from './logbook'
+import { TRAFFIC_RANGES, agentMatch, type TrafficRange, type TrafficRow } from './traffic'
 
 // The public page (tallywithus-landing) serves static files only, so no Worker code runs and
 // Cloudflare's Worker counts never include it; its numbers come from the zone's traffic records.
@@ -21,23 +22,13 @@ export type PerWindow<T> = Record<WindowName, T>
 
 export interface WorkerCounts { requests: number; errors: number }
 export interface DatabaseUsage { name: string; id: string; sizeBytes: number | null; rowsRead: PerWindow<number>; rowsWritten: PerWindow<number> }
-/** Public page traffic for one window, from the zone's request records (bots included). */
-export interface VisitorCounts { requests: number; visits: number; serverErrors: number }
-
-/** One line of "what made up this traffic": no addresses, no full browser strings. */
-export interface TrafficRow { path: string; status: number | null; browser: string; network: string; bot: string; device: string; requests: number; visits: number }
-
 export interface PublicTraffic {
-  windows: PerWindow<VisitorCounts | null>
-  top: TrafficRow[]
+  rows: TrafficRow[]
   /** True when Cloudflare estimated from a sample instead of counting every request. */
   sampled: boolean
+  /** True when there were more groups than one request returns, so totals are partial. */
+  truncated: boolean
 }
-
-/** Windows shown for the public page. 30 days is left out: on 2026-10-26 the free plan's
- * 30-day figure came back lower than the 7-day one, so it cannot be trusted. */
-export const PUBLIC_WINDOWS: WindowName[] = ['24h', '7d']
-export const BREAKDOWN_LIMIT = 25
 
 function aliasFor(window: WindowName): string {
   return `w${window}`
@@ -59,17 +50,14 @@ export const D1_QUERY = windowedQuery(
   (window) => `d1AnalyticsAdaptiveGroups(limit: 100, filter: { datetime_geq: $s${window}, datetime_leq: $end }) { sum { rowsRead rowsWritten } dimensions { databaseId } }`,
 )
 
-// One window per request: the free plan may keep these records for less than 30 days, and a
-// window it refuses must not hide the others. "eyeball" leaves out Cloudflare's own traffic.
-export const VISITORS_QUERY =
+export const TRAFFIC_LIMIT = 10_000
+// Every hour of the range, split by what tells people from robots. userAgent is read only to
+// recognise Claude's own checks (agentMatch) and is never kept or shown. "eyeball" leaves
+// out Cloudflare's own traffic.
+export const TRAFFIC_QUERY =
   'query($zone: String!, $start: Time!, $end: Time!, $hosts: [String!]!) { viewer { zones(filter: { zoneTag: $zone }) { ' +
-  'httpRequestsAdaptiveGroups(limit: 100, filter: { datetime_geq: $start, datetime_leq: $end, clientRequestHTTPHost_in: $hosts, requestSource: "eyeball" }) ' +
-  '{ count sum { visits } avg { sampleInterval } dimensions { edgeResponseStatus } } } } }'
-
-export const BREAKDOWN_QUERY =
-  'query($zone: String!, $start: Time!, $end: Time!, $hosts: [String!]!) { viewer { zones(filter: { zoneTag: $zone }) { ' +
-  'httpRequestsAdaptiveGroups(limit: ' + BREAKDOWN_LIMIT + ', orderBy: [count_DESC], filter: { datetime_geq: $start, datetime_leq: $end, clientRequestHTTPHost_in: $hosts, requestSource: "eyeball" }) ' +
-  '{ count sum { visits } avg { sampleInterval } dimensions { clientRequestPath edgeResponseStatus userAgentBrowser clientASNDescription verifiedBotCategory clientDeviceType } } } } }'
+  'httpRequestsAdaptiveGroups(limit: ' + TRAFFIC_LIMIT + ', orderBy: [count_DESC], filter: { datetime_geq: $start, datetime_leq: $end, clientRequestHTTPHost_in: $hosts, requestSource: "eyeball" }) ' +
+  '{ count sum { visits } avg { sampleInterval } dimensions { datetimeHour clientRequestPath edgeResponseStatus userAgentBrowser userAgent clientASNDescription verifiedBotCategory clientDeviceType clientCountryName } } } } }'
 
 export function windowVariables(now: Date): Record<string, string> {
   const variables: Record<string, string> = { end: now.toISOString() }
@@ -126,36 +114,30 @@ function zoneGroups(json: unknown): Groups {
   return ((Array.isArray(zones) && zones[0] ? (zones[0] as Record<string, unknown>).httpRequestsAdaptiveGroups : []) ?? []) as Groups
 }
 
-function isSampled(groups: Groups): boolean {
-  return groups.some((group) => number((group as { avg?: Record<string, unknown> }).avg?.sampleInterval) > 1)
-}
-
-export function parseVisitors(json: unknown): VisitorCounts {
-  const result = { requests: 0, visits: 0, serverErrors: 0 }
-  for (const group of zoneGroups(json)) {
-    const requests = number(group.count)
-    result.requests += requests
-    result.visits += number(group.sum?.visits)
-    if (number(group.dimensions?.edgeResponseStatus) >= 500) result.serverErrors += requests
-  }
-  return result
-}
-
 function short(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim() ? value.trim().slice(0, 80) : fallback
 }
 
-export function parseBreakdown(json: unknown): TrafficRow[] {
-  return zoneGroups(json).map((group) => ({
-    path: short(group.dimensions?.clientRequestPath, '/'),
-    status: typeof group.dimensions?.edgeResponseStatus === 'number' ? group.dimensions.edgeResponseStatus : null,
-    browser: short(group.dimensions?.userAgentBrowser, 'unknown'),
-    network: short(group.dimensions?.clientASNDescription, 'unknown'),
-    bot: short(group.dimensions?.verifiedBotCategory, ''),
-    device: short(group.dimensions?.clientDeviceType, 'unknown'),
-    requests: number(group.count),
-    visits: number(group.sum?.visits),
-  }))
+export function parseTraffic(json: unknown): PublicTraffic {
+  const groups = zoneGroups(json)
+  const rows: TrafficRow[] = groups.map((group) => {
+    const dimensions = group.dimensions ?? {}
+    return {
+      hour: short(dimensions.datetimeHour, ''),
+      path: short(dimensions.clientRequestPath, '/'),
+      status: typeof dimensions.edgeResponseStatus === 'number' ? dimensions.edgeResponseStatus : null,
+      browser: short(dimensions.userAgentBrowser, 'unknown'),
+      network: short(dimensions.clientASNDescription, 'unknown'),
+      bot: short(dimensions.verifiedBotCategory, ''),
+      device: short(dimensions.clientDeviceType, 'unknown'),
+      country: short(dimensions.clientCountryName, 'unknown'),
+      agent: agentMatch(typeof dimensions.userAgent === 'string' ? dimensions.userAgent : ''),
+      requests: number(group.count),
+      visits: number(group.sum?.visits),
+    }
+  })
+  const sampled = groups.some((group) => number((group as { avg?: Record<string, unknown> }).avg?.sampleInterval) > 1)
+  return { rows, sampled, truncated: groups.length >= TRAFFIC_LIMIT }
 }
 
 /** Name, id, and stored size of each D1 database, from D1's metadata (never its rows). */
@@ -220,26 +202,13 @@ export async function loadDatabases(settings: AnalyticsSettings, now: Date): Pro
   return { ok: true, value: parseD1Usage(usage.value, parseDatabaseList(list.value)) }
 }
 
-/**
- * Public page traffic: totals for 24 hours and 7 days, and what the last 24 hours were made of.
- * The last 24 hours must load; a 7-day window the free plan refuses shows as null.
- */
-export async function loadVisitors(settings: AnalyticsSettings, now: Date): Promise<Loaded<PublicTraffic>> {
+/** Public page traffic for the chosen range, in one request so every number agrees. */
+export async function loadTraffic(settings: AnalyticsSettings, now: Date, range: TrafficRange): Promise<Loaded<PublicTraffic>> {
   if (!settings.zoneId) return { ok: false, reason: 'The zone id is not set.' }
-  const end = now.toISOString()
-  const start = (window: WindowName) => new Date(now.getTime() - WINDOWS[window] * 86_400_000).toISOString()
-  const hosts = [...PUBLIC_HOSTS]
-  const [totals, breakdown] = await Promise.all([
-    Promise.all(PUBLIC_WINDOWS.map((window) => graphql(settings, VISITORS_QUERY, { start: start(window), end, hosts }))),
-    graphql(settings, BREAKDOWN_QUERY, { start: start('24h'), end, hosts }),
-  ])
-  const [day] = totals
-  if (!day.ok) return day
-  const windows: PerWindow<VisitorCounts | null> = { '24h': null, '7d': null, '30d': null }
-  PUBLIC_WINDOWS.forEach((window, index) => {
-    const answer = totals[index]
-    windows[window] = answer.ok ? parseVisitors(answer.value) : null
+  const answer = await graphql(settings, TRAFFIC_QUERY, {
+    start: new Date(now.getTime() - TRAFFIC_RANGES[range] * 86_400_000).toISOString(),
+    end: now.toISOString(),
+    hosts: [...PUBLIC_HOSTS],
   })
-  const sampled = totals.some((answer) => answer.ok && isSampled(zoneGroups(answer.value))) || (breakdown.ok && isSampled(zoneGroups(breakdown.value)))
-  return { ok: true, value: { windows, top: breakdown.ok ? parseBreakdown(breakdown.value) : [], sampled } }
+  return answer.ok ? { ok: true, value: parseTraffic(answer.value) } : answer
 }

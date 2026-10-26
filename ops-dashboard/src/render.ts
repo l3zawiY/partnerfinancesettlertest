@@ -1,7 +1,9 @@
 // Server-rendered HTML for the one dashboard page. Every value passes through escapeHtml.
 // The page shows only logbook fields and Cloudflare operational counts.
 
-import { PUBLIC_WINDOWS, type DatabaseUsage, type Loaded, type PerWindow, type PublicTraffic, type TrafficRow, type WorkerCounts } from './cloudflare'
+import type { DatabaseUsage, Loaded, PerWindow, WorkerCounts } from './cloudflare'
+import { CHART_STYLE, PEOPLE_SERIES, renderChartTable, renderStackedChart } from './chart'
+import { TRAFFIC_RANGES, type TrafficRange, type TrafficReport } from './traffic'
 import { bytes, count, escapeHtml, percentOf, torontoTime } from './format'
 import { FREE_LIMITS, assessHealth, type Health } from './health'
 import { ACTIVITY_LABELS, DATABASE_LABELS, SCREEN_LABELS, WORKER_LABELS, errorLabel, label } from './labels'
@@ -12,6 +14,9 @@ export { FREE_LIMITS }
 const WINDOW_LABELS: Record<WindowName, string> = { '24h': 'Last 24 hours', '7d': 'Last 7 days', '30d': 'Last 30 days' }
 const WINDOW_NAMES = Object.keys(WINDOWS) as WindowName[]
 
+/** The public page section's data: the sorted report plus how exact Cloudflare's numbers were. */
+export interface PublicPage { report: TrafficReport; sampled: boolean; truncated: boolean }
+
 export interface PageData {
   now: Date
   logbookName: LogbookName
@@ -20,7 +25,8 @@ export interface PageData {
   logbook: Loaded<LogbookView>
   workers: Loaded<Record<string, PerWindow<WorkerCounts>>>
   databases: Loaded<DatabaseUsage[]>
-  visitors: Loaded<PublicTraffic>
+  trafficRange: TrafficRange
+  visitors: Loaded<PublicPage>
 }
 
 const STYLE = `
@@ -56,6 +62,9 @@ tbody tr:last-child td { border-bottom: none; }
 .choices a, .choices strong { font-size: 0.85rem; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); text-decoration: none; }
 .choices strong { background: var(--text); color: var(--card); border-color: var(--text); font-weight: 600; }
 .plain { margin: 0 0 10px; padding-left: 18px; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 0 20px; }
+.tile.hero .big { font-size: 2.2rem; }
+.takeaway { margin: 0 0 12px; }
 .failed { color: var(--watch); background: var(--watch-bg); border-radius: 8px; padding: 8px 12px; margin: 0; }
 code { font-size: 0.82rem; white-space: nowrap; }
 .glance { border-width: 2px; }
@@ -78,8 +87,10 @@ function link(text: string, href: string, current: boolean): string {
   return current ? `<strong>${escapeHtml(text)}</strong>` : `<a href="${escapeHtml(href)}">${escapeHtml(text)}</a>`
 }
 
-function pageHref(logbookName: LogbookName, errorWindow: WindowName, anchor = ''): string {
-  return `/?logbook=${encodeURIComponent(logbookName)}&window=${encodeURIComponent(errorWindow)}${anchor}`
+let currentRange: TrafficRange = '24h'
+
+function pageHref(logbookName: LogbookName, errorWindow: WindowName, anchor = '', range: TrafficRange = currentRange): string {
+  return `/?logbook=${encodeURIComponent(logbookName)}&window=${encodeURIComponent(errorWindow)}&traffic=${encodeURIComponent(range)}${anchor}`
 }
 
 function failed(reason: string): string {
@@ -181,54 +192,54 @@ export function renderDatabases(databases: PageData['databases']): string {
 <p class="note">These numbers come from Cloudflare's records about the databases. This page never reads what is inside the app's databases.</p></section>`
 }
 
-const STATUS_WORDS: Record<string, string> = { '2': 'Found', '3': 'Redirected', '4': 'Not found or refused', '5': 'Server error' }
+const RANGE_LABELS: Record<TrafficRange, string> = { '24h': 'Last 24 hours', '7d': 'Last 7 days' }
 
-function statusWord(status: number | null): string {
-  if (status === null) return '—'
-  return `${STATUS_WORDS[String(status)[0]] ?? 'Other'} (${status})`
+function lastSeen(hour: string): string {
+  return hour ? torontoTime(hour).replace(/, \d{4}/, '') : '—'
 }
 
-/** Plain summary lines for the breakdown: how much was refused, from bots, or from browsers. */
-export function trafficSummary(rows: TrafficRow[]): string[] {
-  const total = rows.reduce((sum, row) => sum + row.requests, 0)
-  if (!total) return []
-  const share = (value: number) => `${Math.round((value / total) * 100)}%`
-  const notFound = rows.filter((row) => row.status !== null && row.status >= 400).reduce((sum, row) => sum + row.requests, 0)
-  const bots = rows.filter((row) => row.bot).reduce((sum, row) => sum + row.requests, 0)
-  const noBrowser = rows.filter((row) => !row.bot && /^(unknown|other)$/i.test(row.browser)).reduce((sum, row) => sum + row.requests, 0)
-  return [
-    `${share(notFound)} asked for pages that do not exist or were refused (typical of automated scanners).`,
-    `${share(bots)} came from known robots such as search engines.`,
-    `${share(noBrowser)} came from programs that are not a recognised browser.`,
-  ]
-}
-
-export function renderVisitors(visitors: PageData['visitors']): string {
-  const heading = `<h2>4. Public page: visits and traffic</h2>
-<p class="how">How often tallywithus.com was opened. Cloudflare's "visits" include robots and scanners, which find every new website within hours, so the table below shows what the traffic was made of.</p>`
-  if (!visitors.ok) return `<section id="visitors">${heading}${failed(visitors.reason)}</section>`
-  const traffic = visitors.value
-  const tiles = PUBLIC_WINDOWS.map((window) => {
-    const counts = traffic.windows[window]
-    if (!counts) return `<div class="tile"><div class="muted small">${WINDOW_LABELS[window]}</div><div class="big muted">—</div><div class="muted small">Not kept on the free plan</div></div>`
-    const errors = counts.serverErrors > 0 ? `<div class="some small">${count(counts.serverErrors)} server error${counts.serverErrors === 1 ? '' : 's'}</div>` : ''
-    return `<div class="tile"><div class="muted small">${WINDOW_LABELS[window]}</div><div class="big">${count(counts.visits)}</div><div>visit${counts.visits === 1 ? '' : 's'} recorded</div><div class="muted small">${count(counts.requests)} requests</div>${errors}</div>`
-  }).join('')
-  const summary = trafficSummary(traffic.top).map((line) => `<li>${escapeHtml(line)}</li>`).join('')
-  const rows = traffic.top.map((row) => `<tr><td><code>${escapeHtml(row.path)}</code></td><td>${escapeHtml(statusWord(row.status))}</td><td>${escapeHtml(row.bot ? `Robot: ${row.bot}` : row.browser)}<br><span class="muted small">${escapeHtml(row.device)}</span></td><td>${escapeHtml(row.network)}</td><td class="num">${count(row.requests)}</td><td class="num">${count(row.visits)}</td></tr>`).join('')
-  const breakdown = traffic.top.length
-    ? `<h3>What made up the last 24 hours</h3><ul class="plain">${summary}</ul><div class="scroll"><table><thead><tr><th>Page address</th><th>Answer</th><th>Browser or robot</th><th>Network</th><th class="num">Requests</th><th class="num">Visits</th></tr></thead><tbody>${rows}</tbody></table></div>
-<p class="note">The ${traffic.top.length} biggest groups. A real person opening the page usually shows as "/" found, from a home or mobile internet provider, in a normal browser.</p>`
+export function renderVisitors(data: PageData): string {
+  const range = data.trafficRange
+  const period = range === '24h' ? 'the last 24 hours' : 'the last 7 days'
+  const choices = (Object.keys(TRAFFIC_RANGES) as TrafficRange[]).map((name) => link(RANGE_LABELS[name], pageHref(data.logbookName, data.errorWindow, '#visitors', name), name === range)).join('')
+  const heading = `<h2>4. Public page: who visited</h2><div class="choices">${choices}</div>`
+  if (!data.visitors.ok) return `<section id="visitors">${heading}${failed(data.visitors.reason)}</section>`
+  const { report, sampled, truncated } = data.visitors.value
+  const others = report.requests.robots + report.requests.automated
+  const share = report.totalRequests ? Math.round((others / report.totalRequests) * 100) : 0
+  const visits = report.people.visits || report.people.pageViews
+  const takeaway = `<p class="takeaway"><strong>${count(visits)} visit${visits === 1 ? '' : 's'} by people</strong> in ${period}. ${others ? `${share}% of all traffic was robots and scanners: normal for any new website, and nothing to do (the page refuses what doesn't exist).` : ''}</p>`
+  const tiles = [
+    ['Visits by people', count(visits), `${count(report.people.pageViews)} page view${report.people.pageViews === 1 ? '' : 's'}`, 'hero'],
+    ['Robots and scanners', count(others), `requests · ${share}% of traffic`, ''],
+    ['Claude’s checks', count(report.requests.agent), 'requests from my tests', ''],
+  ].map(([name, value, sub, cls]) => `<div class="tile ${cls}"><div class="muted small">${escapeHtml(name)}</div><div class="big">${escapeHtml(value)}</div><div class="muted small">${escapeHtml(sub)}</div></div>`).join('')
+  const step = range === '24h' ? 'per hour' : 'per day'
+  const peopleChart = renderStackedChart(report.buckets, `Visits by people ${step} (Toronto time)`, PEOPLE_SERIES, 140)
+  const otherChart = renderStackedChart(report.buckets, `Robots, scanners, and Claude’s checks: requests ${step}`, undefined, 90)
+  const errors = report.serverErrors ? `<p class="failed">The public page answered ${count(report.serverErrors)} request${report.serverErrors === 1 ? '' : 's'} with a server error. Tell Claude.</p>` : ''
+  const peopleRows = report.peopleGroups.map((group) => `<tr><td>${escapeHtml(group.label)}<br><span class="muted small">${escapeHtml(group.detail)}</span></td><td class="num">${count(group.visits)}</td><td>${escapeHtml(lastSeen(group.lastHour))}</td></tr>`).join('')
+  const peopleTable = report.peopleGroups.length
+    ? `<div class="scroll"><table><thead><tr><th>Browser and device</th><th class="num">Visits</th><th>Last visit (hour)</th></tr></thead><tbody>${peopleRows}</tbody></table></div>`
+    : '<p class="muted small">No people in this period.</p>'
+  const robotRows = report.automatedGroups.map((group) => `<tr><td><code>${escapeHtml(group.label)}</code><br><span class="muted small">${escapeHtml(group.detail)}</span></td><td class="num">${count(group.requests)}</td></tr>`).join('')
+  const robots = report.automatedGroups.length
+    ? `<details class="table-view"><summary>What robots and scanners asked for (top ${report.automatedGroups.length})</summary><div class="scroll"><table><thead><tr><th>Address asked for</th><th class="num">Requests</th></tr></thead><tbody>${robotRows}</tbody></table></div></details>`
     : ''
-  const sampled = traffic.sampled ? ' Cloudflare estimated some of these numbers from a sample.' : ''
-  return `<section id="visitors">${heading}<div class="tiles">${tiles}</div>${breakdown}<p class="note">From Cloudflare's traffic records for tallywithus.com and www.tallywithus.com. Counts only; no visitor is identified.${sampled}</p></section>`
+  const notes = [sampled ? 'Cloudflare estimated some numbers from a sample.' : '', truncated ? 'Totals are partial (too many groups).' : ''].filter(Boolean).join(' ')
+  return `<section id="visitors">${heading}${takeaway}<div class="tiles">${tiles}</div>${errors}
+<div class="two"><div>${peopleChart}</div><div><h3>Who the people were</h3>${peopleTable}</div></div>
+${otherChart}${renderChartTable(report.buckets)}${robots}
+<details class="table-view"><summary>How people are told apart</summary><p class="small">A request counts as a person when it comes from a recognised browser, from a home or mobile internet provider (not a server company), asks for one of the page's own files, and gets it. Known robots are those Cloudflare labels (search engines and similar). Claude's checks name themselves; older ones are recognised as curl or Node programs${report.agentLikely ? ` (${count(report.agentLikely)} of these requests)` : ''}. Everything else is scanners and other automated programs. A scanner disguised as a browser on a home network would count as a person, so small numbers are approximate.</p></details>
+<p class="note">From Cloudflare's traffic records for tallywithus.com and www.tallywithus.com. Counts only; no visitor is identified. ${escapeHtml(notes)}</p></section>`
 }
 
 export function renderPage(data: PageData): string {
+  currentRange = data.trafficRange
   const health = assessHealth(data)
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow"><title>Tally with us — operations</title><style>${STYLE}</style></head>
+<meta name="robots" content="noindex, nofollow"><title>Tally with us — operations</title><style>${STYLE}${CHART_STYLE}</style></head>
 <body><main>
 <header><h1>Tally with us — operations</h1><span class="muted small">Updated ${escapeHtml(torontoTime(data.now.toISOString()))} · <a href="${escapeHtml(pageHref(data.logbookName, data.errorWindow))}">Refresh</a></span></header>
 <nav><a href="#logbook">Logbook</a><a href="#workers">Traffic</a><a href="#databases">Databases</a><a href="#visitors">Public page</a></nav>
@@ -236,7 +247,7 @@ ${renderGlance(health)}
 ${renderLogbook(data)}
 ${renderWorkers(data.workers)}
 ${renderDatabases(data.databases)}
-${renderVisitors(data.visitors)}
+${renderVisitors(data)}
 <p class="note">Private page for the owner. Shows only logbook fields and Cloudflare's operational counts; never names, amounts, emails, household ids, or anything people entered.</p>
 </main></body></html>`
 }

@@ -2,9 +2,10 @@
 // One read-only page. Every request is checked by authorize() before anything else runs.
 
 import { authorize, type AuthSettings } from './auth'
-import { loadDatabases, loadVisitors, loadWorkers, type AnalyticsSettings, type Loaded } from './cloudflare'
+import { loadDatabases, loadTraffic, loadWorkers, type AnalyticsSettings, type Loaded } from './cloudflare'
+import { buildReport, isRangeName, type TrafficRange } from './traffic'
 import { isLogbookName, isWindowName, readLogbook, type LogbookName, type LogbookView, type ReadOnlyDatabase, type WindowName } from './logbook'
-import { renderMessage, renderPage } from './render'
+import { renderMessage, renderPage, type PublicPage } from './render'
 
 export interface Env extends AuthSettings {
   /** split-ledger-telemetry: the production logbook, the only production data this Worker may read. */
@@ -58,6 +59,8 @@ export async function handle(request: Request, env: Env, now: Date = new Date(),
   const windowParam = url.searchParams.get('window')
   const logbookParam = url.searchParams.get('logbook')
   const errorWindow: WindowName = isWindowName(windowParam) ? windowParam : '7d'
+  const trafficParam = url.searchParams.get('traffic')
+  const trafficRange: TrafficRange = isRangeName(trafficParam) ? trafficParam : '24h'
   const stagingAvailable = Boolean(env.TELEMETRY_STAGING)
   const logbookName: LogbookName = isLogbookName(logbookParam) && (logbookParam === 'production' || stagingAvailable) ? logbookParam : 'production'
   const database = logbookName === 'staging' ? env.TELEMETRY_STAGING : env.TELEMETRY
@@ -67,10 +70,13 @@ export async function handle(request: Request, env: Env, now: Date = new Date(),
     safeLogbook(database, now, errorWindow),
     settings ? loadWorkers(settings, now) : notConfigured,
     settings ? loadDatabases(settings, now) : notConfigured,
-    settings ? loadVisitors(settings, now) : notConfigured,
+    settings ? loadTraffic(settings, now, trafficRange) : notConfigured,
   ])
 
-  const body = renderPage({ now, logbookName, errorWindow, stagingAvailable, logbook, workers, databases, visitors })
+  const publicPage: Loaded<PublicPage> = visitors.ok
+    ? { ok: true, value: { report: buildReport(visitors.value.rows, trafficRange, now), sampled: visitors.value.sampled, truncated: visitors.value.truncated } }
+    : visitors
+  const body = renderPage({ now, logbookName, errorWindow, trafficRange, stagingAvailable, logbook, workers, databases, visitors: publicPage })
   return html(request.method === 'HEAD' ? '' : body, 200)
 }
 

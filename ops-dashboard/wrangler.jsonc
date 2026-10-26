@@ -3,7 +3,9 @@
   // The owner's private operations page (WEB-052). Deploy only with `npm run deploy`,
   // which runs scripts/deploy-guard.mjs first.
   "name": "tallywithus-ops",
-  "main": "./src/index.ts",
+  "main": "./src/worker.ts",
+  // The DM Sans font is bundled as bytes and served after the access check.
+  "rules": [{ "type": "Data", "globs": ["**/*.woff2"], "fallthrough": false }],
   "compatibility_date": "2026-09-07",
   // Reachable only at ops.tallywithus.com, behind Cloudflare Access. No workers.dev address
   // and no preview addresses, which Access would not cover.

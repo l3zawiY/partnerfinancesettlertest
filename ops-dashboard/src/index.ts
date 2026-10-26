@@ -5,7 +5,7 @@ import { authorize, type AuthSettings } from './auth'
 import { loadDatabases, loadTraffic, loadWorkers, type AnalyticsSettings, type Loaded } from './cloudflare'
 import { buildReport, isRangeName, type TrafficRange } from './traffic'
 import { isLogbookName, isWindowName, readLogbook, type LogbookName, type LogbookView, type ReadOnlyDatabase, type WindowName } from './logbook'
-import { renderMessage, renderPage, type PublicPage } from './render'
+import { FONT_PATH, renderMessage, renderPage, type PublicPage } from './render'
 
 export interface Env extends AuthSettings {
   /** split-ledger-telemetry: the production logbook, the only production data this Worker may read. */
@@ -20,7 +20,7 @@ export interface Env extends AuthSettings {
 }
 
 export const SECURITY_HEADERS: Record<string, string> = {
-  'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
   'Cache-Control': 'no-store',
   'Referrer-Policy': 'no-referrer',
   'X-Content-Type-Options': 'nosniff',
@@ -45,7 +45,10 @@ async function safeLogbook(database: ReadOnlyDatabase | undefined, now: Date, wi
   }
 }
 
-export async function handle(request: Request, env: Env, now: Date = new Date(), fetcher: typeof fetch = fetch): Promise<Response> {
+/** Files served besides the page; passed in by the Worker entry (src/worker.ts). */
+export interface Files { font?: ArrayBuffer }
+
+export async function handle(request: Request, env: Env, now: Date = new Date(), fetcher: typeof fetch = fetch, files: Files = {}): Promise<Response> {
   const auth = await authorize(request, env, now.getTime(), fetcher)
   if (!auth.ok) {
     const challenge: Record<string, string> = auth.challenge ? { 'WWW-Authenticate': 'Basic realm="Tally with us operations", charset="UTF-8"' } : {}
@@ -54,6 +57,9 @@ export async function handle(request: Request, env: Env, now: Date = new Date(),
 
   const url = new URL(request.url)
   if (request.method !== 'GET' && request.method !== 'HEAD') return html(renderMessage('Not allowed', 'This page is read-only.'), 405, { Allow: 'GET, HEAD' })
+  if (url.pathname === FONT_PATH && files.font) {
+    return new Response(request.method === 'HEAD' ? null : files.font, { headers: { 'Content-Type': 'font/woff2', 'Cache-Control': 'private, max-age=604800', 'X-Content-Type-Options': 'nosniff' } })
+  }
   if (url.pathname !== '/') return html(renderMessage('Not found', 'There is only one page here.'), 404)
 
   const windowParam = url.searchParams.get('window')
@@ -79,9 +85,3 @@ export async function handle(request: Request, env: Env, now: Date = new Date(),
   const body = renderPage({ now, logbookName, errorWindow, trafficRange, stagingAvailable, logbook, workers, databases, visitors: publicPage })
   return html(request.method === 'HEAD' ? '' : body, 200)
 }
-
-export default {
-  fetch(request: Request, env: Env): Promise<Response> {
-    return handle(request, env)
-  },
-} satisfies ExportedHandler<Env>

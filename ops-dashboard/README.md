@@ -90,7 +90,9 @@ using the app, is the free plan still enough, is anyone visiting the public page
 | `src/auth.ts` | Cloudflare Access token check, and the password fallback |
 | `src/logbook.ts` | The three fixed logbook queries |
 | `src/cloudflare.ts` | Cloudflare analytics and D1 metadata requests |
-| `src/render.ts`, `src/format.ts` | The page's HTML and the Toronto time and number formats |
+| `src/render.ts`, `src/format.ts` | The page's HTML (Horizon UI style) and the Toronto time and number formats |
+| `src/worker.ts`, `fonts/` | Worker entry and the bundled DM Sans font with its licence |
+| `src/icons.ts`, `src/chart.ts`, `src/traffic.ts`, `src/health.ts` | Icons, charts, public page sorting, the four answers |
 | `wrangler.jsonc` | Worker name, address, the two logbook databases, plain settings |
 | `scripts/deploy-guard.mjs` | Refuses a deploy that breaks the rules above |
 | `scripts/fictional-logbook.sql`, `scripts/seed-local.mjs` | FICTIONAL rows for local trials |
@@ -247,6 +249,18 @@ without hiding the others.
 
 ## Status log
 
+- **2026-10-26 (Horizon UI look, owner request):** the owner found the first redesign
+  "terrible" and asked to replicate the Figma community file *Horizon UI* (free, open
+  source). Values were read through the Figma connector (`get_design_context` on the Main
+  Dashboard's sidebar, mini-stat card, Daily Traffic, Weekly Revenue, and Complex Table):
+  DM Sans; navy `#2B3674`, grey `#A3AED0`, violet `#4318FF`, canvas `#F4F7FE`; white cards
+  with 20px corners; 56px icon bubbles; uppercase grey table heads; status icons; 8px
+  progress bars; pill bars with a violet gradient. The DM Sans font (SIL Open Font
+  License, `fonts/OFL.txt`) is bundled and served by the Worker after the access check
+  (`src/worker.ts`; security policy `font-src 'self'`). Figma's icon files could not be
+  downloaded (the container's network blocks Figma's asset host), so the same Material
+  icons Horizon uses are inlined (`src/icons.ts`). Two chart colours were darkened one
+  step for contrast. 63 tests pass. Not deployed yet.
 - **2026-10-26 (SaaS redesign):** light SaaS look after two references: Vercel's dashboard
   (sidebar, grey canvas, hairline white cards, one accent) and Stripe's home (overview row
   of status cards). The four questions are cards with a status pill and a big short answer

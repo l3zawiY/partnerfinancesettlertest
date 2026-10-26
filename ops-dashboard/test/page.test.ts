@@ -95,7 +95,7 @@ describe('dashboard page', () => {
     expect(body).toContain('1,234')
     expect(body).toContain('split-ledger-telemetry')
     expect(body).toContain('37 KB')
-    expect(body).toContain('<p class="short">Yes</p><p class="long">1 visit from Canada in the last 24 hours. Robots and scanners sent 40 requests.</p>')
+    expect(body).toContain('<p class="value">Yes</p><p class="detail">1 visit from Canada in the last 24 hours. Robots and scanners sent 40 requests.</p>')
     expect(body).toContain('does not exist on the site')
     expect(body).toContain('1 visit from Canada</strong> in the last 24 hours')
     expect(body).toContain('Chrome on desktop')
@@ -137,6 +137,16 @@ describe('dashboard page', () => {
     const body = await (await handle(await ownerRequest(), env, new Date(NOW), fetcher)).text()
     expect(body).toContain('The logbook could not be read.')
     expect(body).not.toContain('fictional detail')
+  })
+
+  it('serves the bundled font only after the access check', async () => {
+    const { env, fetcher } = setup()
+    const font = new Uint8Array([1, 2, 3]).buffer
+    const owner = await handle(await ownerRequest('/fonts/dm-sans.woff2'), env, new Date(NOW), fetcher, { font })
+    expect(owner.status).toBe(200)
+    expect(owner.headers.get('Content-Type')).toBe('font/woff2')
+    const stranger = await handle(new Request('https://ops.tallywithus.com/fonts/dm-sans.woff2'), env, new Date(NOW), fetcher, { font })
+    expect(stranger.status).toBe(403)
   })
 
   it('has one read-only page', async () => {

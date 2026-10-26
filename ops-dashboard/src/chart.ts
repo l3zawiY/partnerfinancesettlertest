@@ -59,24 +59,25 @@ export function renderChartTable(buckets: Bucket[]): string {
   return `<details class="table-view"><summary>Show both charts as a table</summary><div class="scroll"><table><thead><tr><th>When (Toronto)</th>${head}</tr></thead><tbody>${rows}</tbody></table></div></details>`
 }
 
+// Horizon UI's "Daily Traffic" bars (violet fading down, 60px rounded tops) and its stacked
+// "Weekly Revenue" columns; series colours checked for colour-blind safety in both modes.
 export const CHART_STYLE = `
-.k-people { --c: #2a78d6; } .k-robots { --c: #eb6834; } .k-automated { --c: #1baf7a; } .k-agent { --c: #eda100; }
-@media (prefers-color-scheme: dark) { .k-people { --c: #3987e5; } .k-robots { --c: #d95926; } .k-automated { --c: #199e70; } .k-agent { --c: #c98500; } }
-.chart { margin: 12px 0 4px; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.82rem; margin: 6px 0 10px; }
-.key { display: inline-flex; align-items: center; gap: 6px; }
-.swatch { width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
-.plot { position: relative; margin: 14px 0 0 34px; }
-.chart figcaption { font-weight: 600; }
+.k-people { --c: linear-gradient(180deg, #4318ff 0%, rgba(67, 24, 255, 0.28) 100%); } .k-robots { --c: #21a6f0; } .k-automated { --c: #4318ff; } .k-agent { --c: #db8c00; }
+@media (prefers-color-scheme: dark) { .k-people { --c: linear-gradient(180deg, #7551ff 0%, rgba(117, 81, 255, 0.3) 100%); } .k-robots { --c: #1c97de; } .k-automated { --c: #7551ff; } .k-agent { --c: #c98500; } }
+.chart { margin: 14px 0 4px; }
+.chart figcaption { font-size: 14px; color: var(--muted); font-weight: 500; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; margin: 6px 0 4px; color: var(--soft); }
+.key { display: inline-flex; align-items: center; gap: 7px; }
+.swatch { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.plot { position: relative; margin: 16px 0 0 30px; }
 .grid .tick { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
-.grid .tick span { position: absolute; right: calc(100% + 6px); transform: translateY(-50%); font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.grid .tick span { position: absolute; right: calc(100% + 8px); transform: translateY(-50%); font-size: 12px; font-weight: 700; color: #b0bbd5; font-variant-numeric: tabular-nums; }
 .cols { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 2px; }
-.col { flex: 1; height: 100%; display: flex; align-items: flex-end; justify-content: center; cursor: default; }
-.col:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
-.stack { width: min(24px, 70%); display: flex; flex-direction: column-reverse; gap: 2px; }
-.seg { flex-basis: 0; min-height: 2px; background: var(--c); }
-.stack .seg:last-child { border-radius: 4px 4px 0 0; }
-.xlabels { display: flex; gap: 2px; margin-left: 34px; margin-top: 4px; }
-.xlabels span { flex: 1; text-align: center; font-size: 0.72rem; color: var(--muted); white-space: nowrap; overflow: visible; }
-.table-view summary { cursor: pointer; color: var(--accent); font-size: 0.85rem; margin: 6px 0; }
+.col { flex: 1; height: 100%; display: flex; align-items: flex-end; justify-content: center; border-radius: 10px; cursor: default; }
+.col:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.stack { width: min(18px, 70%); display: flex; flex-direction: column-reverse; gap: 2px; }
+.seg { flex-basis: 0; min-height: 3px; background: var(--c); }
+.stack .seg:last-child { border-radius: 60px 60px 0 0; }
+.xlabels { display: flex; gap: 2px; margin: 8px 0 0 30px; }
+.xlabels span { flex: 1; text-align: center; font-size: 12px; font-weight: 700; color: #b0bbd5; white-space: nowrap; }
 `

@@ -220,6 +220,20 @@ change should be needed.
 
 ## Status log
 
+- **2026-10-26 (live, first findings):** the owner set `OPS_PASSWORD` and `CF_ANALYTICS_TOKEN`
+  (both stored as Secrets) and opened the page. First findings from the real numbers:
+  - Production logbook: household created, partner invited, and partner joined within 8
+    minutes (activity only). One error, reference `47AC7026` (503 on `/api/me`,
+    `AuthenticationUnavailable`), from before the Clerk secret was set (R6). It is not a defect.
+  - All free-plan use is far below 2%. The largest is staging test runs (about 1,200 rows
+    written a day).
+  - **Blind spot:** the public page shows 0 requests and 0 visitors, but that is not real.
+    `tallywithus-landing` serves static files only, so no Worker code runs and Cloudflare's
+    Worker counts never include it. Its content-security policy also blocks Cloudflare's Web
+    Analytics script, so visitor statistics stay empty. Options: add `Zone · Analytics ·
+    Read` for `tallywithus.com` to the read-only token and read the zone's request counts
+    per host (no change to the public page), or allow the beacon in `landing/` (separate
+    branch and session). Waiting for the owner's choice.
 - **2026-10-26 (password mode):** Zero Trust's Free plan asked for a payment card, so the owner
   chose the password option (Step C) instead. `AUTH_MODE` is now `password`; version
   `a7a39a82-6796-443e-b4e8-17c82156ca56`. Until the owner adds the `OPS_PASSWORD` secret

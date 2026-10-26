@@ -24,7 +24,11 @@ it current instead of creating session handoffs or a separate plan for every bat
   public page at `tallywithus.com` and `www.tallywithus.com`, on branch `landing-page`, in a
   new `landing/` folder, as its own Worker `tallywithus-landing`. It must not touch
   `webapp/`, `docs/`, the app's Workers, `app.tallywithus.com`, or Clerk's DNS records. Merge
-  it into this branch later by pull request, only when the owner asks.
+  it into this branch later by pull request, only when the owner asks. **Live 2026-10-26:**
+  `https://www.tallywithus.com` answers 200 with the page "Tally with us" (self-hosted font,
+  no outside scripts); branch `landing-page` changes only `landing/` (8 files). The bare
+  `tallywithus.com` could not be checked from the earlier session's container (its network
+  proxy refused it); `clerk.tallywithus.com` still answers 200, so Clerk is unaffected.
 - *Reminder:* a one-time scheduled message to this (earlier) session fires 2026-10-28 01:00
   UTC (27 October, 9 pm Toronto), trigger `trig_01ShRA23ZT2Yh7CnV4fkJU5y`, asking to
   continue 7b-2 to 7b-4. Those are done, so it can be ignored or deleted.

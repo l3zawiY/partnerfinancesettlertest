@@ -23,14 +23,15 @@ it current instead of creating session handoffs or a separate plan for every bat
 - *Done 2026-10-26:* **R7** (see "R7 done"; one recorded exception for Cloudflare's
   analytics script).
 - *Production at a glance (2026-10-26):* Worker `split-ledger-production`, current version
-  `96cc22f2-f91e-4983-95b8-8694ff2289f9`, at `https://app.tallywithus.com` (no workers.dev
+  `6d2a3007-c0bc-40b4-a767-5e7d0ad35247`, at `https://app.tallywithus.com` (no workers.dev
   address); databases `split-ledger-production` (financial, empty, never read by the
-  agent) and `split-ledger-telemetry` (logbook, one test row from R5); one secret,
+  agent; since R8 it holds the owner's real household pairing) and
+  `split-ledger-telemetry` (logbook); one secret,
   `CLERK_SECRET_KEY`; Clerk Production with SSO off; zone setting **Always Use HTTPS** on.
-  Production has held no real data yet.
+  No statements or shared items have been submitted yet.
 - *Next:* **R8** is partly done (both accounts signed in and paired; see "R8 started"):
-  the owner fixes the Clerk redirect setting, the agent redeploys the wording fix after
-  owner approval, then the fictional-data part of the spot-check. Then R9 (lock sign-up), R10
+  the Clerk redirect setting and the wording fix are done; next is the fictional-data
+  part of the spot-check. WEB-053 (Clerk colours) is being planned. Then R9 (lock sign-up), R10
   (scheduled logbook checks), R11 (go/no-go). Target pilot start about 2026-10-31.
 - *Side project in parallel (owner request 2026-10-26):* a private operations dashboard,
   WEB-052, in its own session and branch `ops-dashboard`; see "Handover for the operations
@@ -758,7 +759,10 @@ Owner findings:
    "Private pilot", and "The Split Ledger service did not answer. Your private draft in
    this browser is safe; reload the page in a few minutes."). Staging version
    `07e4255d-b280-491d-8965-1d3a0de8a802`, WEB-031 suite 14/14 with a clean console;
-   production redeploy waits on owner approval.
+   production redeployed with owner approval as version
+   `6d2a3007-c0bc-40b4-a767-5e7d0ad35247` (bundle carries the production wording; `/api/me`
+   401). The owner applied the Clerk redirect fix for finding 1 the same day; it is
+   confirmed by the next invitation.
 3. *Clerk's blue does not match the app.* Checked only: Clerk's components accept an
    `appearance` setting on `ClerkProvider` (primary colour, text colours, font, corner
    radius), so the sign-in window, organization switcher, and account menu can use the

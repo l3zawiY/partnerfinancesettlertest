@@ -18,6 +18,40 @@ one screen:
 It is its own Cloudflare Worker, `tallywithus-ops`, kept in this `ops-dashboard/` folder. It is
 separate from the app (`webapp/`) and the public page (`landing/`). Nothing here changes them.
 
+![Fictional preview of the dashboard](preview/desktop.png)
+
+*Fictional preview: every number and row in `preview/` is made up.*
+
+## How to read the page
+
+Start at the top box. It sums up the page in one word and says what to do, if anything:
+
+| Top box | Means | What to do |
+|---|---|---|
+| **All good** (green) | No errors in the last 24 hours, Workers not failing, far from the free limits | Nothing |
+| **Worth a look** (amber) | 1–4 errors in the last 24 hours, a Worker failure, or a free limit over 50% | Read the amber line. For an error, check whether someone was blocked; send Claude the reference code |
+| **Needs action** (red) | 5 or more errors in 24 hours, or a free limit over 80% | Send Claude the reference codes or a screenshot of the box the same day |
+
+A blue line ("Nobody used the app in the last 7 days") is information, not a problem.
+
+Then, only if you need detail:
+
+1. **Logbook.** Three boxes count errors for 24 hours, 7 days, and 30 days; red means there
+   were some. The error list says *what happened* in plain words, *where* (a screen or an
+   address in the app), and the **reference code**: send Claude that code, nothing else.
+   Activity shows what people did and how often, which tells you whether the partner is
+   actually using the app. **Real pilot / Test copy** switches between the real logbook and
+   the fictional test one.
+2. **Traffic.** Requests to each part (app, test copy, public page, this dashboard).
+   "Failures" should be 0. "Free limit used today" shows the share of the free plan's
+   100,000 requests a day.
+3. **Databases.** Three boxes show how much of the free database limits is used today
+   (reading, writing, storage). The table shows each database's size and use.
+4. **Visitors.** Visits and page views of tallywithus.com.
+
+Decisions the page helps with: is something broken that I should report, is the partner
+using the app, is the free plan still enough, is anyone visiting the public page.
+
 ## Safety rules built into the code
 
 - **Databases:** the Worker can only reach the two logbook databases
@@ -70,6 +104,13 @@ different from what is described, stop and ask.
 
 ### Step A: Turn on Cloudflare Access for ops.tallywithus.com (about 10 minutes)
 
+*About Cloudflare Access:* it puts a sign-in screen in front of the page. You type your
+email and Cloudflare emails you a 6-digit code. The Zero Trust **Free** plan costs $0 for up to
+50 users ([Cloudflare plans](https://www.cloudflare.com/plans/sase-zero-trust.md)). We
+could not confirm whether sign-up asks for a payment card for the free plan. If it does
+and you'd rather not add one, use Step C instead. The code goes to **Hydrapeak8@gmail.com**
+(owner decision 2026-10-26).
+
 1. Go to https://dash.cloudflare.com and sign in to **Hydrapeak8@gmail.com's Account**.
 2. In the left menu, click **Zero Trust**.
    - If this is your first time, Cloudflare asks for a **team name**. Type `tallywithus`
@@ -78,24 +119,28 @@ different from what is described, stop and ask.
    - Choose the **Free** plan ($0, up to 50 users). Cloudflare may ask for a payment card even
      for the free plan. If you don't want to add one, stop here and tell me. We'll use the
      password option (Step C) instead.
-3. In Zero Trust, go to **Access** → **Applications** → **Add an application** →
-   **Self-hosted**.
-4. Fill in:
+3. Switch on email codes: in Zero Trust, go to **Integrations** (or **Settings**) →
+   **Identity providers** (or **Authentication** → **Login methods**). If **One-time PIN**
+   is not listed, click **Add new** and choose **One-time PIN** → **Save**. Without this,
+   Cloudflare does not send codes.
+4. In Zero Trust, go to **Access** (or **Access controls**) → **Applications** → **Add an
+   application** → **Self-hosted**.
+5. Fill in:
    - **Application name:** `Tally with us operations`
    - **Session duration:** `24 hours`
    - **Public hostname** (or **Application domain**): subdomain `ops`, domain
      `tallywithus.com`, path left empty.
-5. Under **Policies**, choose **Add a policy** (or **Create new policy**):
+6. Under **Policies**, choose **Add a policy** (or **Create new policy**):
    - **Policy name:** `Owner only`
    - **Action:** `Allow`
-   - **Include** → selector **Emails** → type the one email address that should receive
-     the sign-in code. Do **not** choose "Everyone" or an "Emails ending in" rule.
-6. Under **Login methods** (or **Authentication**), make sure **One-time PIN** is selected.
-7. Click **Save** (or **Next** until **Add application**).
-8. Open the new application and find **Application Audience (AUD) Tag**, a long string of
+   - **Include** → selector **Emails** → type `Hydrapeak8@gmail.com`. Do **not** choose
+     "Everyone" or an "Emails ending in" rule.
+7. Under **Login methods** (or **Authentication**), make sure **One-time PIN** is selected.
+8. Click **Save** (or **Next** until **Add application**).
+9. Open the new application and find **Application Audience (AUD) Tag**, a long string of
    letters and numbers. Copy it.
-9. Send me three things in the chat: the **team domain** (step 2), the **AUD tag** (step 8),
-   and the **email** from step 5. None of these is a secret. Do not send any token.
+10. Send me two things in the chat: the **team domain** (step 2) and the **AUD tag**
+    (step 9). Neither is a secret. Do not send any token.
 
 *What failure looks like:* there's no **Zero Trust** item, or Cloudflare insists on a paid
 plan. Tell me and we'll use Step C.
@@ -153,8 +198,8 @@ two permissions in step 4 is missing.
 3. In another private window, try an email that is *not* yours. Expected: Cloudflare does
    not send a code, and the page does not open.
 4. *What failure looks like:* the page shows "Not available: Not allowed." after the code.
-   The email in Access and the email I deployed with don't match. Tell me which email you
-   used. If it says "Access is not configured yet.", I haven't entered the AUD tag yet.
+   The email in Access and the email I deployed with don't match. It must be
+   Hydrapeak8@gmail.com. If it says "Access is not configured yet.", I haven't entered the AUD tag yet.
 
 ## Visitor statistics (section 4)
 
@@ -167,6 +212,11 @@ change should be needed.
 
 ## Status log
 
+- **2026-10-26 (later):** made easier to read after the owner's review: an "at a glance"
+  box with a verdict and what to do (`src/health.ts`), plain names for events, errors,
+  screens, Workers, and databases (`src/labels.ts`), a one-line "how to read" under each
+  section, and the phone layout. 46 tests pass. Fictional previews in `preview/`. Access code
+  email: Hydrapeak8@gmail.com. Still not deployed.
 - **2026-10-26:** built on branch `ops-dashboard`. 39 tests pass. Tried locally with
   fictional logbook rows (password mode, local database copies only) at desktop and phone
   widths. The three Cloudflare sections were checked against the real analytics API with

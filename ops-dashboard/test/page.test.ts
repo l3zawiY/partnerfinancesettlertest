@@ -79,6 +79,9 @@ describe('dashboard page', () => {
     expect(body).toContain('REF-PROD')
     expect(body).toMatch(/Oct\.? 26, 2026, 06:00 EDT/)
     expect(body).toContain('StorageUnavailable')
+    expect(body).toContain('Database was briefly unavailable')
+    expect(body).toContain('Worth a look')
+    expect(body).toContain('The app (real pilot)')
     expect(body).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
     expect(body).not.toContain('<script>')
     expect(body).not.toContain('fictional-household-digest')
@@ -100,14 +103,14 @@ describe('dashboard page', () => {
 
     const odd = await (await handle(await ownerRequest("/?logbook=split-ledger-production&window=1%3BDROP"), env, new Date(NOW), fetcher)).text()
     expect(odd).toContain('REF-PROD')
-    expect(odd).toContain('Logbook — Production')
+    expect(odd).toContain('<strong>Real pilot</strong>')
   })
 
   it('falls back to production when staging is not connected', async () => {
     const { env, fetcher } = setup({ TELEMETRY_STAGING: undefined })
     const body = await (await handle(await ownerRequest('/?logbook=staging'), env, new Date(NOW), fetcher)).text()
     expect(body).toContain('REF-PROD')
-    expect(body).not.toContain('Staging (fictional)')
+    expect(body).not.toContain('Test copy (fictional)')
   })
 
   it('still shows the logbook when the Cloudflare token is not set up', async () => {

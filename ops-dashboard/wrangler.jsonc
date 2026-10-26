@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // The owner's private operations page (WEB-052). Deploy only with `npm run deploy`,
+  // which runs scripts/deploy-guard.mjs first.
+  "name": "tallywithus-ops",
+  "main": "./src/index.ts",
+  "compatibility_date": "2026-09-07",
+  // Reachable only at ops.tallywithus.com, behind Cloudflare Access. No workers.dev address
+  // and no preview addresses, which Access would not cover.
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "ops.tallywithus.com", "custom_domain": true }],
+  // Only the two logbook databases. Never the financial databases (the guard and a test
+  // refuse any other binding). `wrangler dev --local` uses local copies, never these.
+  "d1_databases": [
+    { "binding": "TELEMETRY", "database_name": "split-ledger-telemetry", "database_id": "43b0c195-6fa9-4221-ad97-6da46c9a2641" },
+    { "binding": "TELEMETRY_STAGING", "database_name": "split-ledger-telemetry-staging", "database_id": "6b9bcb10-2668-4d32-b348-812543979ee0" }
+  ],
+  // Not secret. ACCESS_TEAM_DOMAIN and ACCESS_AUD come from the owner's Access application;
+  // until both are filled in, the page refuses everyone. CF_ACCOUNT_ID and OWNER_EMAIL are
+  // passed by `npm run deploy`. Secrets (set in Cloudflare, never here): CF_ANALYTICS_TOKEN,
+  // and OPS_PASSWORD only if AUTH_MODE is "password".
+  "vars": {
+    "AUTH_MODE": "access",
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": ""
+  }
+}

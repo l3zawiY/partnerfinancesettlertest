@@ -1,0 +1,21 @@
+{
+  "name": "tallywithus-ops",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "check": "npm run typecheck && npm test",
+    "dev": "WRANGLER_SEND_METRICS=false wrangler dev --local",
+    "seed:local": "node scripts/seed-local.mjs",
+    "deploy": "node scripts/deploy-guard.mjs && WRANGLER_SEND_METRICS=false wrangler deploy --var CF_ACCOUNT_ID:$CLOUDFLARE_ACCOUNT_ID --var OWNER_EMAIL:$OWNER_EMAIL"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260911.1",
+    "@types/node": "26.5.0",
+    "typescript": "7.0.2",
+    "vite": "8.2.2",
+    "vitest": "5.0.0",
+    "wrangler": "4.131.1"
+  }
+}

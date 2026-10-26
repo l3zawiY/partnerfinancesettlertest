@@ -241,7 +241,8 @@ without hiding the others.
   switch; one Cloudflare request per load, so all numbers agree. The chart is HTML/CSS (the
   page allows no scripts), with native tooltips and a table twin; the palette was
   validated for colour-blind safety in both modes. A fictional test modelled on the
-  owner's case lands on 4 people visits. 57 tests pass. Not deployed yet.
+  owner's case lands on 4 people visits. 57 tests pass. Deployed as version
+  `f1ed17eb-468b-4cc9-9f10-1898e973a8e3` (owner approved); both secrets kept.
 - **2026-10-26 (public page numbers did not add up):** the first live reading showed 137
   "visits" and 769 requests in 24 hours, where the owner expects about 3 real visits, and
   100 visits for 30 days (fewer than for 7 days, which is impossible). Likely causes:

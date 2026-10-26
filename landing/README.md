@@ -4,6 +4,8 @@ A one-page public "hello" for **tallywithus.com** and **www.tallywithus.com**, j
 It shows the name, the tagline "Shared life, simply kept.", and "Private pilot, by invitation".
 It does not link to the app and collects nothing: plain HTML and CSS, no JavaScript, no
 cookies, no analytics, no external fonts or scripts, no forms. Colours match the web app.
+The window under the headline is an abstract drawing of the app: shapes only, no text or
+figures.
 
 It is completely separate from the app (app.tallywithus.com, Workers `split-ledger-staging`
 and `split-ledger-production`). Nothing in `webapp/` or `index.html` uses it.
@@ -14,7 +16,8 @@ and `split-ledger-production`). Nothing in `webapp/` or `index.html` uses it.
 |---|---|
 | `public/index.html` | The page |
 | `public/style.css` | Its look, including dark mode |
-| `public/favicon.svg` | The little "T" icon in the browser tab |
+| `public/favicon.svg` | The logo icon in the browser tab |
+| `public/fonts/` | The Inter font, served from our own domain, and its free licence (`OFL.txt`) |
 | `public/_headers` | Security headers Cloudflare adds to every response |
 | `wrangler.jsonc` | Cloudflare settings: Worker `tallywithus-landing`, the two domains |
 

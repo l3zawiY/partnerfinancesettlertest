@@ -5,25 +5,78 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f6f8f2" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#141a16" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#0f1411" media="(prefers-color-scheme: dark)">
   <meta name="robots" content="noindex">
   <title>Tally with us</title>
   <meta name="description" content="Shared life, simply kept.">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <main class="card">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true">T</span>
-      <h1>Tally with us</h1>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <span class="logo">
+        <svg class="logo-mark" viewBox="0 0 28 28" aria-hidden="true" focusable="false">
+          <rect class="lm-a" x="1" y="1" width="17" height="17" rx="5.5"/>
+          <rect class="lm-b" x="10" y="10" width="17" height="17" rx="5.5"/>
+          <path class="lm-c" d="M10 15.5A5.5 5.5 0 0 1 15.5 10H18v2.5A5.5 5.5 0 0 1 12.5 18H10z"/>
+        </svg>
+        <span class="logo-word">Tally with us</span>
+      </span>
     </div>
-    <svg class="tally" viewBox="0 0 120 64" aria-hidden="true" focusable="false">
-      <path d="M22 10v44M42 10v44M62 10v44M82 10v44"/>
-      <path class="strike" d="M10 46L98 18"/>
-    </svg>
-    <p class="tagline">Shared life, simply kept.</p>
-    <p class="pill">Private pilot, by invitation</p>
+  </header>
+
+  <main>
+    <section class="hero wrap">
+      <p class="badge"><span class="dot" aria-hidden="true"></span>Private pilot, by invitation</p>
+      <h1>Shared life,<br> simply kept.</h1>
+    </section>
+
+    <div class="stage wrap" aria-hidden="true">
+      <div class="window">
+        <div class="win-bar">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="app-mast">
+          <span class="app-mark"></span>
+          <span class="sk w-20"></span>
+          <span class="mast-gap"></span>
+          <span class="tab"></span><span class="tab active"></span><span class="tab"></span><span class="tab"></span>
+          <span class="mast-gap"></span>
+          <span class="avatar mine"></span><span class="avatar theirs"></span>
+        </div>
+        <div class="app-body">
+          <div class="pane">
+            <div class="pane-head"><span class="sk w-30 strong"></span><span class="chip"></span></div>
+            <div class="row"><span class="who mine"></span><span class="sk w-45"></span><span class="sk w-12 end"></span></div>
+            <div class="row"><span class="who theirs"></span><span class="sk w-35"></span><span class="sk w-10 end"></span></div>
+            <div class="row hl"><span class="who mine"></span><span class="sk w-55"></span><span class="sk w-14 end"></span></div>
+            <div class="row"><span class="who both"></span><span class="sk w-40"></span><span class="sk w-10 end"></span></div>
+            <div class="row"><span class="who theirs"></span><span class="sk w-30"></span><span class="sk w-12 end"></span></div>
+            <div class="row"><span class="who mine"></span><span class="sk w-50"></span><span class="sk w-10 end"></span></div>
+          </div>
+          <div class="rail">
+            <div class="pane small">
+              <span class="sk w-40 strong"></span>
+              <div class="split"><span class="s-mine"></span><span class="s-theirs"></span></div>
+              <div class="legend"><span class="who mine"></span><span class="sk w-30"></span></div>
+              <div class="legend"><span class="who theirs"></span><span class="sk w-25"></span></div>
+            </div>
+            <div class="pane small">
+              <span class="sk w-35 strong"></span>
+              <div class="check done"><span></span><span class="sk w-50"></span></div>
+              <div class="check done"><span></span><span class="sk w-40"></span></div>
+              <div class="check"><span></span><span class="sk w-45"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </main>
+
+  <footer class="foot wrap">
+    <span>© 2026 Tally with us</span>
+  </footer>
 </body>
 </html>

@@ -15,7 +15,7 @@ const WINDOW_LABELS: Record<WindowName, string> = { '24h': 'Last 24 hours', '7d'
 const WINDOW_NAMES = Object.keys(WINDOWS) as WindowName[]
 
 /** The public page section's data: the sorted report plus how exact Cloudflare's numbers were. */
-export interface PublicPage { report: TrafficReport; sampled: boolean; truncated: boolean }
+export interface PublicPage { report: TrafficReport; sampled: boolean; truncated: boolean; missing: string[] }
 
 export interface PageData {
   now: Date
@@ -204,7 +204,7 @@ export function renderVisitors(data: PageData): string {
   const choices = (Object.keys(TRAFFIC_RANGES) as TrafficRange[]).map((name) => link(RANGE_LABELS[name], pageHref(data.logbookName, data.errorWindow, '#visitors', name), name === range)).join('')
   const heading = `<h2>4. Public page: who visited</h2><div class="choices">${choices}</div>`
   if (!data.visitors.ok) return `<section id="visitors">${heading}${failed(data.visitors.reason)}</section>`
-  const { report, sampled, truncated } = data.visitors.value
+  const { report, sampled, truncated, missing } = data.visitors.value
   const others = report.requests.robots + report.requests.automated
   const share = report.totalRequests ? Math.round((others / report.totalRequests) * 100) : 0
   const visits = report.people.visits || report.people.pageViews
@@ -226,7 +226,7 @@ export function renderVisitors(data: PageData): string {
   const robots = report.automatedGroups.length
     ? `<details class="table-view"><summary>What robots and scanners asked for (top ${report.automatedGroups.length})</summary><div class="scroll"><table><thead><tr><th>Address asked for</th><th class="num">Requests</th></tr></thead><tbody>${robotRows}</tbody></table></div></details>`
     : ''
-  const notes = [sampled ? 'Cloudflare estimated some numbers from a sample.' : '', truncated ? 'Totals are partial (too many groups).' : ''].filter(Boolean).join(' ')
+  const notes = [missing.length ? `Cloudflare's free plan does not give the ${missing.join(', ')}, so telling people from robots is less exact.` : '', sampled ? 'Cloudflare estimated some numbers from a sample.' : '', truncated ? 'Totals are partial (too many groups).' : ''].filter(Boolean).join(' ')
   return `<section id="visitors">${heading}${takeaway}<div class="tiles">${tiles}</div>${errors}
 <div class="two"><div>${peopleChart}</div><div><h3>Who the people were</h3>${peopleTable}</div></div>
 ${otherChart}${renderChartTable(report.buckets)}${robots}

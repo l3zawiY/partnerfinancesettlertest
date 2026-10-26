@@ -230,6 +230,11 @@ without hiding the others.
 
 ## Status log
 
+- **2026-10-26 (free plan withholds a field):** live, Cloudflare refused the request because
+  the free plan does not give `clientASNDescription` (network). The page now drops any
+  optional field Cloudflare refuses, retries, and says which ones are missing; without the
+  network, scanners disguised as browsers are harder to tell from people. 58 tests pass.
+  Deployed (fix within the approved section).
 - **2026-10-26 (public page redesign: who visited):** after the owner's ground truth (about
   3–4 real visits, against 137 "visits" reported), section 4 sorts each request group
   (`src/traffic.ts`) into **people** (recognised browser, home or mobile network, a real page

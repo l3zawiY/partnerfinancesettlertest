@@ -24,6 +24,8 @@ export interface WorkerCounts { requests: number; errors: number }
 export interface DatabaseUsage { name: string; id: string; sizeBytes: number | null; rowsRead: PerWindow<number>; rowsWritten: PerWindow<number> }
 export interface PublicTraffic {
   rows: TrafficRow[]
+  /** Plain names of fields the free plan withheld, so the sorting is less sure. */
+  missing: string[]
   /** True when Cloudflare estimated from a sample instead of counting every request. */
   sampled: boolean
   /** True when there were more groups than one request returns, so totals are partial. */
@@ -51,13 +53,31 @@ export const D1_QUERY = windowedQuery(
 )
 
 export const TRAFFIC_LIMIT = 10_000
+/** Always needed. The optional ones below can be withheld by the free plan; they are dropped
+ * and reported instead of failing the section (clientASNDescription was, on 2026-10-26). */
+export const REQUIRED_DIMENSIONS = ['datetimeHour', 'clientRequestPath', 'edgeResponseStatus']
+export const OPTIONAL_DIMENSIONS = ['userAgentBrowser', 'userAgent', 'clientASNDescription', 'verifiedBotCategory', 'clientDeviceType', 'clientCountryName']
+export const DIMENSION_NAMES: Record<string, string> = {
+  userAgentBrowser: 'browser', userAgent: 'program name', clientASNDescription: 'network',
+  verifiedBotCategory: 'known-robot label', clientDeviceType: 'device', clientCountryName: 'country',
+}
+
 // Every hour of the range, split by what tells people from robots. userAgent is read only to
 // recognise Claude's own checks (agentMatch) and is never kept or shown. "eyeball" leaves
 // out Cloudflare's own traffic.
-export const TRAFFIC_QUERY =
-  'query($zone: String!, $start: Time!, $end: Time!, $hosts: [String!]!) { viewer { zones(filter: { zoneTag: $zone }) { ' +
-  'httpRequestsAdaptiveGroups(limit: ' + TRAFFIC_LIMIT + ', orderBy: [count_DESC], filter: { datetime_geq: $start, datetime_leq: $end, clientRequestHTTPHost_in: $hosts, requestSource: "eyeball" }) ' +
-  '{ count sum { visits } avg { sampleInterval } dimensions { datetimeHour clientRequestPath edgeResponseStatus userAgentBrowser userAgent clientASNDescription verifiedBotCategory clientDeviceType clientCountryName } } } } }'
+export function trafficQuery(dimensions: string[]): string {
+  return 'query($zone: String!, $start: Time!, $end: Time!, $hosts: [String!]!) { viewer { zones(filter: { zoneTag: $zone }) { ' +
+    'httpRequestsAdaptiveGroups(limit: ' + TRAFFIC_LIMIT + ', orderBy: [count_DESC], filter: { datetime_geq: $start, datetime_leq: $end, clientRequestHTTPHost_in: $hosts, requestSource: "eyeball" }) ' +
+    `{ count sum { visits } avg { sampleInterval } dimensions { ${[...REQUIRED_DIMENSIONS, ...dimensions].join(' ')} } } } } }`
+}
+export const TRAFFIC_QUERY = trafficQuery(OPTIONAL_DIMENSIONS)
+
+/** The field Cloudflare refused, from "does not have access to the field 'x'". */
+export function deniedField(reason: string): string | null {
+  const match = reason.match(/does not have access to the field '([A-Za-z]+)'/)
+  if (!match) return null
+  return OPTIONAL_DIMENSIONS.find((name) => name.toLowerCase() === match[1].toLowerCase()) ?? null
+}
 
 export function windowVariables(now: Date): Record<string, string> {
   const variables: Record<string, string> = { end: now.toISOString() }
@@ -137,7 +157,7 @@ export function parseTraffic(json: unknown): PublicTraffic {
     }
   })
   const sampled = groups.some((group) => number((group as { avg?: Record<string, unknown> }).avg?.sampleInterval) > 1)
-  return { rows, sampled, truncated: groups.length >= TRAFFIC_LIMIT }
+  return { rows, missing: [], sampled, truncated: groups.length >= TRAFFIC_LIMIT }
 }
 
 /** Name, id, and stored size of each D1 database, from D1's metadata (never its rows). */
@@ -202,13 +222,23 @@ export async function loadDatabases(settings: AnalyticsSettings, now: Date): Pro
   return { ok: true, value: parseD1Usage(usage.value, parseDatabaseList(list.value)) }
 }
 
-/** Public page traffic for the chosen range, in one request so every number agrees. */
+/** Public page traffic for the chosen range, in one request so every number agrees. A field
+ * the plan withholds is dropped and the request retried. */
 export async function loadTraffic(settings: AnalyticsSettings, now: Date, range: TrafficRange): Promise<Loaded<PublicTraffic>> {
   if (!settings.zoneId) return { ok: false, reason: 'The zone id is not set.' }
-  const answer = await graphql(settings, TRAFFIC_QUERY, {
-    start: new Date(now.getTime() - TRAFFIC_RANGES[range] * 86_400_000).toISOString(),
-    end: now.toISOString(),
-    hosts: [...PUBLIC_HOSTS],
-  })
-  return answer.ok ? { ok: true, value: parseTraffic(answer.value) } : answer
+  let dimensions = [...OPTIONAL_DIMENSIONS]
+  const missing: string[] = []
+  for (let attempt = 0; attempt <= OPTIONAL_DIMENSIONS.length; attempt += 1) {
+    const answer = await graphql(settings, trafficQuery(dimensions), {
+      start: new Date(now.getTime() - TRAFFIC_RANGES[range] * 86_400_000).toISOString(),
+      end: now.toISOString(),
+      hosts: [...PUBLIC_HOSTS],
+    })
+    if (answer.ok) return { ok: true, value: { ...parseTraffic(answer.value), missing } }
+    const denied = deniedField(answer.reason)
+    if (!denied || !dimensions.includes(denied)) return answer
+    dimensions = dimensions.filter((name) => name !== denied)
+    missing.push(DIMENSION_NAMES[denied])
+  }
+  return { ok: false, reason: 'Cloudflare refused too many fields.' }
 }

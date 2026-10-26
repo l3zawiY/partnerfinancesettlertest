@@ -74,7 +74,7 @@ export async function handle(request: Request, env: Env, now: Date = new Date(),
   ])
 
   const publicPage: Loaded<PublicPage> = visitors.ok
-    ? { ok: true, value: { report: buildReport(visitors.value.rows, trafficRange, now), sampled: visitors.value.sampled, truncated: visitors.value.truncated } }
+    ? { ok: true, value: { report: buildReport(visitors.value.rows, trafficRange, now), sampled: visitors.value.sampled, truncated: visitors.value.truncated, missing: visitors.value.missing } }
     : visitors
   const body = renderPage({ now, logbookName, errorWindow, trafficRange, stagingAvailable, logbook, workers, databases, visitors: publicPage })
   return html(request.method === 'HEAD' ? '' : body, 200)

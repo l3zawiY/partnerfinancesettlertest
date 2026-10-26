@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { D1_QUERY, TRAFFIC_QUERY, WORKERS_QUERY, failureReason, loadDatabases, loadTraffic, loadWorkers, parseDatabaseList, parseD1Usage, parseTraffic, parseWorkers, windowVariables } from '../src/cloudflare'
+import { D1_QUERY, TRAFFIC_QUERY, deniedField, WORKERS_QUERY, failureReason, loadDatabases, loadTraffic, loadWorkers, parseDatabaseList, parseD1Usage, parseTraffic, parseWorkers, windowVariables } from '../src/cloudflare'
 
 const NOW = new Date('2026-10-26T12:00:00.000Z')
 const TOKEN = 'fictional-token-value'
@@ -55,6 +55,25 @@ describe('Cloudflare analytics', () => {
     await loadTraffic({ accountId: 'acc', token: TOKEN, zoneId: 'fictional-zone', fetcher }, NOW, '7d')
     expect(asked[0]).toMatchObject({ zone: 'fictional-zone', start: '2026-10-19T12:00:00.000Z', hosts: ['tallywithus.com', 'www.tallywithus.com'] })
     expect(await loadTraffic({ accountId: 'acc', token: TOKEN, fetcher }, NOW, '24h')).toEqual({ ok: false, reason: 'The zone id is not set.' })
+  })
+
+  it('drops a field the free plan withholds and says so', async () => {
+    expect(deniedField("Cloudflare answered with an error: zone 'z' does not have access to the field 'clientasndescription' from the path")).toBe('clientASNDescription')
+    expect(deniedField('some other error')).toBeNull()
+    const queries: string[] = []
+    const fetcher = (async (_url: string, init: RequestInit) => {
+      const query = JSON.parse(String(init.body)).query as string
+      queries.push(query)
+      if (query.includes('clientASNDescription')) return Response.json({ data: null, errors: [{ message: "zone 'z' does not have access to the field 'clientasndescription' from the path" }] })
+      if (query.includes('clientCountryName')) return Response.json({ data: null, errors: [{ message: "zone 'z' does not have access to the field 'clientCountryName'" }] })
+      return Response.json({ data: { viewer: { zones: [{ httpRequestsAdaptiveGroups: [{ count: 1, sum: { visits: 1 }, dimensions: { datetimeHour: '2026-10-26T10:00:00Z', clientRequestPath: '/', edgeResponseStatus: 200, userAgentBrowser: 'Chrome' } }] }] } } })
+    }) as unknown as typeof fetch
+    const result = await loadTraffic({ accountId: 'acc', token: TOKEN, zoneId: 'z', fetcher }, NOW, '24h')
+    expect(result.ok && result.value.missing).toEqual(['network', 'country'])
+    expect(result.ok && result.value.rows[0].network).toBe('unknown')
+    expect(queries).toHaveLength(3)
+    const refused = (async () => Response.json({ data: null, errors: [{ message: 'not authorized' }] })) as unknown as typeof fetch
+    expect(await loadTraffic({ accountId: 'acc', token: TOKEN, zoneId: 'z', fetcher: refused }, NOW, '24h')).toEqual({ ok: false, reason: 'Cloudflare answered with an error: not authorized' })
   })
 
   it('sends the token only as a bearer header, and never repeats it in a failure', async () => {

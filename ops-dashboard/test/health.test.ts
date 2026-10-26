@@ -8,7 +8,7 @@ const ago = (hours: number) => new Date(NOW.getTime() - hours * 3_600_000).toISO
 const quietWorkers = { 'split-ledger-production': { '24h': { requests: 300, errors: 0 }, '7d': { requests: 900, errors: 0 }, '30d': { requests: 2000, errors: 0 } } }
 const smallDatabases = [{ name: 'split-ledger-telemetry', id: 'x', sizeBytes: 40_000, rowsRead: { '24h': 100, '7d': 500, '30d': 900 }, rowsWritten: { '24h': 2_000, '7d': 5_000, '30d': 9_000 } }]
 function report(peopleVisits: number, robots: number, automated: number) {
-  return { ok: true as const, value: { sampled: false, truncated: false, report: { range: '24h' as const, people: { visits: peopleVisits, pageViews: peopleVisits }, requests: { people: peopleVisits * 4, robots, automated, agent: 0 }, totalRequests: peopleVisits * 4 + robots + automated, agentLikely: 0, serverErrors: 0, buckets: [], peopleGroups: [], automatedGroups: [] } } }
+  return { ok: true as const, value: { sampled: false, truncated: false, missing: [], report: { range: '24h' as const, people: { visits: peopleVisits, pageViews: peopleVisits }, requests: { people: peopleVisits * 4, robots, automated, agent: 0 }, totalRequests: peopleVisits * 4 + robots + automated, agentLikely: 0, serverErrors: 0, buckets: [], peopleGroups: [], automatedGroups: [] } } }
 }
 const someVisitors = report(3, 20, 700)
 

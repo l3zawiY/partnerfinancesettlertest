@@ -16,9 +16,10 @@ it current instead of creating session handoffs or a separate plan for every bat
   production publishable key is saved in the cloud environment as
   `VITE_CLERK_PUBLISHABLE_KEY_PRODUCTION`, and the allowed domains include
   `tallywithus.com` and `*.tallywithus.com`.
-- *Next:* **R5** is under way: both production databases exist and their ids are in
-  `webapp/wrangler.jsonc`; migrating them and deploying to `app.tallywithus.com` wait on
-  the owner's explicit approval (see "R5 in progress"). Then R6 (owner pastes the production secret into Cloudflare),
+- *Done 2026-10-26:* **R5**: production databases created and migrated; the app is
+  deployed at `https://app.tallywithus.com` (see "R5 done").
+- *Next:* **R6**: the owner pastes the production `CLERK_SECRET_KEY` into Cloudflare; until
+  then every `/api` call answers 503 by design. Then R6 (owner pastes the production secret into Cloudflare),
   R7, R8 (spot-check), R9, R10, R11 (go/no-go). Target pilot start about 2026-10-31.
 - *In parallel, not part of the pilot:* the owner started a separate session for a simple
   public page at `tallywithus.com` and `www.tallywithus.com`, on branch `landing-page`, in a
@@ -643,7 +644,7 @@ same check is part of R7 for production.
 | R3 (skipped, owner chose b) | 7b-5 rehearsal: invitation-only sign-up on the Clerk Development instance still lets an invited person join (then restore the Development settings) | Agent | none | Invited join works; uninvited sign-up refused |
 | R4 ✓ | WEB-048: logbook built, tested, deployed to staging; WEB-031 suite rerun; privacy probe (done 2026-10-25) | Agent | none | Suite green; logbook rows hold only allowlisted fields |
 | 7b-1 to 7b-4 ✓ | Domain in Cloudflare, Clerk Production, DNS records, production publishable key (done 2026-10-26) | Owner (parallel with R1–R4) | ~30–40 min | Clerk shows tallywithus.com verified; new session started |
-| R5 | Production: create `split-ledger-production` and `split-ledger-telemetry`, migrate, deploy to app.tallywithus.com | Agent | none | Guard passes; deploy names production |
+| R5 ✓ | Production (done 2026-10-26): create `split-ledger-production` and `split-ledger-telemetry`, migrate, deploy to app.tallywithus.com | Agent | none | Guard passes; deploy names production |
 | R6 | Owner pastes the production `CLERK_SECRET_KEY` in Cloudflare | Owner | ~2 min | Agent sees `/api/me` answer 401 |
 | R7 | Unauthenticated production checks (HTTPS, headers, 401, no console errors, logbook receives a test error) | Agent | none | All pass |
 | R8 | Owner spot-check 7b-6 | Owner + partner | ~15 min each | Same result on both laptops; self-test passes |
@@ -661,8 +662,21 @@ web tests, type checks, build; `wrangler whoami` shows "Hydrapeak8@gmail.com's A
 `split-ledger-production` (`4fd32d21-5ec9-4371-8fa5-4e6d9dbef2cb`) and
 `split-ledger-telemetry` (`43b0c195-6fa9-4221-ad97-6da46c9a2641`), recorded in
 `webapp/wrangler.jsonc`; `npm run check` and the production build guard pass. The
-session's permission layer then paused the production migration for the owner's explicit
-approval; the migration and deploy wait on that.
+session's permission layer paused the production migration until the owner wrote
+"approve R5 migrate and deploy".
+
+**R5 done 2026-10-26.** `CONFIRM_PRODUCTION=yes npm run db:migrate:production` applied
+`0001` to `0006` to `split-ledger-production` and the logbook's `0001` to
+`split-ledger-telemetry` (Wrangler auto-confirmed in the non-interactive shell, as on
+staging). `CONFIRM_PRODUCTION=yes npm run deploy:production` deployed Worker
+`split-ledger-production`, version `03c572ea-401e-4d2d-a2b9-f744a8d897fd`, bindings
+`DB (split-ledger-production)` and `LOGBOOK (split-ledger-telemetry)`, variables
+`VITE_CLERK_PUBLISHABLE_KEY` and `DEPLOYMENT`, schedule `17 3 * * *`, custom domain
+`app.tallywithus.com` (the token could create it; no token change was needed). Checks:
+`https://app.tallywithus.com/` answers 200; `/api/me` answers 503 as designed until R6;
+the `workers.dev` address answers 404; `wrangler secret list --env production` is empty
+(the build's "Using secrets defined in .env.local" refers only to the ignored local
+`.dev.vars`); the content-security policy names `clerk.tallywithus.com`. Next: R6.
 
 **R5 notes for the agent (written 2026-10-26).**
 

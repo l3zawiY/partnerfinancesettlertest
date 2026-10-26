@@ -228,6 +228,23 @@ it. Section 4 instead reads the zone's request records (`httpRequestsAdaptiveGro
 window is a separate request, so a window the free plan does not keep shows "Not kept"
 without hiding the others.
 
+## Open issues and next steps
+
+1. **Public page numbers are not reliable yet (owner, 2026-10-26: refine later, not now).**
+   Cloudflare's server-side counts mix people with robots, and the free plan withholds the
+   network field that would separate them. The current rules (style or font must load,
+   Canada split) matched the owner's real visits once, but they are guesses. Next approach
+   to choose, all needing a change in `landing/` (separate branch):
+   - **Google Analytics or Amplitude:** real visitor and session tracking with a script on
+     the public page. Needs the page's security policy opened for their scripts, and very
+     likely a cookie notice (Canada, Quebec Law 25). Amplitude suits product events later.
+   - **Cloudflare Web Analytics:** free, cookie-free script that counts real browsers only.
+     Needs the same policy change, but no cookie notice, and keeps data in Cloudflare.
+   - Then section 4 reads that tool's numbers, or links to its dashboard.
+2. **SaaS-style redesign of the whole dashboard:** owner request, not started.
+3. **Moving these notes into `docs/`:** when the owner asks to merge `ops-dashboard` by pull
+   request.
+
 ## Status log
 
 - **2026-10-26 (Canada split, owner decision):** with the style rule, the live page showed 14

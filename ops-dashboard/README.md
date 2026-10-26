@@ -260,7 +260,8 @@ without hiding the others.
   (`src/worker.ts`; security policy `font-src 'self'`). Figma's icon files could not be
   downloaded (the container's network blocks Figma's asset host), so the same Material
   icons Horizon uses are inlined (`src/icons.ts`). Two chart colours were darkened one
-  step for contrast. 63 tests pass. Not deployed yet.
+  step for contrast. 63 tests pass. Deployed (owner approved); page and font answer 401
+  without the password.
 - **2026-10-26 (SaaS redesign):** light SaaS look after two references: Vercel's dashboard
   (sidebar, grey canvas, hairline white cards, one accent) and Stripe's home (overview row
   of status cards). The four questions are cards with a status pill and a big short answer

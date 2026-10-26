@@ -220,12 +220,20 @@ change should be needed.
 
 ## Status log
 
+- **2026-10-26 (deployed):** the owner approved. `tallywithus-ops` version
+  `59283f06-b872-423d-8e3f-52b8607a0da5` is at `ops.tallywithus.com` (custom domain) with
+  bindings `TELEMETRY` and `TELEMETRY_STAGING` only, `AUTH_MODE=access`, and owner email
+  Hydrapeak8@gmail.com. Checks: `https://ops.tallywithus.com/` answers 503 "Access is not
+  configured yet." (also with a fake Access token), with `no-store`, the strict security
+  policy, and `noindex`. `app.tallywithus.com` and `www.tallywithus.com` still answer 200.
+  Next: owner Step A (Access), then the agent fills in `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`
+  and redeploys; then owner Step B (read-only token).
 - **2026-10-26 (later):** made easier to read after the owner's review: an "at a glance"
   box with a verdict and what to do (`src/health.ts`), plain names for events, errors,
   screens, Workers, and databases (`src/labels.ts`), a one-line "how to read" under each
   section, and the phone layout. Then the box was changed to answer the owner's four
   questions directly, one line each. 48 tests pass. Fictional previews in `preview/`. Access code
-  email: Hydrapeak8@gmail.com. Still not deployed.
+  email: Hydrapeak8@gmail.com. Not deployed at that point.
 - **2026-10-26:** built on branch `ops-dashboard`. 39 tests pass. Tried locally with
   fictional logbook rows (password mode, local database copies only) at desktop and phone
   widths. The three Cloudflare sections were checked against the real analytics API with
